@@ -1,0 +1,3 @@
+# 此目录用于存放自动生成的 TypeScript API 客户端
+# 运行 scripts/generate_typescript_api.* 后，生成的代码会放在这里
+

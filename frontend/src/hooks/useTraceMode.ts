@@ -1,0 +1,65 @@
+/** Trace Mode Hook */
+
+import { useState, useCallback } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { updateElementTopology, TopologyUpdateRequest } from '@/services/elements';
+import { useWorkbenchStore } from '@/stores/workbench';
+import { ApiError } from '@/services/api';
+
+export interface TraceModeError {
+  message: string;
+  elementId?: string;
+}
+
+export function useTraceMode() {
+  const queryClient = useQueryClient();
+  const { selectedElementIds } = useWorkbenchStore();
+  const [error, setError] = useState<TraceModeError | null>(null);
+
+  const updateTopologyMutation = useMutation({
+    mutationFn: ({ elementId, request }: { elementId: string; request: TopologyUpdateRequest }) =>
+      updateElementTopology(elementId, request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['elements'] });
+      queryClient.invalidateQueries({ queryKey: ['element'] });
+      setError(null);
+      // 注意：成功提示由组件通过 useEffect 监听 error 的变化来处理
+    },
+    onError: (err: unknown) => {
+      let errorMessage = '拓扑更新失败';
+      if (err instanceof ApiError) {
+        errorMessage = err.message || `拓扑更新失败: ${err.statusCode || '未知错误'}`;
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      setError({ message: errorMessage });
+    },
+  });
+
+  const updateTopology = useCallback((elementId: string, request: TopologyUpdateRequest) => {
+    // 验证输入
+    if (!elementId) {
+      setError({ message: '构件 ID 不能为空', elementId });
+      return;
+    }
+    if (request.geometry_2d && (!request.geometry_2d.coordinates || request.geometry_2d.coordinates.length < 2)) {
+      setError({ message: '几何坐标无效，至少需要 2 个点', elementId });
+      return;
+    }
+    
+    setError(null);
+    updateTopologyMutation.mutate({ elementId, request });
+  }, [updateTopologyMutation]);
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  return {
+    updateTopology,
+    isUpdating: updateTopologyMutation.isPending,
+    error,
+    clearError,
+  };
+}
+

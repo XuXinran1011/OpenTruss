@@ -1,0 +1,55 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# 临时文件
+temp/
+*.log
+*.tmp
+
+# Speckle 参考文件（本地使用，不需要版本控制）
+SpeckleBuiltElements/
+
+# IfcOpenShell 子模块（如果需要，应该使用 git submodule）
+IfcOpenShell/
+
+# 生成的 TypeScript API（可选，如果提交到版本控制则注释掉）
+# frontend/src/lib/api/
+frontend/src/generated/
+
+# Node
+node_modules/
+.next/
+out/
+.nuxt/
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
