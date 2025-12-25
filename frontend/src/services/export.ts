@@ -1,6 +1,6 @@
 /** IFC 导出 API 服务 */
 
-import { apiGet, apiPost } from './api';
+import { API_CONFIG } from '@/lib/api/config';
 
 export interface ApiResponse<T> {
   status: string;
@@ -13,12 +13,9 @@ export interface ApiResponse<T> {
  */
 export async function exportLotToIFC(lotId: string): Promise<Blob> {
   const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'}/api/v1/export/ifc?inspection_lot_id=${lotId}`,
+    `${API_CONFIG.baseURL}/api/v1/export/ifc?inspection_lot_id=${lotId}`,
     {
       method: 'GET',
-      headers: {
-        'Content-Type': 'application/octet-stream',
-      },
     }
   );
 
@@ -35,12 +32,8 @@ export async function exportLotToIFC(lotId: string): Promise<Blob> {
  * 返回 Blob 对象，用于下载
  */
 export async function exportProjectToIFC(projectId: string): Promise<Blob> {
-  const baseURL = typeof window !== 'undefined' 
-    ? (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000')
-    : 'http://localhost:8000';
-    
   const response = await fetch(
-    `${baseURL}/api/v1/export/ifc?project_id=${projectId}`,
+    `${API_CONFIG.baseURL}/api/v1/export/ifc?project_id=${projectId}`,
     {
       method: 'GET',
     }
@@ -59,18 +52,14 @@ export async function exportProjectToIFC(projectId: string): Promise<Blob> {
  * 返回 Blob 对象，用于下载
  */
 export async function batchExportLotsToIFC(lotIds: string[]): Promise<Blob> {
-  const baseURL = typeof window !== 'undefined' 
-    ? (process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000')
-    : 'http://localhost:8000';
-    
   const response = await fetch(
-    `${baseURL}/api/v1/export/ifc/batch`,
+    `${API_CONFIG.baseURL}/api/v1/export/ifc/batch`,
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(lotIds),
+      body: JSON.stringify({ lot_ids: lotIds }),
     }
   );
 

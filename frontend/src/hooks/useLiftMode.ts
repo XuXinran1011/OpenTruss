@@ -1,4 +1,8 @@
-/** Lift Mode Hook */
+/** 
+ * Lift Mode Hook
+ * 
+ * 提供 Lift Mode 下的批量 Z 轴参数设置功能
+ */
 
 import { useState, useCallback, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -6,11 +10,25 @@ import { batchLiftElements, BatchLiftRequest } from '@/services/elements';
 import { useWorkbenchStore } from '@/stores/workbench';
 import { ApiError } from '@/services/api';
 
+/**
+ * Lift Mode 错误信息
+ */
 export interface LiftModeError {
   message: string;
   elementIds?: string[];
 }
 
+/**
+ * Lift Mode Hook
+ * 
+ * 用于在 Lift Mode 下批量设置构件的 Z 轴参数（高度、基础偏移、材质）
+ * 
+ * @returns Lift Mode 相关的状态和方法
+ * - batchLift: 批量设置 Z 轴参数的函数
+ * - isLifting: 是否正在执行批量操作
+ * - error: 错误信息（包含部分成功的警告）
+ * - clearError: 清除错误信息的函数
+ */
 export function useLiftMode() {
   const queryClient = useQueryClient();
   const { selectedElementIds } = useWorkbenchStore();

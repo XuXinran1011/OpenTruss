@@ -1,4 +1,8 @@
-/** Classify Mode Hook */
+/** 
+ * Classify Mode Hook
+ * 
+ * 提供 Classify Mode 下的构件归类功能
+ */
 
 import { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -6,12 +10,28 @@ import { classifyElement, ClassifyRequest } from '@/services/elements';
 import { useWorkbenchStore } from '@/stores/workbench';
 import { ApiError } from '@/services/api';
 
+/**
+ * Classify Mode 错误信息
+ */
 export interface ClassifyModeError {
   message: string;
   elementId?: string;
   itemId?: string;
 }
 
+/**
+ * Classify Mode Hook
+ * 
+ * 用于在 Classify Mode 下将构件归类到指定的分项（Item）
+ * 
+ * @returns Classify Mode 相关的状态和方法
+ * - classify: 归类构件的函数
+ * - isClassifying: 是否正在执行归类操作
+ * - error: 错误信息
+ * - successCount: 成功归类的构件数量
+ * - failedCount: 归类失败的构件数量
+ * - clearError: 清除错误信息的函数
+ */
 export function useClassifyMode() {
   const queryClient = useQueryClient();
   const { selectedElementIds, clearSelection } = useWorkbenchStore();

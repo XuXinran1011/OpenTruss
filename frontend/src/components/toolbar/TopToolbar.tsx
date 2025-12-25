@@ -7,9 +7,11 @@ import { useWorkbenchStore } from '@/stores/workbench';
 import { useCanvasStore } from '@/stores/canvas';
 import { WorkbenchMode } from '@/types';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 
 export function TopToolbar() {
   const { mode, setMode } = useWorkbenchStore();
+  const { currentUser, logout } = useAuth();
   const { 
     showDwgBackground, 
     setShowDwgBackground, 
@@ -158,10 +160,20 @@ export function TopToolbar() {
           导出
         </button>
         <div className="w-px h-6 bg-zinc-300 mx-2" />
-        {/* 用户信息占位 */}
-        <div className="w-8 h-8 rounded-full bg-zinc-200 flex items-center justify-center text-xs text-zinc-600">
-          U
-        </div>
+        {/* 用户信息和登出 */}
+        {currentUser && (
+          <div className="flex items-center gap-2 text-sm text-zinc-600">
+            <span>{currentUser.name || currentUser.username}</span>
+            <span className="text-zinc-400">|</span>
+            <span className="text-zinc-500">{currentUser.role}</span>
+          </div>
+        )}
+        <button
+          onClick={logout}
+          className="px-3 py-1 text-sm text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded transition-colors"
+        >
+          登出
+        </button>
       </div>
     </div>
   );

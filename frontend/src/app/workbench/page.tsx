@@ -2,21 +2,25 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { WorkbenchLayout } from '@/components/layout/WorkbenchLayout';
 import { TopToolbar } from '@/components/toolbar/TopToolbar';
 import { HierarchyTree } from '@/components/hierarchy/HierarchyTree';
 import { TriageQueue } from '@/components/triage/TriageQueue';
-import { Canvas } from '@/components/canvas/Canvas';
+import { Canvas, CanvasHandle } from '@/components/canvas/Canvas';
 import { RightPanel } from '@/components/panel/RightPanel';
 import { ToastProvider } from '@/providers/ToastProvider';
+import { CanvasProvider } from '@/contexts/CanvasContext';
+import { DragProvider } from '@/contexts/DragContext';
+import { AuthGuard } from '@/components/auth/AuthGuard';
 import { getProjects } from '@/services/hierarchy';
 import { useHierarchyStore } from '@/stores/hierarchy';
 
 export default function WorkbenchPage() {
   const { currentProjectId, setCurrentProjectId } = useHierarchyStore();
   const [projectId, setProjectId] = useState<string | null>(null);
+  const canvasRef = useRef<CanvasHandle>(null);
 
   // 获取项目列表（用于选择项目）
   const { data: projectsData } = useQuery({
@@ -65,21 +69,27 @@ export default function WorkbenchPage() {
   }
 
   return (
-    <ToastProvider>
-      <WorkbenchLayout
-        toolbar={<TopToolbar />}
-        leftSidebar={
-          <div className="h-full flex flex-col">
-            <TriageQueue />
-            <div className="flex-1 overflow-hidden">
-              <HierarchyTree projectId={projectId} />
+    <AuthGuard>
+      <ToastProvider>
+        <DragProvider>
+        <CanvasProvider canvasRef={canvasRef}>
+          <WorkbenchLayout
+            toolbar={<TopToolbar />}
+          leftSidebar={
+            <div className="h-full flex flex-col">
+              <TriageQueue />
+              <div className="flex-1 overflow-hidden">
+                <HierarchyTree projectId={projectId} />
+              </div>
             </div>
-          </div>
-        }
-        canvas={<Canvas />}
-        rightPanel={<RightPanel />}
-      />
+          }
+            canvas={<Canvas ref={canvasRef} />}
+            rightPanel={<RightPanel />}
+          />
+        </CanvasProvider>
+      </DragProvider>
     </ToastProvider>
+    </AuthGuard>
   );
 }
 

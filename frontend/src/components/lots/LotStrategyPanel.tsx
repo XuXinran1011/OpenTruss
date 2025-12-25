@@ -6,9 +6,11 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useCreateLotsByRule } from '@/hooks/useLotStrategy';
 import { useItemDetailForLots } from '@/hooks/useLotStrategy';
+import { getElements, ElementListItem } from '@/services/elements';
 import { cn } from '@/lib/utils';
 
 interface LotStrategyPanelProps {
@@ -27,6 +29,77 @@ export function LotStrategyPanel({ itemId, onCreated }: LotStrategyPanelProps) {
   
   const { data: itemDetail, isLoading: isLoadingItem } = useItemDetailForLots(itemId);
   const createLotsMutation = useCreateLotsByRule();
+
+  // 获取该分项下的所有构件（用于预览统计）
+  const { data: elementsData } = useQuery({
+    queryKey: ['elements', 'for-preview', itemId],
+    queryFn: () => getElements({ item_id: itemId || undefined, page: 1, page_size: 1000 }),
+    enabled: !!itemId,
+  });
+
+  // 计算预览信息：未分配的构件统计
+  const previewInfo = useMemo(() => {
+    if (!elementsData?.items) {
+      return {
+        unassignedCount: 0,
+        estimatedLots: 0,
+        groups: [] as Array<{ key: string; count: number; label: string }>,
+      };
+    }
+
+    // 过滤出未分配的构件
+    const unassignedElements = elementsData.items.filter(
+      (el: ElementListItem) => !el.inspection_lot_id || el.inspection_lot_id === ''
+    );
+
+    if (unassignedElements.length === 0) {
+      return {
+        unassignedCount: 0,
+        estimatedLots: 0,
+        groups: [],
+      };
+    }
+
+    // 根据规则类型分组
+    const groupsMap = new Map<string, number>();
+    
+    unassignedElements.forEach((el: ElementListItem) => {
+      let groupKey = '';
+      let groupLabel = '';
+
+      switch (selectedRuleType) {
+        case 'BY_LEVEL':
+          groupKey = el.level_id || '未知楼层';
+          groupLabel = `楼层: ${groupKey}`;
+          break;
+        case 'BY_ZONE':
+          // 注意：ElementListItem可能没有zone_id，这里我们只能基于已有的数据
+          // 如果有zone_id字段，使用它；否则使用一个占位符
+          groupKey = 'zone_unknown'; // 这里需要从详细数据获取zone_id，暂时用占位符
+          groupLabel = '区域分组';
+          break;
+        case 'BY_LEVEL_AND_ZONE':
+          const zoneKey = 'zone_unknown'; // 同上
+          groupKey = `${el.level_id || '未知楼层'}_${zoneKey}`;
+          groupLabel = `${el.level_id || '未知楼层'} - 区域分组`;
+          break;
+      }
+
+      groupsMap.set(groupKey, (groupsMap.get(groupKey) || 0) + 1);
+    });
+
+    const groups = Array.from(groupsMap.entries()).map(([key, count]) => ({
+      key,
+      count,
+      label: groupsMap.size === 1 ? '未分配构件' : key.replace('_', ' - '),
+    }));
+
+    return {
+      unassignedCount: unassignedElements.length,
+      estimatedLots: groups.length,
+      groups,
+    };
+  }, [elementsData, selectedRuleType]);
 
   const handleCreate = async () => {
     if (!itemId) return;
@@ -113,6 +186,38 @@ export function LotStrategyPanel({ itemId, onCreated }: LotStrategyPanelProps) {
             ))}
           </div>
         </div>
+
+        {/* 预览信息 */}
+        {previewInfo.unassignedCount > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 mb-2">
+              预览
+            </label>
+            <div className="p-3 bg-blue-50 rounded border border-blue-200">
+              <div className="text-xs text-blue-900 mb-2">
+                <strong>预计创建：</strong>{previewInfo.estimatedLots} 个检验批
+              </div>
+              <div className="text-xs text-blue-700 mb-2">
+                未分配构件总数：{previewInfo.unassignedCount} 个
+              </div>
+              {previewInfo.groups.length > 0 && previewInfo.groups.length <= 10 && (
+                <div className="mt-2 space-y-1">
+                  <div className="text-xs font-medium text-blue-900">分组预览：</div>
+                  {previewInfo.groups.map((group) => (
+                    <div key={group.key} className="text-xs text-blue-700 pl-2">
+                      · {group.label}: {group.count} 个构件
+                    </div>
+                  ))}
+                </div>
+              )}
+              {previewInfo.groups.length > 10 && (
+                <div className="text-xs text-blue-600 mt-2">
+                  将创建 {previewInfo.groups.length} 个检验批（分组过多，未完全显示）
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* 说明文字 */}
         <div className="p-3 bg-zinc-50 rounded border border-zinc-200">

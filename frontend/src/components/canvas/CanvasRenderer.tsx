@@ -5,12 +5,13 @@
 import { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 import * as d3 from 'd3';
 import { useQuery } from '@tanstack/react-query';
-import { getElements, ElementListItem, ElementDetail, getElementDetail } from '@/services/elements';
+import { getElements, ElementListItem, ElementDetail, getElementDetail, batchGetElementDetails } from '@/services/elements';
 import { WorkbenchMode, Geometry2D } from '@/types';
 import { useCanvasStore } from '@/stores/canvas';
 import { useWorkbenchStore } from '@/stores/workbench';
-import { findNearestSnapPoint, getGeometryEndpoints } from '@/utils/topology';
+import { findNearestSnapPoint, getGeometryEndpoints, createRectangle, rectangleIntersectsGeometryPrecise, type SnapPointElement } from '@/utils/topology';
 import { calculateViewportBounds, isGeometryInViewport, throttle } from '@/utils/performance';
+import { useDrag } from '@/contexts/DragContext';
 
 interface CanvasRendererProps {
   width: number;
@@ -22,6 +23,9 @@ interface CanvasRendererProps {
   onElementClick?: (elementId: string, event: MouseEvent) => void;
   onElementDrag?: (elementId: string, newCoordinates: number[][]) => void;
   onElementDragEnd?: (elementId: string, finalCoordinates: number[][], originalType?: string, originalClosed?: boolean) => void;
+  onSelectionChange?: (ids: string[]) => void;
+  onSelectionAdd?: (ids: string[]) => void;
+  onSelectionClear?: () => void;
 }
 
 export function CanvasRenderer({
@@ -34,16 +38,26 @@ export function CanvasRenderer({
   onElementClick,
   onElementDrag,
   onElementDragEnd,
+  onSelectionChange,
+  onSelectionAdd,
+  onSelectionClear,
 }: CanvasRendererProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const { setViewTransform } = useCanvasStore();
   const { liftMode } = useWorkbenchStore();
+  const { setIsDraggingElement, setDraggedElementIds } = useDrag();
   
   // 存储磁吸辅助线的状态
   const [snapLine, setSnapLine] = useState<{ from: { x: number; y: number }; to: { x: number; y: number } } | null>(null);
   
-  // 磁吸距离阈值（像素）
-  const SNAP_DISTANCE = 10;
+  // 框选状态
+  const [selectionBox, setSelectionBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const selectionStartRef = useRef<{ x: number; y: number } | null>(null);
+  const isDraggingElementRef = useRef(false);
+  
+  // 磁吸距离阈值（根据缩放动态调整，基准值为10像素）
+  const SNAP_DISTANCE = Math.max(5, Math.min(20, 10 / (viewTransform.scale || 1)));
 
   // 获取构件列表（使用分页，避免一次性加载过多）
   const { data: elementsData } = useQuery({
@@ -56,42 +70,66 @@ export function CanvasRenderer({
     return calculateViewportBounds(width, height, viewTransform);
   }, [width, height, viewTransform]);
 
-  // 筛选视口内的构件（视口剔除）
+  // 筛选视口内的构件（视口剔除）- 优化：优先加载视口附近的构件
   const visibleElementIds = useMemo(() => {
-    if (!elementsData?.items) return [];
+    if (!elementsData?.items || elementsData.items.length === 0) return [];
     
-    // 如果还没有加载详情，先返回所有ID（后续会根据视口进一步筛选）
-    // 这里我们只返回前200个，避免过多请求
-    return elementsData.items.slice(0, 200).map((el) => el.id);
+    // 如果构件数量较少，直接返回所有ID
+    if (elementsData.items.length <= 500) {
+      return elementsData.items.map((el) => el.id);
+    }
+    
+    // 如果构件数量较多，优先返回前500个（后续会在视口过滤中进一步筛选）
+    // 这样可以在保持性能的同时，确保视口内的构件能被正确加载
+    return elementsData.items.slice(0, 500).map((el) => el.id);
   }, [elementsData]);
   
+  // 使用去重后的ID列表（避免重复请求）
+  const uniqueVisibleElementIds = useMemo(() => {
+    return Array.from(new Set(visibleElementIds));
+  }, [visibleElementIds]);
+
   const elementDetailsQueries = useQuery({
-    queryKey: ['element-details', visibleElementIds],
+    queryKey: ['element-details', uniqueVisibleElementIds],
     queryFn: async () => {
-      // 批量获取，但限制并发数量
-      const BATCH_SIZE = 20;
+      // 批量获取，但限制并发数量（优化：增加批次大小以提高效率）
+      const BATCH_SIZE = 30; // 从20增加到30，提高批量获取效率
       const detailsMap = new Map<string, ElementDetail>();
       
-      for (let i = 0; i < visibleElementIds.length; i += BATCH_SIZE) {
-        const batch = visibleElementIds.slice(i, i + BATCH_SIZE);
-        const batchDetails = await Promise.all(
-          batch.map((id) =>
-            getElementDetail(id).catch((error) => {
-              console.error(`Failed to fetch element ${id}:`, error);
-              return null;
-            })
-          )
+      // 并行处理多个批次（但限制总并发数）
+      const MAX_CONCURRENT_BATCHES = 3;
+      const batches: string[][] = [];
+      for (let i = 0; i < uniqueVisibleElementIds.length; i += BATCH_SIZE) {
+        batches.push(uniqueVisibleElementIds.slice(i, i + BATCH_SIZE));
+      }
+      
+      // 分批并行处理
+      for (let i = 0; i < batches.length; i += MAX_CONCURRENT_BATCHES) {
+        const concurrentBatches = batches.slice(i, i + MAX_CONCURRENT_BATCHES);
+        const batchResults = await Promise.all(
+          concurrentBatches.map(async (batch) => {
+            const batchDetails = await Promise.all(
+              batch.map((id) =>
+                getElementDetail(id).catch((error) => {
+                  console.error(`Failed to fetch element ${id}:`, error);
+                  return null;
+                })
+              )
+            );
+            return batchDetails.filter((detail): detail is ElementDetail => detail !== null);
+          })
         );
-        batchDetails.forEach((detail) => {
-          if (detail) {
-            detailsMap.set(detail.id, detail);
-          }
+        
+        // 合并结果
+        batchResults.flat().forEach((detail) => {
+          detailsMap.set(detail.id, detail);
         });
       }
       
       return detailsMap;
     },
-    enabled: visibleElementIds.length > 0,
+    enabled: uniqueVisibleElementIds.length > 0,
+    staleTime: 30000, // 30秒内使用缓存，避免频繁重新获取
   });
 
   const elementDetailsMap = elementDetailsQueries.data || new Map<string, ElementDetail>();
@@ -146,7 +184,148 @@ export function CanvasRenderer({
         throttledZoomUpdate(event.transform);
       });
 
-    svg.call(zoom as any).call(zoom.transform as any, initialTransform);
+    // D3 zoom 类型处理：使用类型断言确保类型安全
+    // 注意：D3的类型定义在某些情况下需要类型断言
+    (svg as unknown as d3.Selection<SVGSVGElement, unknown, null, undefined>).call(zoom);
+    (svg as unknown as d3.Selection<SVGSVGElement, unknown, null, undefined>).call(zoom.transform, initialTransform);
+
+    // 框选逻辑（仅在 trace 或 lift 模式下启用）
+    if ((mode === 'trace' || mode === 'lift') && onSelectionChange) {
+      const handleMouseDown = (event: MouseEvent) => {
+        // 检查拖拽状态，如果正在拖拽构件，不执行框选
+        if (isDraggingElementRef.current) {
+          isDraggingElementRef.current = false;
+          return;
+        }
+
+        // 检查是否点击在构件上
+        const target = event.target as SVGElement;
+        const elementGroup = target.closest('[data-element-id]');
+        
+        // 如果点击在构件上，不执行框选（让构件的点击/拖拽处理）
+        if (elementGroup) {
+          return;
+        }
+
+        // 否则在空白区域开始框选
+        if (event.button === 0) { // 左键
+          event.preventDefault(); // 防止默认行为
+          const point = d3.pointer(event, svgRef.current);
+          const transformedPoint = initialTransform.invert(point);
+          
+          selectionStartRef.current = { x: transformedPoint[0], y: transformedPoint[1] };
+          setIsSelecting(true);
+          isDraggingElementRef.current = false;
+          
+          // 如果未按住 Ctrl/Cmd 键，清空当前选择
+          if (!event.ctrlKey && !event.metaKey) {
+            if (onSelectionClear) {
+              onSelectionClear();
+            }
+          }
+        }
+      };
+
+      const handleMouseMove = (event: MouseEvent) => {
+        // 如果正在拖拽构件，不执行框选
+        if (isDraggingElementRef.current) {
+          return;
+        }
+
+        if (!isSelecting || !selectionStartRef.current) return;
+
+        const point = d3.pointer(event, svgRef.current);
+        const transformedPoint = initialTransform.invert(point);
+        const startX = selectionStartRef.current.x;
+        const startY = selectionStartRef.current.y;
+        const endX = transformedPoint[0];
+        const endY = transformedPoint[1];
+
+        const rect = createRectangle(startX, startY, endX, endY);
+        setSelectionBox(rect);
+
+        // 实时检测选中的构件（为了视觉反馈，但不更新选中状态直到 mouseup）
+      };
+
+      const handleMouseUp = (event: MouseEvent) => {
+        // 如果正在拖拽构件，只清理状态，不执行框选
+        if (isDraggingElementRef.current) {
+          isDraggingElementRef.current = false;
+          return;
+        }
+
+        if (!isSelecting || !selectionStartRef.current) {
+          return;
+        }
+
+        const point = d3.pointer(event, svgRef.current);
+        const transformedPoint = initialTransform.invert(point);
+        const startX = selectionStartRef.current.x;
+        const startY = selectionStartRef.current.y;
+        const endX = transformedPoint[0];
+        const endY = transformedPoint[1];
+
+        // 计算最终选择框（至少要有一定大小才认为是框选，避免误触）
+        const minSize = 5 / initialTransform.k; // 考虑缩放
+        const width = Math.abs(endX - startX);
+        const height = Math.abs(endY - startY);
+
+        if (width > minSize || height > minSize) {
+          const rect = createRectangle(startX, startY, endX, endY);
+          
+          // 检测选中的构件
+          const selectedIds: string[] = [];
+          if (elementsData?.items && elementDetailsMap) {
+            elementsData.items.forEach((element) => {
+              const detail = elementDetailsMap.get(element.id);
+              if (detail?.geometry_2d?.coordinates) {
+                if (rectangleIntersectsGeometryPrecise(rect, detail.geometry_2d.coordinates)) {
+                  selectedIds.push(element.id);
+                }
+              }
+            });
+          }
+
+          // 更新选中状态
+          if (selectedIds.length > 0) {
+            if (event.ctrlKey || event.metaKey) {
+              // 按住 Ctrl/Cmd 键时，添加到现有选择
+              if (onSelectionAdd) {
+                onSelectionAdd(selectedIds);
+              }
+            } else {
+              // 否则替换选择
+              if (onSelectionChange) {
+                onSelectionChange(selectedIds);
+              }
+            }
+          } else if (!event.ctrlKey && !event.metaKey) {
+            // 如果没有选中任何构件且没有按住 Ctrl/Cmd，清空选择
+            if (onSelectionClear) {
+              onSelectionClear();
+            }
+          }
+        }
+
+        // 清理状态
+        setIsSelecting(false);
+        setSelectionBox(null);
+        selectionStartRef.current = null;
+      };
+
+      svg.on('mousedown', handleMouseDown);
+      svg.on('mousemove', handleMouseMove);
+      svg.on('mouseup', handleMouseUp);
+      svg.on('mouseleave', handleMouseUp); // 鼠标离开 SVG 时也结束框选
+
+      // 清理函数
+      return () => {
+        svg.on('mousedown', null);
+        svg.on('mousemove', null);
+        svg.on('mouseup', null);
+        svg.on('mouseleave', null);
+      };
+    }
 
     // 渲染构件（只渲染视口内的）
     if (viewportFilteredElements.length > 0) {
@@ -192,13 +371,29 @@ export function CanvasRenderer({
           .attr('stroke-dasharray', '2,2')
           .attr('opacity', 0.6);
       }
+
+      // 渲染选择框
+      if (selectionBox) {
+        const selectionGroup = g.append('g').attr('class', 'selection-box');
+        selectionGroup
+          .append('rect')
+          .attr('x', selectionBox.x)
+          .attr('y', selectionBox.y)
+          .attr('width', selectionBox.width)
+          .attr('height', selectionBox.height)
+          .attr('fill', 'rgba(59, 130, 246, 0.1)') // blue-500 with opacity
+          .attr('stroke', '#3B82F6') // blue-500
+          .attr('stroke-width', 1)
+          .attr('stroke-dasharray', '4,4')
+          .attr('pointer-events', 'none');
+      }
     }
-  }, [svgRef, viewportFilteredElements, elementDetailsMap, width, height, viewTransform, selectedElementIds, mode, liftMode, setViewTransform, onElementDragStart, onElementClick, onElementDrag, onElementDragEnd, snapLine, SNAP_DISTANCE, elementsData]);
+  }, [svgRef, viewportFilteredElements, elementDetailsMap, width, height, viewTransform, selectedElementIds, mode, liftMode, setViewTransform, onElementDragStart, onElementClick, onElementDrag, onElementDragEnd, snapLine, selectionBox, isSelecting, elementsData, onSelectionChange, onSelectionAdd, onSelectionClear, SNAP_DISTANCE]);
 
   return (
     <svg
       ref={svgRef}
-      className="absolute inset-0 w-full h-full"
+      className="absolute inset-0 w-full h-full z-10"
       style={{ cursor: 'grab' }}
     />
   );
@@ -259,11 +454,16 @@ function renderElement(
     });
   }
 
-  // Trace Mode 下的拖拽和磁吸
-  if (mode === 'trace' && isSelected && onElementDrag && onElementDragEnd) {
+    // Trace Mode 下的拖拽和磁吸
+    if (mode === 'trace' && isSelected && onElementDrag && onElementDragEnd) {
+      // 在 mousedown 时标记正在拖拽，防止框选逻辑触发
+      elementGroup.on('mousedown', function (event: MouseEvent) {
+        event.stopPropagation();
+        setIsDraggingElement(true);
+      });
     // 收集所有其他构件的端点用于磁吸检测（带元素信息）
-    const getAllSnapPointsWithElement = (): Array<{ x: number; y: number; elementId: string; element?: ElementDetail }> => {
-      const snapPoints: Array<{ x: number; y: number; elementId: string; element?: ElementDetail }> = [];
+    const getAllSnapPointsWithElement = (): SnapPointElement[] => {
+      const snapPoints: SnapPointElement[] = [];
       if (allElements && elementDetailsMap) {
         allElements.forEach((el) => {
           if (el.id !== element.id) {
@@ -275,7 +475,12 @@ function renderElement(
                   x: endpoint.x,
                   y: endpoint.y,
                   elementId: el.id,
-                  element: detail,
+                  element: detail ? {
+                    id: detail.id,
+                    speckle_type: detail.speckle_type,
+                    geometry_2d: detail.geometry_2d,
+                    ...detail, // 包含其他属性
+                  } : undefined,
                 });
               });
             }
@@ -297,6 +502,12 @@ function renderElement(
       .on('start', function () {
         d3.select(this).style('cursor', 'grabbing');
         coordinates = [...originalCoordinates]; // 重置为原始坐标
+        isDraggingElementRef.current = true;
+        setIsDraggingElement(true);
+      })
+      .on('end', function () {
+        setIsDraggingElement(false);
+        isDraggingElementRef.current = false;
       })
       .on('drag', function (event) {
         // 计算拖拽偏移量（需要考虑缩放）
@@ -433,8 +644,8 @@ function renderElement(
         dragStartX = event.clientX;
         dragStartY = event.clientY;
         onElementDragStart([element.id]);
-        // 存储拖拽数据到全局对象（供 HierarchyTreeNode 使用）
-        (window as any).__dragElementIds = [element.id];
+        // 存储拖拽数据到Context（供 HierarchyTreeNode 使用）
+        setDraggedElementIds([element.id]);
       });
   }
 }
@@ -484,19 +695,27 @@ function renderElementPlaceholder(
 
   // 为 Classify 模式添加拖拽支持（使用鼠标事件）
   if (mode === 'classify' && isSelected && onElementDragStart) {
-    let dragStartX = 0;
-    let dragStartY = 0;
     elementGroup
       .on('mousedown', function (event: MouseEvent) {
-        dragStartX = event.clientX;
-        dragStartY = event.clientY;
+        event.stopPropagation();
         onElementDragStart([element.id]);
-        // 存储拖拽数据到全局对象（供 HierarchyTreeNode 使用）
-        (window as any).__dragElementIds = [element.id];
+        // 存储拖拽数据到Context（供 HierarchyTreeNode 使用）
+        setDraggedElementIds([element.id]);
+        // 添加拖拽视觉反馈：降低透明度
+        d3.select(this).style('opacity', '0.6');
+      })
+      .on('mouseup', function () {
+        // 恢复透明度
+        d3.select(this).style('opacity', '1');
+      })
+      .on('mouseleave', function () {
+        // 如果鼠标离开时还在拖拽，保持半透明
+        // 透明度将在drop时恢复
       });
   }
 
-  elementGroup.append('rect')
+  // 占位矩形（改进：添加加载指示）
+  const placeholderRect = elementGroup.append('rect')
     .attr('x', x)
     .attr('y', y)
     .attr('width', 100)
@@ -505,7 +724,20 @@ function renderElementPlaceholder(
     .attr('stroke', color)
     .attr('stroke-width', isSelected ? 2 : 1)
     .attr('stroke-dasharray', strokeDasharray || null)
-    .append('title')
-    .text(`${element.id} (${element.speckle_type})`);
+    .attr('opacity', 0.5); // 降低占位元素的不透明度，表明这是占位符
+
+  // 添加加载指示文本
+  elementGroup.append('text')
+    .attr('x', x + 50)
+    .attr('y', y + 30)
+    .attr('text-anchor', 'middle')
+    .attr('font-size', '10px')
+    .attr('fill', color)
+    .attr('opacity', 0.6)
+    .text('Loading...');
+
+  // 添加标题提示
+  elementGroup.append('title')
+    .text(`${element.id} (${element.speckle_type}) - Loading geometry...`);
 }
 

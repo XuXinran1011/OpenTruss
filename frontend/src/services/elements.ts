@@ -52,6 +52,8 @@ export interface ElementQueryParams {
   speckle_type?: string;
   has_height?: boolean;
   has_material?: boolean;
+  min_confidence?: number;
+  max_confidence?: number;
   page?: number;
   page_size?: number;
 }
@@ -141,7 +143,31 @@ export async function getUnassignedElements(
 }
 
 /**
+ * 批量获取构件详情
+ * 
+ * @param elementIds - 构件 ID 列表（最多100个）
+ * @returns 构件详情列表和未找到的ID列表
+ * @throws {ApiError} 如果请求失败
+ */
+export async function batchGetElementDetails(elementIds: string[]): Promise<{
+  items: ElementDetail[];
+  not_found: string[];
+}> {
+  const response = await apiPost<ApiResponse<{
+    items: ElementDetail[];
+    not_found: string[];
+  }>>('/api/v1/elements/batch', {
+    element_ids: elementIds,
+  });
+  return response.data;
+}
+
+/**
  * 获取构件详情
+ * 
+ * @param elementId - 构件 ID
+ * @returns 构件详细信息，包括几何数据、参数、连接关系等
+ * @throws {ApiError} 如果构件不存在或请求失败
  */
 export async function getElementDetail(elementId: string): Promise<ElementDetail> {
   const response = await apiGet<ApiResponse<ElementDetail>>(
@@ -199,6 +225,16 @@ export async function classifyElement(
   const response = await apiPost<ApiResponse<ClassifyResponse>>(
     `/api/v1/elements/${elementId}/classify`,
     request
+  );
+  return response.data;
+}
+
+/**
+ * 删除构件
+ */
+export async function deleteElement(elementId: string): Promise<{ id: string; deleted: boolean }> {
+  const response = await apiDelete<ApiResponse<{ id: string; deleted: boolean }>>(
+    `/api/v1/elements/${elementId}`
   );
   return response.data;
 }

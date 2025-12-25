@@ -49,14 +49,19 @@ export function ParameterPanel() {
     enabled: !!firstElementId && selectedElementIds.length === 1,
   });
 
-  // 更新本地值
-  if (elementDetail && !localValues.height && !localValues.baseOffset && !localValues.material) {
-    setLocalValues({
-      height: elementDetail.height?.toString() || '',
-      baseOffset: elementDetail.base_offset?.toString() || '',
-      material: elementDetail.material || '',
-    });
-  }
+  // 更新本地值（使用useEffect避免在render中直接调用setState）
+  useEffect(() => {
+    if (elementDetail && selectedElementIds.length === 1) {
+      setLocalValues({
+        height: elementDetail.height?.toString() || '',
+        baseOffset: elementDetail.base_offset?.toString() || '',
+        material: elementDetail.material || '',
+      });
+    } else if (selectedElementIds.length !== 1) {
+      // 如果不是单个选择，清空本地值
+      setLocalValues({ height: '', baseOffset: '', material: '' });
+    }
+  }, [elementDetail, selectedElementIds.length]);
 
   // 单个构件更新
   const updateMutation = useMutation({

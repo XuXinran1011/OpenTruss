@@ -7,10 +7,11 @@
 'use client';
 
 import { useState } from 'react';
-import { useItemDetailForLots, useLotElements, useUpdateLotStatus, useRemoveElementsFromLot } from '@/hooks/useLotStrategy';
+import { useItemDetailForLots, useLotElements, useUpdateLotStatus, useRemoveElementsFromLot, useAssignElementsToLot } from '@/hooks/useLotStrategy';
 import { InspectionLotStatus } from '@/types';
 import { cn } from '@/lib/utils';
 import { useHierarchyStore } from '@/stores/hierarchy';
+import { ElementSelector } from './ElementSelector';
 
 interface LotManagementPanelProps {
   itemId: string | null;
@@ -42,11 +43,14 @@ const STATUS_TRANSITIONS: Record<InspectionLotStatus, InspectionLotStatus[]> = {
 
 export function LotManagementPanel({ itemId }: LotManagementPanelProps) {
   const [selectedLotId, setSelectedLotId] = useState<string | null>(null);
+  const [showElementSelector, setShowElementSelector] = useState(false);
+  const [selectedElementIds, setSelectedElementIds] = useState<string[]>([]);
 
   const { data: itemDetail, isLoading: isLoadingItem } = useItemDetailForLots(itemId);
   const { data: lotElements, isLoading: isLoadingElements } = useLotElements(selectedLotId || '');
   const updateStatusMutation = useUpdateLotStatus(selectedLotId || '');
   const removeElementsMutation = useRemoveElementsFromLot(selectedLotId || '');
+  const assignElementsMutation = useAssignElementsToLot(selectedLotId || '');
 
   // 从层级数据中获取检验批列表
   const { hierarchyData } = useHierarchyStore();
@@ -98,6 +102,23 @@ export function LotManagementPanel({ itemId }: LotManagementPanelProps) {
     }
   };
 
+  const handleAddElements = async () => {
+    if (!selectedLotId || selectedElementIds.length === 0) return;
+
+    try {
+      await assignElementsMutation.mutateAsync({ element_ids: selectedElementIds });
+      setShowElementSelector(false);
+      setSelectedElementIds([]);
+    } catch (error) {
+      console.error('Failed to add elements:', error);
+    }
+  };
+
+  const handleCancelElementSelection = () => {
+    setShowElementSelector(false);
+    setSelectedElementIds([]);
+  };
+
   if (!itemId) {
     return (
       <div className="p-4 text-sm text-zinc-500 text-center">
@@ -115,7 +136,7 @@ export function LotManagementPanel({ itemId }: LotManagementPanelProps) {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col relative">
       {/* 标题 */}
       <div className="p-4 border-b border-zinc-200">
         <h3 className="text-sm font-semibold text-zinc-900">检验批管理</h3>
@@ -173,8 +194,22 @@ export function LotManagementPanel({ itemId }: LotManagementPanelProps) {
         )}
       </div>
 
+      {/* 构件选择器模态框 */}
+      {showElementSelector && selectedLotId && (
+        <div className="absolute inset-0 bg-white z-10 flex flex-col">
+          <ElementSelector
+            itemId={itemId}
+            excludeLotId={selectedLotId}
+            selectedElementIds={selectedElementIds}
+            onSelectionChange={setSelectedElementIds}
+            onConfirm={handleAddElements}
+            onCancel={handleCancelElementSelection}
+          />
+        </div>
+      )}
+
       {/* 检验批详情 */}
-      {selectedLotId && (
+      {selectedLotId && !showElementSelector && (
         <div className="border-t border-zinc-200">
           <div className="p-4 space-y-4 max-h-64 overflow-auto">
             {/* 状态更新 */}
@@ -202,9 +237,18 @@ export function LotManagementPanel({ itemId }: LotManagementPanelProps) {
 
             {/* 构件列表 */}
             <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-2">
-                构件列表 ({lotElements?.total || 0})
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-zinc-700">
+                  构件列表 ({lotElements?.total || 0})
+                </label>
+                <button
+                  onClick={() => setShowElementSelector(true)}
+                  disabled={assignElementsMutation.isPending}
+                  className="px-2 py-1 text-xs font-medium text-zinc-900 bg-zinc-100 hover:bg-zinc-200 rounded transition-colors disabled:bg-zinc-300 disabled:cursor-not-allowed"
+                >
+                  + 添加构件
+                </button>
+              </div>
               {isLoadingElements ? (
                 <div className="text-xs text-zinc-500">加载中...</div>
               ) : (

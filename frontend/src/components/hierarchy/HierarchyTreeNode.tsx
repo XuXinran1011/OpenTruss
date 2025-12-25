@@ -8,6 +8,7 @@ import { InspectionLotStatus } from '@/types';
 import { useHierarchyStore } from '@/stores/hierarchy';
 import { useClassifyMode } from '@/hooks/useClassifyMode';
 import { useToastContext } from '@/providers/ToastProvider';
+import { useDrag } from '@/contexts/DragContext';
 import { cn } from '@/lib/utils';
 // 使用内联 SVG 图标替代 @heroicons/react
 
@@ -25,10 +26,11 @@ const STATUS_COLORS: Record<InspectionLotStatus, string> = {
   PUBLISHED: 'bg-emerald-600',
 };
 
-export function HierarchyTreeNode({ node, level = 0, onSelect }: HierarchyTreeNodeProps) {
+function HierarchyTreeNodeComponent({ node, level = 0, onSelect }: HierarchyTreeNodeProps) {
   const { expandedNodeIds, toggleNode, selectedNodeId } = useHierarchyStore();
   const { classify, isClassifying, error, successCount, failedCount, clearError } = useClassifyMode();
   const { showToast } = useToastContext();
+  const { draggedElementIds, setDraggedElementIds } = useDrag();
   const [isDragOver, setIsDragOver] = useState(false);
 
   // 显示错误和成功提示
@@ -107,10 +109,10 @@ export function HierarchyTreeNode({ node, level = 0, onSelect }: HierarchyTreeNo
       const elementIdsStr = e.dataTransfer.getData('application/element-ids');
       if (elementIdsStr) {
         elementIds = JSON.parse(elementIdsStr) as string[];
-      } else if ((window as any).__dragElementIds) {
-        // 从全局对象获取（SVG 拖拽）
-        elementIds = (window as any).__dragElementIds;
-        delete (window as any).__dragElementIds;
+      } else if (draggedElementIds) {
+        // 从Context获取（SVG 拖拽）
+        elementIds = draggedElementIds;
+        setDraggedElementIds(null);
       }
 
       if (elementIds && elementIds.length > 0) {
@@ -134,9 +136,9 @@ export function HierarchyTreeNode({ node, level = 0, onSelect }: HierarchyTreeNo
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={cn(
-          'flex items-center gap-1.5 px-2 py-1.5 text-sm cursor-pointer hover:bg-zinc-100 transition-colors',
+          'flex items-center gap-1.5 px-2 py-1.5 text-sm cursor-pointer hover:bg-zinc-100 transition-all duration-200',
           isSelected && 'bg-zinc-200',
-          isDragOver && isDropTarget && 'bg-orange-100 border-2 border-orange-600 border-dashed',
+          isDragOver && isDropTarget && 'bg-orange-100 border-2 border-orange-600 border-dashed scale-105 shadow-lg',
           !isDropTarget && 'cursor-default'
         )}
         style={{ paddingLeft: `${level * 16 + 8}px` }}

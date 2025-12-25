@@ -1,6 +1,7 @@
 /** API 服务基础封装 */
 
 import { API_CONFIG } from '@/lib/api/config';
+import { getToken } from '@/lib/auth/token';
 
 /**
  * API 响应基础结构
@@ -43,16 +44,36 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const url = `${API_CONFIG.baseURL}${endpoint}`;
   
+  // 获取token并添加到请求头
+  const token = getToken();
+  const headers: HeadersInit = {
+    ...API_CONFIG.headers,
+    ...options.headers,
+  };
+  
+  // 如果存在token，添加Authorization header
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
   const config: RequestInit = {
     ...options,
-    headers: {
-      ...API_CONFIG.headers,
-      ...options.headers,
-    },
+    headers,
   };
   
   try {
     const response = await fetch(url, config);
+    
+    // 处理401未授权错误（token过期或无效）
+    if (response.status === 401) {
+      // 清除token，让用户重新登录
+      if (typeof window !== 'undefined') {
+        const { clearToken } = await import('@/lib/auth/token');
+        clearToken();
+        // 可选：重定向到登录页
+        // window.location.href = '/login';
+      }
+    }
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));

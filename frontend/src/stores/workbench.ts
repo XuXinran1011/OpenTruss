@@ -12,6 +12,7 @@ interface WorkbenchState {
   selectedElementIds: string[];
   setSelectedElementIds: (ids: string[]) => void;
   addSelectedElementId: (id: string) => void;
+  addSelectedElementIds: (ids: string[]) => void;
   removeSelectedElementId: (id: string) => void;
   clearSelection: () => void;
   
@@ -44,6 +45,13 @@ export const useWorkbenchStore = create<WorkbenchState>((set) => ({
         ? state.selectedElementIds
         : [...state.selectedElementIds, id],
     })),
+  addSelectedElementIds: (ids) =>
+    set((state) => {
+      const newIds = ids.filter((id) => !state.selectedElementIds.includes(id));
+      return {
+        selectedElementIds: [...state.selectedElementIds, ...newIds],
+      };
+    }),
   removeSelectedElementId: (id) =>
     set((state) => ({
       selectedElementIds: state.selectedElementIds.filter((eid) => eid !== id),

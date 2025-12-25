@@ -6,14 +6,16 @@ import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useHierarchyStore } from '@/stores/hierarchy';
 import { getProjectHierarchy } from '@/services/hierarchy';
+import { getElements } from '@/services/elements';
 import { HierarchyTreeNode } from './HierarchyTreeNode';
 import { useWorkbenchStore } from '@/stores/workbench';
+import { useCanvas } from '@/contexts/CanvasContext';
 
 interface HierarchyTreeProps {
   projectId: string;
 }
 
-export function HierarchyTree({ projectId }: HierarchyTreeProps) {
+function HierarchyTreeComponent({ projectId }: HierarchyTreeProps) {
   const {
     currentProjectId,
     setCurrentProjectId,
@@ -25,6 +27,7 @@ export function HierarchyTree({ projectId }: HierarchyTreeProps) {
   } = useHierarchyStore();
 
   const { setSelectedElementIds } = useWorkbenchStore();
+  const { canvasRef } = useCanvas();
 
   // 设置当前项目 ID
   useEffect(() => {
@@ -71,11 +74,41 @@ export function HierarchyTree({ projectId }: HierarchyTreeProps) {
     return filterNode(hierarchyData);
   }, [hierarchyData, searchKeyword]);
 
-  const handleNodeSelect = (nodeId: string) => {
+  const handleNodeSelect = useCallback(async (nodeId: string) => {
     setSelectedNodeId(nodeId);
-    // TODO: 定位到画布中的相关构件
-    // 这里可以调用 API 获取该节点下的构件，然后高亮显示
-    setSelectedElementIds([]); // 暂时清空选中
+    
+    // 尝试定位到该节点下的构件
+    // 注意：这里我们需要知道节点类型来判断使用哪个查询参数
+    // 由于层级树节点可能包含 metadata，我们可以通过查询来获取构件
+    try {
+      // 尝试按 inspection_lot_id 查询（如果是 InspectionLot 节点）
+      const lotResult = await getElements({ inspection_lot_id: nodeId, page: 1, page_size: 100 });
+      if (lotResult.items && lotResult.items.length > 0) {
+        const elementIds = lotResult.items.map((el) => el.id);
+        setSelectedElementIds(elementIds);
+        if (canvasRef?.current && elementIds.length > 0) {
+          canvasRef.current.focusOnElements(elementIds);
+        }
+        return;
+      }
+
+      // 尝试按 item_id 查询（如果是 Item 节点）
+      const itemResult = await getElements({ item_id: nodeId, page: 1, page_size: 100 });
+      if (itemResult.items && itemResult.items.length > 0) {
+        const elementIds = itemResult.items.map((el) => el.id);
+        setSelectedElementIds(elementIds);
+        if (canvasRef?.current && elementIds.length > 0) {
+          canvasRef.current.focusOnElements(elementIds);
+        }
+        return;
+      }
+
+      // 如果没有找到构件，清空选择
+      setSelectedElementIds([]);
+    } catch (error) {
+      console.error('Failed to get elements for node:', error);
+      setSelectedElementIds([]);
+    }
   };
 
   if (isLoading) {

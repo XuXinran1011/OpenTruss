@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getElements, ElementListItem } from '@/services/elements';
 import { IssueType } from '@/types';
 import { useWorkbenchStore } from '@/stores/workbench';
+import { useCanvas } from '@/contexts/CanvasContext';
 import { cn } from '@/lib/utils';
 
 interface IssueGroup {
@@ -15,13 +16,20 @@ interface IssueGroup {
   elements: ElementListItem[];
 }
 
-export function TriageQueue() {
+function TriageQueueComponent() {
   const { setSelectedElementIds, addSelectedElementId } = useWorkbenchStore();
+  const { canvasRef } = useCanvas();
 
   // 获取所有构件（用于识别问题）
   const { data: elementsData } = useQuery({
     queryKey: ['elements', 'all'],
     queryFn: () => getElements({ page: 1, page_size: 1000 }), // 获取足够多的数据
+  });
+
+  // 单独获取低置信度构件（使用置信度筛选）
+  const { data: lowConfidenceData } = useQuery({
+    queryKey: ['elements', 'low-confidence'],
+    queryFn: () => getElements({ page: 1, page_size: 1000, max_confidence: 0.7 }), // 置信度 < 0.7
   });
 
   // 分类问题构件
@@ -43,7 +51,7 @@ export function TriageQueue() {
       type: 'low_confidence' as IssueType,
       label: '低置信度',
       color: 'bg-amber-600',
-      elements: [], // TODO: 需要后端 API 支持置信度筛选
+      elements: lowConfidenceData?.items || [],
     },
   ].filter((group) => group.elements.length > 0);
 
@@ -51,11 +59,19 @@ export function TriageQueue() {
 
   const handleIssueClick = (elementId: string) => {
     addSelectedElementId(elementId);
-    // TODO: 定位到画布中的构件
+    // 定位到画布中的构件
+    if (canvasRef?.current) {
+      canvasRef.current.focusOnElement(elementId);
+    }
   };
 
   const handleGroupDoubleClick = (elements: ElementListItem[]) => {
-    setSelectedElementIds(elements.map((el) => el.id));
+    const elementIds = elements.map((el) => el.id);
+    setSelectedElementIds(elementIds);
+    // 定位到所有选中的构件
+    if (canvasRef?.current && elementIds.length > 0) {
+      canvasRef.current.focusOnElements(elementIds);
+    }
   };
 
   return (

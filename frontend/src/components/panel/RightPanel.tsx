@@ -6,13 +6,15 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ParameterPanel } from './ParameterPanel';
 import { LotStrategyPanel } from '@/components/lots/LotStrategyPanel';
 import { LotManagementPanel } from '@/components/lots/LotManagementPanel';
 import { ApprovalPanel } from '@/components/approval/ApprovalPanel';
 import { ExportPanel } from '@/components/export/ExportPanel';
 import { useHierarchyStore } from '@/stores/hierarchy';
+import { useAuthStore } from '@/stores/auth';
+import { HierarchyNode } from '@/services/hierarchy';
 import { cn } from '@/lib/utils';
 import { InspectionLotStatus } from '@/types';
 
@@ -21,11 +23,15 @@ type TabType = 'parameters' | 'lot-strategy' | 'lot-management' | 'approval' | '
 export function RightPanel() {
   const [activeTab, setActiveTab] = useState<TabType>('parameters');
   const { selectedNodeId } = useHierarchyStore();
+  const { currentUser } = useAuthStore();
+  
+  // 检查用户是否有Approver权限（可以访问检验批相关功能）
+  const isApprover = currentUser?.role === 'APPROVER' || currentUser?.role === 'ADMIN';
   
   // 如果选中的节点是Item，显示检验批管理相关标签页
   // 从层级数据中查找节点类型
   const { hierarchyData } = useHierarchyStore();
-  const findNode = (node: any, nodeId: string): any => {
+  const findNode = (node: HierarchyNode, nodeId: string): HierarchyNode | null => {
     if (node.id === nodeId) return node;
     for (const child of node.children || []) {
       const found = findNode(child, nodeId);
@@ -42,11 +48,25 @@ export function RightPanel() {
 
   const tabs = [
     { id: 'parameters' as TabType, label: '参数', show: true },
-    { id: 'lot-strategy' as TabType, label: '检验批策略', show: isItemSelected },
-    { id: 'lot-management' as TabType, label: '检验批管理', show: isItemSelected },
-    { id: 'approval' as TabType, label: '审批', show: isInspectionLotSelected && lotStatus === 'SUBMITTED' },
+    { id: 'lot-strategy' as TabType, label: '检验批策略', show: isItemSelected && isApprover },
+    { id: 'lot-management' as TabType, label: '检验批管理', show: isItemSelected && isApprover },
+    { id: 'approval' as TabType, label: '审批', show: isInspectionLotSelected && lotStatus === 'SUBMITTED' && isApprover },
     { id: 'export' as TabType, label: '导出', show: isInspectionLotSelected && lotStatus === 'APPROVED' },
   ].filter(tab => tab.show);
+
+  // 当选中节点或标签页条件变化时，如果当前activeTab不在新的tabs列表中，自动切换到合适的tab
+  useEffect(() => {
+    const availableTabIds = tabs.map(tab => tab.id);
+    if (!availableTabIds.includes(activeTab)) {
+      // 如果审批通过后状态变为APPROVED，优先切换到导出标签页
+      if (lotStatus === 'APPROVED' && availableTabIds.includes('export')) {
+        setActiveTab('export');
+      } else {
+        setActiveTab(availableTabIds[0] || 'parameters');
+      }
+    }
+    // 依赖项使用实际影响tabs的条件，而不是tabs数组本身
+  }, [selectedNodeId, isItemSelected, isInspectionLotSelected, lotStatus, activeTab]);
 
   const renderPanel = () => {
     switch (activeTab) {

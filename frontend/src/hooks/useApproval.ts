@@ -23,6 +23,7 @@ export function useApproveLot() {
       queryClient.invalidateQueries({ queryKey: ['lot', variables.lotId] });
       queryClient.invalidateQueries({ queryKey: ['approvalHistory', variables.lotId] });
       queryClient.invalidateQueries({ queryKey: ['lots'] });
+      queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
     },
   });
 }
@@ -41,6 +42,7 @@ export function useRejectLot() {
       queryClient.invalidateQueries({ queryKey: ['lot', variables.lotId] });
       queryClient.invalidateQueries({ queryKey: ['approvalHistory', variables.lotId] });
       queryClient.invalidateQueries({ queryKey: ['lots'] });
+      queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
     },
   });
 }

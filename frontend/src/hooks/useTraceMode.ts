@@ -1,4 +1,8 @@
-/** Trace Mode Hook */
+/** 
+ * Trace Mode Hook
+ * 
+ * 提供 Trace Mode 下的拓扑更新功能，用于修复 2D 拓扑关系
+ */
 
 import { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -6,11 +10,25 @@ import { updateElementTopology, TopologyUpdateRequest } from '@/services/element
 import { useWorkbenchStore } from '@/stores/workbench';
 import { ApiError } from '@/services/api';
 
+/**
+ * Trace Mode 错误信息
+ */
 export interface TraceModeError {
   message: string;
   elementId?: string;
 }
 
+/**
+ * Trace Mode Hook
+ * 
+ * 用于在 Trace Mode 下更新构件的拓扑关系（几何坐标和连接关系）
+ * 
+ * @returns Trace Mode 相关的状态和方法
+ * - updateTopology: 更新构件拓扑关系的函数
+ * - isUpdating: 是否正在更新
+ * - error: 错误信息
+ * - clearError: 清除错误信息的函数
+ */
 export function useTraceMode() {
   const queryClient = useQueryClient();
   const { selectedElementIds } = useWorkbenchStore();
