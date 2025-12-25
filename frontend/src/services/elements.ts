@@ -1,6 +1,6 @@
 /** 构件 API 服务 */
 
-import { apiGet, apiPost, apiPatch } from './api';
+import { apiGet, apiPost, apiPatch, apiDelete } from './api';
 import { ApiResponse, PaginatedResponse } from './api';
 import { Geometry2D } from '@/types';
 
@@ -11,6 +11,7 @@ export interface ElementListItem {
   id: string;
   speckle_type: string;
   level_id: string;
+  zone_id?: string;
   inspection_lot_id?: string;
   status: 'Draft' | 'Verified';
   has_height: boolean;
