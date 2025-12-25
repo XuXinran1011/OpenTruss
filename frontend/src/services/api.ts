@@ -46,9 +46,9 @@ export async function apiFetch<T>(
   
   // 获取token并添加到请求头
   const token = getToken();
-  const headers: HeadersInit = {
-    ...API_CONFIG.headers,
-    ...options.headers,
+  const headers: Record<string, string> = {
+    ...(API_CONFIG.headers as Record<string, string>),
+    ...(options.headers as Record<string, string>),
   };
   
   // 如果存在token，添加Authorization header
