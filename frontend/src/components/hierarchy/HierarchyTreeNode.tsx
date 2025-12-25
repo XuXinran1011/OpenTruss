@@ -202,3 +202,5 @@ function HierarchyTreeNodeComponent({ node, level = 0, onSelect }: HierarchyTree
   );
 }
 
+export { HierarchyTreeNodeComponent as HierarchyTreeNode };
+

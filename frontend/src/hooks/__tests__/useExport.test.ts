@@ -29,7 +29,7 @@ const mockExportProjectToIFC = exportProjectToIFC as jest.MockedFunction<typeof 
 const mockBatchExportLotsToIFC = batchExportLotsToIFC as jest.MockedFunction<typeof batchExportLotsToIFC>
 const mockDownloadBlob = downloadBlob as jest.MockedFunction<typeof downloadBlob>
 
-const createWrapper = () => {
+const TestWrapper = ({ children }: { children: React.ReactNode }) => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -41,12 +41,14 @@ const createWrapper = () => {
     },
   })
   
-  return ({ children }: { children: React.ReactNode }) => (
+  return (
     <QueryClientProvider client={queryClient}>
       {children}
     </QueryClientProvider>
   )
 }
+
+const createWrapper = () => TestWrapper
 
 describe('useExport', () => {
   beforeEach(() => {

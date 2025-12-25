@@ -18,7 +18,7 @@ const mockApproveLot = approveLot as jest.MockedFunction<typeof approveLot>
 const mockRejectLot = rejectLot as jest.MockedFunction<typeof rejectLot>
 const mockGetApprovalHistory = getApprovalHistory as jest.MockedFunction<typeof getApprovalHistory>
 
-const createWrapper = () => {
+const TestWrapper = ({ children }: { children: React.ReactNode }) => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -30,12 +30,14 @@ const createWrapper = () => {
     },
   })
   
-  return ({ children }: { children: React.ReactNode }) => (
+  return (
     <QueryClientProvider client={queryClient}>
       {children}
     </QueryClientProvider>
   )
 }
+
+const createWrapper = () => TestWrapper
 
 describe('useApproval', () => {
   beforeEach(() => {

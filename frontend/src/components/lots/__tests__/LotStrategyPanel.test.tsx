@@ -18,7 +18,7 @@ jest.mock('@/lib/utils', () => ({
 
 const { useCreateLotsByRule, useItemDetailForLots } = require('@/hooks/useLotStrategy')
 
-const createWrapper = () => {
+const TestWrapper = ({ children }: { children: React.ReactNode }) => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -27,12 +27,14 @@ const createWrapper = () => {
     },
   })
   
-  return ({ children }: { children: React.ReactNode }) => (
+  return (
     <QueryClientProvider client={queryClient}>
       {children}
     </QueryClientProvider>
   )
 }
+
+const createWrapper = () => TestWrapper
 
 describe('LotStrategyPanel', () => {
   beforeEach(() => {
