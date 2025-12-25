@@ -54,16 +54,16 @@ async def create_lots_by_rule(
     service: LotStrategyService = Depends(get_lot_strategy_service),
 ) -> dict:
     """根据规则批量创建检验批"""
+    # 验证规则类型
     try:
-        # 验证规则类型
-        try:
-            rule_type = RuleType(request.rule_type)
-        except ValueError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid rule_type: {request.rule_type}. Must be one of: BY_LEVEL, BY_ZONE, BY_LEVEL_AND_ZONE"
-            )
-        
+        rule_type = RuleType(request.rule_type)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid rule_type: {request.rule_type}. Must be one of: BY_LEVEL, BY_ZONE, BY_LEVEL_AND_ZONE"
+        )
+    
+    try:
         # 执行创建
         result = service.create_lots_by_rule(
             item_id=request.item_id,

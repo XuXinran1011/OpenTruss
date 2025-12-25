@@ -407,16 +407,49 @@ class OpenTrussUser(HttpUser):
 
 ## 8. CI/CD 集成
 
-### 8.1 GitHub Actions 配置（已包含 Memgraph 服务）
+### 8.1 GitHub Actions 工作流
 
-见 4.2 节的完整配置示例。
+项目使用 GitHub Actions 进行自动化测试，包含以下工作流：
+
+- **CI 工作流** (`.github/workflows/ci.yml`): 
+  - 前端代码检查和单元测试
+  - 后端代码检查和单元测试
+  - 集成测试
+  - 构建验证
+  
+- **E2E 测试工作流** (`.github/workflows/e2e.yml`): 
+  - 端到端测试
+  - 使用 Playwright 测试完整用户流程
+  
+- **性能测试工作流** (`.github/workflows/performance-tests.yml`): 
+  - 使用 Locust 和 k6 进行性能测试
+  - 定时运行和手动触发
+
+详细的配置说明请参考 [GitHub Actions 配置指南](./GITHUB_ACTIONS_SETUP.md)。
 
 ### 8.2 测试流程
 
-1. **提交前检查**: Pre-commit hooks 运行单元测试
-2. **PR 检查**: CI 运行所有测试
-3. **合并前**: 必须通过所有测试
-4. **部署前**: 运行 E2E 测试
+1. **提交前检查**: 本地运行测试确保通过
+2. **PR 检查**: CI 自动运行所有测试
+3. **合并前**: 必须通过所有测试检查
+4. **部署前**: 运行 E2E 测试验证功能
+
+### 8.3 本地运行 CI 检查
+
+在推送代码前，可以在本地运行 CI 检查：
+
+```bash
+# 前端
+cd frontend
+npm run lint          # ESLint 检查
+npm run test          # 单元测试
+npm run build         # 构建检查
+
+# 后端
+cd backend
+pytest tests/         # 运行所有测试
+pytest --cov=app tests/  # 带覆盖率
+```
 
 ---
 
@@ -469,6 +502,15 @@ class OpenTrussUser(HttpUser):
 
 ---
 
-*文档版本：1.0*  
-*最后更新：根据 PRD v4.0 创建*
+---
+
+## 11. 相关文档
+
+- [E2E测试指南](E2E_TESTING.md) - 详细的E2E测试使用说明
+- [性能测试指南](PERFORMANCE_TESTING.md) - Locust和k6性能测试详细指南
+
+---
+
+*文档版本：1.1*  
+*最后更新：增加了E2E测试和性能测试的详细文档链接*
 

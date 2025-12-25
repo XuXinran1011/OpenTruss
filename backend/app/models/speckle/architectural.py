@@ -9,7 +9,7 @@
 """
 
 from typing import Optional, List, Dict, Any, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from .base import SpeckleBuiltElementBase, Geometry2D
 
 
@@ -22,8 +22,7 @@ class Wall(SpeckleBuiltElementBase):
     height: Optional[float] = Field(None, description='墙体高度')
     elements: Optional[List[Dict[str, Any]]] = Field(None, description='嵌套元素（如门窗等）')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Floor(SpeckleBuiltElementBase):
@@ -35,8 +34,7 @@ class Floor(SpeckleBuiltElementBase):
     voids: Optional[List[Geometry2D]] = Field(default_factory=list, description='开洞轮廓列表')
     elements: Optional[List[Dict[str, Any]]] = Field(None, description='嵌套元素')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Ceiling(SpeckleBuiltElementBase):
@@ -48,8 +46,7 @@ class Ceiling(SpeckleBuiltElementBase):
     voids: Optional[List[Geometry2D]] = Field(default_factory=list, description='开洞轮廓列表')
     elements: Optional[List[Dict[str, Any]]] = Field(None, description='嵌套元素')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Roof(SpeckleBuiltElementBase):
@@ -61,8 +58,7 @@ class Roof(SpeckleBuiltElementBase):
     voids: Optional[List[Geometry2D]] = Field(default_factory=list, description='开洞轮廓列表')
     elements: Optional[List[Dict[str, Any]]] = Field(None, description='嵌套元素')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Column(SpeckleBuiltElementBase):
@@ -72,6 +68,5 @@ class Column(SpeckleBuiltElementBase):
     """
     geometry_2d: Geometry2D = Field(..., alias='baseLine', description='2D geometry (converted from ICurve baseLine)')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 

@@ -8,7 +8,7 @@
 """
 
 from typing import Optional, List, Dict, Any, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from .base import SpeckleBuiltElementBase, Geometry2D
 
 
@@ -19,8 +19,7 @@ class Beam(SpeckleBuiltElementBase):
     """
     geometry_2d: Geometry2D = Field(..., alias='baseLine', description='2D geometry (converted from ICurve baseLine, beam centerline)')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Brace(SpeckleBuiltElementBase):
@@ -30,8 +29,7 @@ class Brace(SpeckleBuiltElementBase):
     """
     geometry_2d: Geometry2D = Field(..., alias='baseLine', description='2D geometry (converted from ICurve baseLine, brace centerline)')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Structure(SpeckleBuiltElementBase):
@@ -41,8 +39,7 @@ class Structure(SpeckleBuiltElementBase):
     """
     geometry_2d: Optional[Geometry2D] = Field(None, description='2D geometry')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Rebar(SpeckleBuiltElementBase):
@@ -52,6 +49,5 @@ class Rebar(SpeckleBuiltElementBase):
     """
     geometry_2d: Optional[Geometry2D] = Field(None, description='2D geometry (rebar shape)')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 

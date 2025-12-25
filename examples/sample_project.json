@@ -1,0 +1,71 @@
+{
+  "project": {
+    "id": "project_example_001",
+    "name": "示例住宅小区项目",
+    "description": "用于演示 OpenTruss 功能的示例项目"
+  },
+  "buildings": [
+    {
+      "id": "building_example_001",
+      "name": "1#楼",
+      "project_id": "project_example_001"
+    }
+  ],
+  "divisions": [
+    {
+      "id": "division_example_001",
+      "name": "主体结构",
+      "building_id": "building_example_001",
+      "description": "主体结构分部"
+    }
+  ],
+  "subdivisions": [
+    {
+      "id": "subdivision_example_001",
+      "name": "砌体结构",
+      "division_id": "division_example_001",
+      "description": "砌体结构子分部"
+    }
+  ],
+  "items": [
+    {
+      "id": "item_example_001",
+      "name": "填充墙砌体",
+      "subdivision_id": "subdivision_example_001",
+      "description": "填充墙砌体分项"
+    }
+  ],
+  "levels": [
+    {
+      "id": "level_example_f1",
+      "name": "F1层",
+      "elevation": 0.0,
+      "building_id": "building_example_001"
+    },
+    {
+      "id": "level_example_f2",
+      "name": "F2层",
+      "elevation": 3.0,
+      "building_id": "building_example_001"
+    }
+  ],
+  "inspection_lots": [
+    {
+      "id": "lot_example_001",
+      "name": "F1层填充墙",
+      "item_id": "item_example_001",
+      "level_id": "level_example_f1",
+      "status": "PLANNING",
+      "description": "F1层填充墙检验批"
+    },
+    {
+      "id": "lot_example_002",
+      "name": "F2层填充墙",
+      "item_id": "item_example_001",
+      "level_id": "level_example_f2",
+      "status": "PLANNING",
+      "description": "F2层填充墙检验批"
+    }
+  ]
+}
+

@@ -402,8 +402,13 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
 - `item_id`: 分项 ID（可选）
 - `level_id`: 楼层 ID（可选）
 - `status`: 状态（Draft/Verified，可选）
-- `page`: 页码
-- `page_size`: 每页数量
+- `speckle_type`: 构件类型（可选）
+- `has_height`: 是否有高度（可选，布尔值）
+- `has_material`: 是否有材质（可选，布尔值）
+- `min_confidence`: 最小置信度（可选，0.0-1.0，用于筛选低置信度构件）
+- `max_confidence`: 最大置信度（可选，0.0-1.0，用于筛选低置信度构件）
+- `page`: 页码（默认: 1）
+- `page_size`: 每页数量（默认: 20，最大: 100）
 
 **响应**:
 ```json
@@ -439,6 +444,42 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
   }
 }
 ```
+
+#### DELETE /api/v1/elements/{element_id}
+
+删除指定的构件及其所有关联关系。
+
+**路径参数**:
+- `element_id`: 构件 ID
+
+**响应** (200 OK):
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "element_001",
+    "deleted": true
+  }
+}
+```
+
+**错误响应** (404 Not Found):
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Element not found: element_001"
+  }
+}
+```
+
+**注意事项**:
+- 删除操作会同时删除该构件的所有关系（如连接关系）
+- 删除操作不可撤销，请谨慎使用
+- 如果构件已锁定，删除操作会失败
+
+---
 
 #### PATCH /elements/{element_id}
 
@@ -872,7 +913,185 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
 
 ---
 
-### 4.7 监控与统计
+### 4.8 规则引擎校验 API
+
+规则引擎提供多层次的校验功能，确保数据质量。详细架构设计请参考 [规则引擎架构文档](RULE_ENGINE.md)。
+
+#### POST /api/v1/validation/semantic-check
+
+语义连接校验（规则引擎 Phase 1）。检查构件类型之间的连接是否合法。
+
+**请求体**:
+```json
+{
+  "connections": [
+    {
+      "source_type": "Objects.BuiltElements.Pipe",
+      "target_type": "Objects.BuiltElements.Valve"
+    },
+    {
+      "source_type": "Objects.BuiltElements.Pipe",
+      "target_type": "Objects.BuiltElements.Column"
+    }
+  ]
+}
+```
+
+**响应** (200 OK):
+```json
+{
+  "status": "success",
+  "data": {
+    "valid": true,
+    "invalid_connections": []
+  }
+}
+```
+
+**错误响应** (422 Validation Error):
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "INVALID_CONNECTIONS",
+    "message": "存在无效的连接",
+    "details": {
+      "invalid_connections": [
+        {
+          "source_type": "Objects.BuiltElements.Pipe",
+          "target_type": "Objects.BuiltElements.Column",
+          "reason": "Invalid connection: Objects.BuiltElements.Pipe cannot connect to Objects.BuiltElements.Column"
+        }
+      ]
+    }
+  }
+}
+```
+
+#### POST /api/v1/validation/completeness-check
+
+完整性校验（规则引擎 Phase 2）。检查构件的 Z 轴完整性（height、base_offset）。
+
+**请求体**:
+```json
+{
+  "element_ids": ["element_001", "element_002"]
+}
+```
+
+**响应** (200 OK):
+```json
+{
+  "status": "success",
+  "data": {
+    "valid": true,
+    "incomplete_elements": []
+  }
+}
+```
+
+**错误响应** (422 Validation Error):
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "INCOMPLETE_ELEMENTS",
+    "message": "存在不完整的构件",
+    "details": {
+      "incomplete_elements": [
+        {
+          "element_id": "element_001",
+          "missing_fields": ["height", "base_offset"],
+          "element_type": "Wall"
+        }
+      ]
+    }
+  }
+}
+```
+
+#### GET /api/v1/validation/topology-check
+
+拓扑完整性校验（规则引擎 Phase 4）。检查是否存在悬空端点或孤立子图。
+
+**查询参数**:
+- `lot_id`: 检验批 ID（可选，不指定则检查整个项目）
+
+**响应** (200 OK):
+```json
+{
+  "status": "success",
+  "data": {
+    "valid": true,
+    "open_ends": [],
+    "isolated_elements": []
+  }
+}
+```
+
+**错误响应** (422 Validation Error):
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "TOPOLOGY_ERRORS",
+    "message": "存在拓扑错误",
+    "details": {
+      "open_ends": [
+        {
+          "element_id": "pipe_001",
+          "degree": 1,
+          "reason": "Open pipe end detected"
+        }
+      ],
+      "isolated_elements": [
+        {
+          "element_id": "pipe_002",
+          "reason": "Isolated element"
+        }
+      ]
+    }
+  }
+}
+```
+
+#### GET /api/v1/rules/config
+
+获取规则配置（前端使用）。
+
+**查询参数**:
+- `type`: 配置类型 (`semantic` | `fitting` | `all`，默认: `all`)
+
+**响应** (200 OK):
+```json
+{
+  "status": "success",
+  "data": {
+    "version": "1.0",
+    "semantic_allowlist": {
+      "Objects.BuiltElements.Pipe": [
+        "Objects.BuiltElements.Pipe",
+        "Objects.BuiltElements.Valve"
+      ]
+    },
+    "fitting_standards": {
+      "angles": {
+        "standard": [90, 45, 180],
+        "tolerance": 5,
+        "allow_custom": false
+      }
+    }
+  }
+}
+```
+
+**权限说明**:
+- 所有已认证用户都可以获取规则配置
+- 配置信息不包含敏感数据，可以安全地暴露给前端
+
+---
+
+### 4.9 监控与统计
 
 #### GET /api/v1/dashboard/stats
 
@@ -985,6 +1204,70 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
 ## 8. Webhook 支持（未来）
 
 未来版本将支持 Webhook，用于通知外部系统状态变更。
+
+---
+
+---
+
+## 5. 错误代码定义
+
+### 5.1 通用错误代码
+
+| 错误代码 | HTTP 状态码 | 说明 |
+|---------|-----------|------|
+| `UNAUTHORIZED` | 401 | 未授权，需要登录 |
+| `FORBIDDEN` | 403 | 无权限访问该资源 |
+| `NOT_FOUND` | 404 | 资源不存在 |
+| `VALIDATION_ERROR` | 422 | 请求参数验证失败 |
+| `INTERNAL_ERROR` | 500 | 服务器内部错误 |
+
+### 5.2 规则引擎错误代码
+
+| 错误代码 | HTTP 状态码 | 说明 | 示例场景 |
+|---------|-----------|------|---------|
+| `INVALID_CONNECTIONS` | 422 | 存在无效的构件连接 | 规则引擎 Phase 1: 语义校验失败，如 Pipe 连接到 Column |
+| `INCOMPLETE_ELEMENTS` | 422 | 构件数据不完整 | 规则引擎 Phase 2: Wall 或 Column 缺少 height 字段 |
+| `TOPOLOGY_ERRORS` | 422 | 拓扑结构错误 | 规则引擎 Phase 4: 存在悬空端点或孤立子图 |
+| `NON_STANDARD_ANGLE` | 422 | 角度不符合标准（警告，非阻断） | 规则引擎 Phase 2: 角度不在标准列表中（如果 allow_custom=false） |
+| `SPATIAL_CLASH` | 422 | 空间碰撞（警告，非阻断） | 规则引擎 Phase 3: 构件之间发生重叠 |
+
+### 5.3 错误响应格式
+
+所有错误响应遵循以下格式：
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "错误描述（用户友好）",
+    "details": {
+      // 可选的详细错误信息
+    }
+  }
+}
+```
+
+**示例**：
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "INVALID_CONNECTIONS",
+    "message": "存在无效的连接",
+    "details": {
+      "invalid_connections": [
+        {
+          "source_type": "Objects.BuiltElements.Pipe",
+          "target_type": "Objects.BuiltElements.Column",
+          "reason": "Invalid connection: Objects.BuiltElements.Pipe cannot connect to Objects.BuiltElements.Column"
+        }
+      ]
+    }
+  }
+}
+```
 
 ---
 

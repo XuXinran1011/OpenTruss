@@ -6,6 +6,28 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
 
+## 目录
+
+- [项目概述](#项目概述)
+- [核心特性](#核心特性)
+- [快速开始](#快速开始)
+  - [环境要求](#环境要求)
+  - [安装步骤](#安装步骤)
+  - [一键启动（推荐）](#一键启动推荐)
+- [项目文档](#项目文档)
+  - [设计文档](#设计文档)
+  - [开发文档](#开发文档)
+  - [部署文档](#部署文档)
+  - [用户文档](#用户文档)
+- [系统架构](#系统架构)
+  - [技术栈](#技术栈)
+  - [数据层级](#数据层级)
+- [功能模块](#功能模块)
+- [开发路线图](#开发路线图)
+- [贡献指南](#贡献指南)
+- [许可证](#许可证)
+- [联系方式](#联系方式)
+
 ## 项目概述
 
 OpenTruss 是一个面向建筑施工行业的生成式 BIM 中间件 (Generative BIM Middleware)，致力于解决 CAD-to-BIM 逆向重构中的"最后一公里"问题。
@@ -74,22 +96,53 @@ npm run dev
 
 详细安装指南请参考 [开发环境搭建文档](docs/DEVELOPMENT.md)。
 
+### 一键启动（推荐）
+
+> **注意**: 统一启动脚本正在开发中，敬请期待！
+
+对于有经验的开发者，可以使用以下命令快速启动：
+
+```bash
+# 使用 Makefile (推荐，跨平台)
+make setup   # 初始化环境
+make dev     # 启动开发环境
+
+# 或使用脚本
+./scripts/setup.sh        # Linux/macOS
+./scripts/setup.ps1       # Windows PowerShell
+```
+
+更多启动方式请参考 [开发环境搭建文档](docs/DEVELOPMENT.md)。
+
 ## 项目文档
+
+> 📚 **完整文档索引**: 查看 [文档中心](docs/README.md)（如果存在）获取完整的文档导航
+
+### 设计文档
 
 ### 设计文档
 
 - [产品需求文档 (PRD)](PRD.md) - 项目需求和功能规格
-- [系统设计图表](diagrams.md) - 状态机图、泳道图、时序图
 - [技术架构文档](docs/ARCHITECTURE.md) - 系统架构和技术选型
+  - [架构图和 ADR](docs/ARCHITECTURE_DIAGRAMS.md) - 系统架构图、数据模型图、架构决策记录（如已创建）
+- [系统设计图表](diagrams.md) - 状态机图、泳道图、时序图
 - [API 设计文档](docs/API.md) - RESTful API 规范
 - [数据库 Schema](docs/SCHEMA.md) - Memgraph 数据模型
 - [UI/UX 设计文档](docs/UI_DESIGN.md) - 界面设计和交互规范
+
+### Speckle 集成文档
+
+- [Speckle 转换指南](README_SPECKLE_CONVERSION.md) - Speckle 数据转换说明
+- [Speckle 本地设置](README_SPECKLE_LOCAL_SETUP.md) - 本地开发环境配置
 
 ### 开发文档
 
 - [开发环境搭建](docs/DEVELOPMENT.md) - 本地开发环境配置
 - [代码规范](docs/CODING_STANDARDS.md) - Python/前端代码规范
 - [测试策略](docs/TESTING.md) - 测试方法和策略
+  - [E2E 测试指南](docs/E2E_TESTING.md) - Playwright E2E 测试
+  - [性能测试指南](docs/PERFORMANCE_TESTING.md) - Locust 和 k6 性能测试
+- [GitHub Actions 配置](docs/GITHUB_ACTIONS_SETUP.md) - CI/CD 工作流配置
 
 ### 部署文档
 
@@ -188,7 +241,11 @@ npm run dev
 4. 推送到分支 (`git push origin feature/AmazingFeature`)
 5. 创建 Pull Request
 
-详细贡献指南请参考 [代码规范文档](docs/CODING_STANDARDS.md)。
+**详细贡献指南**: 请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解完整的贡献流程、代码规范和测试要求。
+
+相关文档：
+- [代码规范文档](docs/CODING_STANDARDS.md) - 详细的代码风格指南
+- [测试策略](docs/TESTING.md) - 测试要求和最佳实践
 
 ## 许可证
 
@@ -196,9 +253,9 @@ npm run dev
 
 ## 联系方式
 
-- **项目主页**: https://github.com/your-org/opentruss
-- **问题反馈**: https://github.com/your-org/opentruss/issues
-- **技术支持**: support@opentruss.com
+- **项目主页**: https://github.com/XuXinran1011/OpenTruss
+- **问题反馈**: https://github.com/XuXinran1011/OpenTruss/issues
+- **GitHub Discussions**: https://github.com/XuXinran1011/OpenTruss/discussions (如已启用)
 
 ## 致谢
 

@@ -5,7 +5,8 @@
 
 from datetime import datetime
 from typing import Optional, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
+from app.core.auth import UserRole
 
 
 class ProjectNode(BaseModel):
@@ -19,14 +20,15 @@ class ProjectNode(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "project_001",
                 "name": "某住宅小区项目",
                 "description": "总建筑面积 10 万平方米"
             }
         }
+    )
 
 
 class BuildingNode(BaseModel):
@@ -40,14 +42,15 @@ class BuildingNode(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "building_001",
                 "name": "1#楼",
                 "project_id": "project_001"
             }
         }
+    )
 
 
 class DivisionNode(BaseModel):
@@ -62,14 +65,15 @@ class DivisionNode(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "division_001",
                 "name": "主体结构",
                 "building_id": "building_001"
             }
         }
+    )
 
 
 class SubDivisionNode(BaseModel):
@@ -84,14 +88,15 @@ class SubDivisionNode(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "subdivision_001",
                 "name": "砌体结构",
                 "division_id": "division_001"
             }
         }
+    )
 
 
 class ItemNode(BaseModel):
@@ -106,14 +111,15 @@ class ItemNode(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "item_001",
                 "name": "填充墙砌体",
                 "subdivision_id": "subdivision_001"
             }
         }
+    )
 
 
 class InspectionLotNode(BaseModel):
@@ -132,8 +138,8 @@ class InspectionLotNode(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "lot_001",
                 "name": "1#楼F1层填充墙砌体检验批",
@@ -142,6 +148,7 @@ class InspectionLotNode(BaseModel):
                 "status": "PLANNING"
             }
         }
+    )
 
 
 class ApprovalHistoryNode(BaseModel):
@@ -159,8 +166,8 @@ class ApprovalHistoryNode(BaseModel):
     new_status: str = Field(..., description="新状态")
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "history_001",
                 "lot_id": "lot_001",
@@ -172,6 +179,7 @@ class ApprovalHistoryNode(BaseModel):
                 "new_status": "APPROVED"
             }
         }
+    )
 
 
 class LevelNode(BaseModel):
@@ -186,8 +194,8 @@ class LevelNode(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "level_f1",
                 "name": "F1",
@@ -195,6 +203,7 @@ class LevelNode(BaseModel):
                 "elevation": 0.0
             }
         }
+    )
 
 
 class ZoneNode(BaseModel):
@@ -209,14 +218,15 @@ class ZoneNode(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "zone_a",
                 "name": "A区",
                 "building_id": "building_001"
             }
         }
+    )
 
 
 class SystemNode(BaseModel):
@@ -232,8 +242,8 @@ class SystemNode(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "system_001",
                 "name": "给排水系统",
@@ -241,6 +251,35 @@ class SystemNode(BaseModel):
                 "system_type": "Plumbing"
             }
         }
+    )
+
+
+class UserNode(BaseModel):
+    """用户节点
+    
+    标签: :User
+    """
+    id: str = Field(..., description="唯一标识符")
+    username: str = Field(..., description="用户名")
+    email: Optional[str] = Field(None, description="邮箱")
+    password_hash: str = Field(..., description="密码哈希值（bcrypt）")
+    role: UserRole = Field(..., description="用户角色")
+    name: Optional[str] = Field(None, description="姓名")
+    created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
+    updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "id": "user_001",
+                "username": "admin",
+                "email": "admin@example.com",
+                "password_hash": "$2b$12$...",
+                "role": "ADMIN",
+                "name": "管理员"
+            }
+        }
+    )
 
 
 class SubSystemNode(BaseModel):
@@ -255,11 +294,12 @@ class SubSystemNode(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "subsystem_001",
                 "name": "给水子系统",
                 "system_id": "system_001"
             }
         }
+    )

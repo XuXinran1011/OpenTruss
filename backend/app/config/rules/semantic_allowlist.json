@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "description": "语义连接白名单配置（Phase 1）",
+  "rules": {
+    "semantic_allowlist": {
+      "Objects.BuiltElements.Pipe": [
+        "Objects.BuiltElements.Pipe",
+        "Objects.BuiltElements.Valve",
+        "Objects.BuiltElements.Pump",
+        "Objects.BuiltElements.Tank"
+      ],
+      "Objects.BuiltElements.Wall": [
+        "Objects.BuiltElements.Wall",
+        "Objects.BuiltElements.Column"
+      ],
+      "Objects.BuiltElements.Duct": [
+        "Objects.BuiltElements.Duct",
+        "Objects.BuiltElements.AirTerminal",
+        "Objects.BuiltElements.Fan"
+      ]
+    }
+  }
+}
+

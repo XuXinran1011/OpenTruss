@@ -9,6 +9,8 @@ from typing import Optional
 from app.utils.memgraph import MemgraphClient
 from app.models.gb50300.nodes import ItemNode
 from app.models.gb50300.relationships import PHYSICALLY_CONTAINS, MANAGEMENT_CONTAINS
+from app.services.user import UserService
+from app.core.auth import UserRole
 
 logger = logging.getLogger(__name__)
 
@@ -16,13 +18,14 @@ logger = logging.getLogger(__name__)
 UNASSIGNED_ITEM_ID = "unassigned_item"
 
 
-def initialize_schema(client: Optional[MemgraphClient] = None) -> None:
+def initialize_schema(client: Optional[MemgraphClient] = None, create_default_users: bool = True) -> None:
     """初始化 Schema
     
     创建所有必要的索引和默认节点（如 Unassigned Item）
     
     Args:
         client: Memgraph 客户端实例（如果为 None，将创建新实例）
+        create_default_users: 是否创建默认用户
     """
     if client is None:
         client = MemgraphClient()
@@ -35,6 +38,10 @@ def initialize_schema(client: Optional[MemgraphClient] = None) -> None:
         
         # 创建 Unassigned Item（如果不存在）
         _ensure_unassigned_item(client)
+        
+        # 创建默认用户（如果启用）
+        if create_default_users:
+            _create_default_users(client)
         
         logger.info("Schema initialization completed successfully")
         
@@ -80,6 +87,8 @@ def _create_indexes(client: MemgraphClient) -> None:
         ("Element", "level_id"),
         ("Element", "inspection_lot_id"),
         ("Element", "status"),
+        # Element 复合索引（优化常用查询组合）
+        # 注意：Memgraph可能不支持复合索引，这里先记录，实际使用时需要验证
         
         # Level 索引
         ("Level", "id"),
@@ -150,10 +159,6 @@ def _ensure_unassigned_item(client: MemgraphClient) -> None:
 
 
 def _ensure_unassigned_subdivision(client: MemgraphClient) -> None:
-    """确保 Unassigned SubDivision 节点存在（用于 Unassigned Item）
-    
-    如果不存在，则创建它及其上级节点
-    """
     """确保 Unassigned SubDivision 节点存在（用于 Unassigned Item）
     
     如果不存在，则创建它及其上级节点
@@ -233,4 +238,53 @@ def _ensure_unassigned_subdivision(client: MemgraphClient) -> None:
         )
         
         logger.info("Created default hierarchy for unassigned items")
+
+
+def _create_default_users(client: MemgraphClient) -> None:
+    """创建默认用户"""
+    user_service = UserService(client=client)
+    
+    # 默认管理员用户
+    default_users = [
+        {
+            "username": "admin",
+            "password": "admin123",
+            "role": UserRole.ADMIN,
+            "email": "admin@opentruss.com",
+            "name": "系统管理员"
+        },
+        {
+            "username": "editor",
+            "password": "editor123",
+            "role": UserRole.EDITOR,
+            "email": "editor@opentruss.com",
+            "name": "数据清洗工程师"
+        },
+        {
+            "username": "approver",
+            "password": "approver123",
+            "role": UserRole.APPROVER,
+            "email": "approver@opentruss.com",
+            "name": "专业负责人"
+        },
+        {
+            "username": "pm",
+            "password": "pm123",
+            "role": UserRole.PM,
+            "email": "pm@opentruss.com",
+            "name": "项目经理"
+        }
+    ]
+    
+    for user_data in default_users:
+        try:
+            # 检查用户是否已存在
+            existing = user_service.get_user_by_username(user_data["username"])
+            if not existing:
+                user_service.create_user(**user_data)
+                logger.info(f"Created default user: {user_data['username']} (role: {user_data['role'].value})")
+            else:
+                logger.debug(f"Default user already exists: {user_data['username']}")
+        except Exception as e:
+            logger.warning(f"Failed to create default user {user_data['username']}: {e}")
 

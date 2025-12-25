@@ -9,7 +9,7 @@
 """
 
 from typing import Optional, List, Dict, Any, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from .base import SpeckleBuiltElementBase, Geometry2D
 
 
@@ -27,8 +27,7 @@ class Duct(SpeckleBuiltElementBase):
     length: Optional[float] = Field(None, description='风管长度')
     velocity: Optional[float] = Field(None, description='风速')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Pipe(SpeckleBuiltElementBase):
@@ -44,8 +43,7 @@ class Pipe(SpeckleBuiltElementBase):
     flowrate: Optional[float] = Field(None, alias='flowRate', description='流量')
     relative_roughness: Optional[float] = Field(None, alias='relativeRoughness', description='相对粗糙度')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class CableTray(SpeckleBuiltElementBase):
@@ -58,8 +56,7 @@ class CableTray(SpeckleBuiltElementBase):
     height: Optional[float] = Field(None, description='桥架高度')
     length: Optional[float] = Field(None, description='桥架长度')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Conduit(SpeckleBuiltElementBase):
@@ -71,8 +68,7 @@ class Conduit(SpeckleBuiltElementBase):
     diameter: Optional[float] = Field(None, description='导管直径')
     length: Optional[float] = Field(None, description='导管长度')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Wire(SpeckleBuiltElementBase):
@@ -82,6 +78,5 @@ class Wire(SpeckleBuiltElementBase):
     """
     segments: Optional[List[Geometry2D]] = Field(None, description='电线路径段列表（每个段为一条 ICurve）')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 

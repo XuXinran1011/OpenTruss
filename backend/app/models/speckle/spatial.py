@@ -9,7 +9,7 @@
 """
 
 from typing import Optional, List, Dict, Any, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from .base import SpeckleBuiltElementBase, Geometry2D
 
 
@@ -21,8 +21,7 @@ class Level(SpeckleBuiltElementBase):
     elevation: Optional[float] = Field(None, description='楼层标高')
     name: Optional[str] = Field(None, description='楼层名称')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Room(SpeckleBuiltElementBase):
@@ -39,8 +38,7 @@ class Room(SpeckleBuiltElementBase):
     area: Optional[float] = Field(None, description='房间面积')
     volume: Optional[float] = Field(None, description='房间体积')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Space(SpeckleBuiltElementBase):
@@ -63,8 +61,7 @@ class Space(SpeckleBuiltElementBase):
     area: Optional[float] = Field(None, description='空间面积')
     volume: Optional[float] = Field(None, description='空间体积')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Zone(SpeckleBuiltElementBase):
@@ -75,8 +72,7 @@ class Zone(SpeckleBuiltElementBase):
     geometry_2d: Optional[Geometry2D] = Field(None, alias='outline', description='区域轮廓')
     name: Optional[str] = Field(None, description='区域名称')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Area(SpeckleBuiltElementBase):
@@ -88,6 +84,5 @@ class Area(SpeckleBuiltElementBase):
     area: Optional[float] = Field(None, description='面积值')
     name: Optional[str] = Field(None, description='面积名称')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 

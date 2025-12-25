@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "description": "构造标准配置（Phase 2）",
+  "rules": {
+    "fitting_standards": {
+      "angles": {
+        "standard": [90, 45, 180],
+        "tolerance": 5,
+        "allow_custom": false
+      },
+      "z_axis": {
+        "require_height": true,
+        "require_base_offset": true,
+        "element_types": ["Wall", "Column"]
+      }
+    }
+  }
+}
+

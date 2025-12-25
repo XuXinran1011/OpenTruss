@@ -64,7 +64,6 @@ def create_access_token(
     """
     if expires_delta is None:
         # 从配置获取过期时间，默认 30 分钟
-        from app.core.config import settings
         expire_minutes = settings.jwt_access_token_expire_minutes
         expires_delta = timedelta(minutes=expire_minutes)
     
@@ -178,3 +177,28 @@ require_approver = require_role([UserRole.APPROVER, UserRole.PM, UserRole.ADMIN]
 require_pm = require_role([UserRole.PM, UserRole.ADMIN])
 require_admin = require_role([UserRole.ADMIN])
 
+
+# Mock认证（用于开发环境，临时解决方案）
+async def get_mock_user() -> TokenData:
+    """Mock用户（用于开发环境，临时跳过认证）"""
+    return TokenData(
+        user_id="mock_user_id",
+        username="mock_user",
+        role=UserRole.APPROVER
+    )
+
+
+async def require_mock_approver() -> TokenData:
+    """Mock审批者权限检查（用于开发环境）"""
+    return await get_mock_user()
+
+
+async def require_mock_pm() -> TokenData:
+    """Mock PM权限检查（用于开发环境）"""
+    mock_user = await get_mock_user()
+    # 返回一个PM角色的mock用户
+    return TokenData(
+        user_id=mock_user.user_id,
+        username=mock_user.username,
+        role=UserRole.PM
+    )

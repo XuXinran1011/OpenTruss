@@ -1,0 +1,131 @@
+{
+  "elements": [
+    {
+      "id": "element_example_wall_001",
+      "speckle_id": "speckle_wall_001",
+      "speckle_type": "Wall",
+      "geometry_2d": {
+        "type": "Polyline",
+        "coordinates": [[0, 0], [10, 0], [10, 0.2], [0, 0.2], [0, 0]],
+        "closed": true
+      },
+      "height": 3.0,
+      "base_offset": 0.0,
+      "material": "concrete_block",
+      "level_id": "level_example_f1",
+      "inspection_lot_id": "lot_example_001",
+      "status": "Draft",
+      "confidence": 0.85
+    },
+    {
+      "id": "element_example_wall_002",
+      "speckle_id": "speckle_wall_002",
+      "speckle_type": "Wall",
+      "geometry_2d": {
+        "type": "Polyline",
+        "coordinates": [[10, 0], [10, 8], [10.2, 8], [10.2, 0], [10, 0]],
+        "closed": true
+      },
+      "height": 3.0,
+      "base_offset": 0.0,
+      "material": "concrete_block",
+      "level_id": "level_example_f1",
+      "inspection_lot_id": "lot_example_001",
+      "status": "Draft",
+      "confidence": 0.90
+    },
+    {
+      "id": "element_example_wall_003",
+      "speckle_id": "speckle_wall_003",
+      "speckle_type": "Wall",
+      "geometry_2d": {
+        "type": "Polyline",
+        "coordinates": [[10, 8], [0, 8], [0, 7.8], [10, 7.8], [10, 8]],
+        "closed": true
+      },
+      "height": 3.0,
+      "base_offset": 0.0,
+      "material": "concrete_block",
+      "level_id": "level_example_f1",
+      "inspection_lot_id": "lot_example_001",
+      "status": "Draft",
+      "confidence": 0.88
+    },
+    {
+      "id": "element_example_wall_004",
+      "speckle_id": "speckle_wall_004",
+      "speckle_type": "Wall",
+      "geometry_2d": {
+        "type": "Polyline",
+        "coordinates": [[0, 8], [0, 0], [0.2, 0], [0.2, 8], [0, 8]],
+        "closed": true
+      },
+      "height": 3.0,
+      "base_offset": 0.0,
+      "material": "concrete_block",
+      "level_id": "level_example_f1",
+      "inspection_lot_id": "lot_example_001",
+      "status": "Draft",
+      "confidence": 0.87
+    },
+    {
+      "id": "element_example_column_001",
+      "speckle_id": "speckle_column_001",
+      "speckle_type": "Column",
+      "geometry_2d": {
+        "type": "Polyline",
+        "coordinates": [[5, 4], [5.4, 4], [5.4, 4.4], [5, 4.4], [5, 4]],
+        "closed": true
+      },
+      "height": 3.0,
+      "base_offset": 0.0,
+      "material": "concrete",
+      "level_id": "level_example_f1",
+      "status": "Draft",
+      "confidence": 0.92
+    },
+    {
+      "id": "element_example_beam_001",
+      "speckle_id": "speckle_beam_001",
+      "speckle_type": "Beam",
+      "geometry_2d": {
+        "type": "Line",
+        "coordinates": [[0, 4], [10, 4]],
+        "closed": false
+      },
+      "height": 0.5,
+      "base_offset": 3.0,
+      "material": "concrete",
+      "level_id": "level_example_f1",
+      "status": "Draft",
+      "confidence": 0.89
+    }
+  ],
+  "connections": [
+    {
+      "element_id_1": "element_example_wall_001",
+      "element_id_2": "element_example_wall_002"
+    },
+    {
+      "element_id_1": "element_example_wall_002",
+      "element_id_2": "element_example_wall_003"
+    },
+    {
+      "element_id_1": "element_example_wall_003",
+      "element_id_2": "element_example_wall_004"
+    },
+    {
+      "element_id_1": "element_example_wall_004",
+      "element_id_2": "element_example_wall_001"
+    },
+    {
+      "element_id_1": "element_example_column_001",
+      "element_id_2": "element_example_wall_001"
+    },
+    {
+      "element_id_1": "element_example_column_001",
+      "element_id_2": "element_example_beam_001"
+    }
+  ]
+}
+

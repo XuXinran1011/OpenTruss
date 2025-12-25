@@ -83,7 +83,7 @@ async def reject_lot(
     lot_id: str,
     request: RejectRequest,
     service: ApprovalService = Depends(get_approval_service),
-    current_user: TokenData = Depends(require_approver),  # Approver 或 PM 都可以
+    current_user: TokenData = Depends(require_approver),
 ) -> dict:
     """驳回检验批"""
     try:

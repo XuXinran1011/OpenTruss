@@ -1,11 +1,27 @@
+# Web Framework
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
+
+# Data Validation & Settings
 pydantic>=2.0.0
 pydantic-settings>=2.0.0
-neo4j>=5.0.0
+
+# Database
+neo4j>=5.0.0  # Memgraph compatibility (uses Bolt protocol)
+
+# HTTP Client
 requests>=2.31.0
+
+# Environment Configuration
 python-dotenv>=1.0.0
+
+# IFC File Processing
 ifcopenshell>=0.7.0
+
+# Authentication & Security
 pyjwt>=2.8.0
 python-jose[cryptography]>=3.3.0
+bcrypt>=4.0.0
 
+# Monitoring
+prometheus-client>=0.19.0

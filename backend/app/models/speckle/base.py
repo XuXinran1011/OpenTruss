@@ -1,7 +1,7 @@
 """Speckle BuiltElements 基础模型和通用类型"""
 
 from typing import Optional, List, Dict, Any, Literal, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class Geometry2D(BaseModel):
@@ -10,7 +10,7 @@ class Geometry2D(BaseModel):
     将 Speckle 的 ICurve 转换为 OpenTruss 的 Geometry2D 格式
     """
     type: Literal["Line", "Polyline"]
-    coordinates: List[List[float]] = Field(..., min_items=2, description="坐标点列表 [[x1, y1], [x2, y2], ...]")
+    coordinates: List[List[float]] = Field(..., min_length=2, description="坐标点列表 [[x1, y1], [x2, y2], ...]")
     closed: Optional[bool] = Field(None, description="是否闭合（Polyline 专用）")
 
 
@@ -33,15 +33,15 @@ class SpeckleBuiltElementBase(BaseModel):
     status: Optional[Literal["Draft", "Verified"]] = Field("Draft", description="构件状态")
     confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="AI 识别置信度")
     
-    class Config:
-        """Pydantic 配置"""
+    model_config = ConfigDict(
         # 允许使用字段别名
-        populate_by_name = True  # Pydantic v2
+        populate_by_name=True,
         # 示例值
-        json_schema_extra = {  # Pydantic v2
+        json_schema_extra={
             "example": {
                 "speckle_type": "Wall",
                 "level_id": "level_f1"
             }
         }
+    )
 

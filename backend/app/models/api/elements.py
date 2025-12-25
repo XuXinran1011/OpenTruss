@@ -5,9 +5,14 @@
 
 from typing import Optional, List, Literal, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
 from app.models.speckle.base import Geometry2D
+from app.core.validators import (
+    GeometryValidator,
+    IFCConstraintValidator,
+    GB50300Validator,
+)
 
 
 class ElementListItem(BaseModel):
@@ -55,6 +60,30 @@ class ElementDetail(BaseModel):
     connected_elements: Optional[List[str]] = Field(default_factory=list, description="连接的构件 ID 列表")
     created_at: datetime = Field(..., description="创建时间")
     updated_at: datetime = Field(..., description="更新时间")
+    
+    @field_validator("speckle_type")
+    @classmethod
+    def validate_speckle_type(cls, v: str) -> str:
+        """验证 Speckle 类型"""
+        return IFCConstraintValidator.validate_speckle_type(v, None)
+    
+    @field_validator("height")
+    @classmethod
+    def validate_height(cls, v: Optional[float]) -> Optional[float]:
+        """验证高度值"""
+        return IFCConstraintValidator.validate_height(v, None)
+    
+    @field_validator("base_offset")
+    @classmethod
+    def validate_base_offset(cls, v: Optional[float]) -> Optional[float]:
+        """验证基础偏移值"""
+        return IFCConstraintValidator.validate_base_offset(v, None)
+    
+    @field_validator("inspection_lot_id")
+    @classmethod
+    def validate_inspection_lot_id(cls, v: Optional[str]) -> Optional[str]:
+        """验证检验批 ID 格式"""
+        return GB50300Validator.validate_inspection_lot_id(v, None)
     
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -105,6 +134,8 @@ class ElementQueryParams(BaseModel):
     speckle_type: Optional[str] = Field(None, description="筛选：构件类型")
     has_height: Optional[bool] = Field(None, description="筛选：是否有高度")
     has_material: Optional[bool] = Field(None, description="筛选：是否有材质")
+    min_confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="筛选：最小置信度（0.0-1.0）")
+    max_confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="筛选：最大置信度（0.0-1.0）")
     page: int = Field(default=1, ge=1, description="页码")
     page_size: int = Field(default=20, ge=1, le=100, description="每页数量")
 
@@ -113,6 +144,21 @@ class TopologyUpdateRequest(BaseModel):
     """拓扑更新请求（Trace Mode）"""
     geometry_2d: Optional[Geometry2D] = Field(None, description="更新的 2D 几何数据")
     connected_elements: Optional[List[str]] = Field(default_factory=list, description="连接的构件 ID 列表")
+    
+    @field_validator("geometry_2d")
+    @classmethod
+    def validate_geometry(cls, v: Optional[Geometry2D]) -> Optional[Geometry2D]:
+        """验证几何数据"""
+        if v is None:
+            return v
+        # 验证坐标
+        if v.coordinates:
+            GeometryValidator.validate_coordinates(v.coordinates, None)
+        # 验证闭合性
+        GeometryValidator.validate_polyline_closed(v)
+        # 验证尺寸
+        IFCConstraintValidator.validate_geometry_length(v)
+        return v
     
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -132,6 +178,18 @@ class ElementUpdateRequest(BaseModel):
     base_offset: Optional[float] = Field(None, description="基础偏移")
     material: Optional[str] = Field(None, description="材质")
     
+    @field_validator("height")
+    @classmethod
+    def validate_height(cls, v: Optional[float]) -> Optional[float]:
+        """验证高度值符合 IFC 标准"""
+        return IFCConstraintValidator.validate_height(v, None)
+    
+    @field_validator("base_offset")
+    @classmethod
+    def validate_base_offset(cls, v: Optional[float]) -> Optional[float]:
+        """验证基础偏移值"""
+        return IFCConstraintValidator.validate_base_offset(v, None)
+    
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "height": 3.0,
@@ -147,6 +205,18 @@ class BatchLiftRequest(BaseModel):
     height: Optional[float] = Field(None, description="高度")
     base_offset: Optional[float] = Field(None, description="基础偏移")
     material: Optional[str] = Field(None, description="材质")
+    
+    @field_validator("height")
+    @classmethod
+    def validate_height(cls, v: Optional[float]) -> Optional[float]:
+        """验证高度值符合 IFC 标准"""
+        return IFCConstraintValidator.validate_height(v, None)
+    
+    @field_validator("base_offset")
+    @classmethod
+    def validate_base_offset(cls, v: Optional[float]) -> Optional[float]:
+        """验证基础偏移值"""
+        return IFCConstraintValidator.validate_base_offset(v, None)
     
     model_config = ConfigDict(json_schema_extra={
         "example": {
@@ -175,6 +245,15 @@ class ClassifyRequest(BaseModel):
     """归类请求（Classify Mode）"""
     item_id: str = Field(..., description="目标分项 ID")
     
+    @field_validator("item_id")
+    @classmethod
+    def validate_item_id(cls, v: str) -> str:
+        """验证分项 ID 格式"""
+        result = GB50300Validator.validate_item_id(v, None)
+        if result is None:
+            raise ValueError("分项 ID 不能为空")
+        return result
+    
     model_config = ConfigDict(json_schema_extra={
         "example": {
             "item_id": "item_001"
@@ -193,6 +272,30 @@ class ClassifyResponse(BaseModel):
             "element_id": "element_001",
             "item_id": "item_001",
             "previous_item_id": None
+        }
+    })
+
+
+class BatchElementDetailRequest(BaseModel):
+    """批量获取构件详情请求"""
+    element_ids: List[str] = Field(..., min_length=1, max_length=100, description="构件 ID 列表（最多100个）")
+    
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "element_ids": ["element_001", "element_002", "element_003"]
+        }
+    })
+
+
+class BatchElementDetailResponse(BaseModel):
+    """批量获取构件详情响应"""
+    items: List[ElementDetail] = Field(..., description="构件详情列表")
+    not_found: List[str] = Field(default_factory=list, description="未找到的构件 ID 列表")
+    
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "items": [],
+            "not_found": []
         }
     })
 

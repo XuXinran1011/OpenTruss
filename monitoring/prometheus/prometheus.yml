@@ -1,0 +1,36 @@
+# Prometheus 配置
+global:
+  scrape_interval: 15s  # 每15秒抓取一次指标
+  evaluation_interval: 15s  # 每15秒评估一次规则
+  external_labels:
+    cluster: 'opentruss'
+    environment: 'development'
+
+# 抓取配置
+scrape_configs:
+  # OpenTruss 后端 API 指标
+  - job_name: 'opentruss-backend'
+    static_configs:
+      - targets: ['backend:8000']
+        labels:
+          service: 'opentruss-api'
+          component: 'backend'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Prometheus 自身指标
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+# 告警规则配置（可选）
+# rule_files:
+#   - 'alerts.yml'
+
+# 告警管理器配置（可选）
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+

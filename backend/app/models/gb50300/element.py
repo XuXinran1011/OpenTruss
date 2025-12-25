@@ -5,7 +5,7 @@
 
 from datetime import datetime
 from typing import Optional, Literal, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.models.speckle.base import Geometry2D
 
@@ -41,8 +41,8 @@ class ElementNode(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
     updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "element_001",
                 "speckle_id": "speckle_wall_001",
@@ -60,6 +60,7 @@ class ElementNode(BaseModel):
                 "confidence": 0.85
             }
         }
+    )
     
     def to_cypher_properties(self) -> Dict[str, Any]:
         """转换为 Cypher 查询可用的属性字典

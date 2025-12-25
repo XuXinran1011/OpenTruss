@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import ingest, hierarchy, elements, lots, approval, export
+from app.api.v1 import ingest, hierarchy, elements, lots, approval, export, auth, metrics
 from app.core.config import settings
 from app.services.schema import initialize_schema
 from app.utils.memgraph import MemgraphClient
@@ -23,9 +23,9 @@ async def lifespan(app: FastAPI):
     # 启动时执行
     logger.info("Initializing OpenTruss API...")
     try:
-        # 初始化 Memgraph Schema
+        # 初始化 Memgraph Schema（包括默认用户）
         client = MemgraphClient()
-        initialize_schema(client)
+        initialize_schema(client, create_default_users=True)
         logger.info("Schema initialization completed")
     except Exception as e:
         logger.error(f"Schema initialization failed: {e}")
@@ -58,12 +58,14 @@ app.add_middleware(
 )
 
 # 注册路由
+app.include_router(auth.router, prefix="/api/v1")
 app.include_router(ingest.router, prefix="/api/v1")
 app.include_router(hierarchy.router, prefix="/api/v1")
 app.include_router(elements.router, prefix="/api/v1")
 app.include_router(lots.router, prefix="/api/v1")
 app.include_router(approval.router, prefix="/api/v1")
 app.include_router(export.router, prefix="/api/v1")
+app.include_router(metrics.router)  # Metrics endpoint at /metrics (no prefix)
 
 
 @app.get("/")

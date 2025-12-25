@@ -104,6 +104,14 @@ class WorkbenchService:
             else:
                 where_conditions.append("e.material IS NULL")
         
+        if params.min_confidence is not None:
+            where_conditions.append("e.confidence >= $min_confidence")
+            query_params["min_confidence"] = params.min_confidence
+        
+        if params.max_confidence is not None:
+            where_conditions.append("e.confidence <= $max_confidence")
+            query_params["max_confidence"] = params.max_confidence
+        
         # 处理 item_id 筛选（需要关联 InspectionLot）
         if item_lot_ids is not None:
             if item_lot_ids:
@@ -157,6 +165,91 @@ class WorkbenchService:
             "total": total,
             "page": params.page,
             "page_size": params.page_size,
+        }
+    
+    def batch_get_elements(self, element_ids: List[str]) -> Dict[str, Any]:
+        """批量获取构件详情
+        
+        使用单个Cypher查询批量获取多个构件的详细信息，包括连接关系
+        避免N+1查询问题
+        
+        Args:
+            element_ids: 构件 ID 列表（最多100个）
+            
+        Returns:
+            Dict: 包含 items（构件详情列表）和 not_found（未找到的ID列表）的字典
+        """
+        if not element_ids:
+            return {"items": [], "not_found": []}
+        
+        # 限制批量查询数量，避免查询过大
+        if len(element_ids) > 100:
+            raise ValueError("最多支持批量查询100个构件")
+        
+        # 使用单个查询获取所有构件的详细信息和连接关系
+        # 使用OPTIONAL MATCH来处理可能没有连接关系的构件
+        query = """
+        MATCH (e:Element)
+        WHERE e.id IN $element_ids
+        OPTIONAL MATCH (e)-[:CONNECTED_TO]->(other:Element)
+        WITH e, collect(DISTINCT other.id) as connected_ids
+        RETURN e,
+               connected_ids
+        """
+        
+        results = self.client.execute_query(query, {"element_ids": element_ids})
+        
+        # 创建结果映射
+        element_map: Dict[str, ElementDetail] = {}
+        found_ids = set()
+        
+        for row in results:
+            element_data = dict(row["e"])
+            element_id = element_data["id"]
+            found_ids.add(element_id)
+            connected_elements = row.get("connected_ids", [])
+            connected_elements = [cid for cid in connected_elements if cid]  # 过滤None值
+            
+            # 解析 geometry_2d
+            geometry_2d_dict = element_data.get("geometry_2d")
+            if not isinstance(geometry_2d_dict, dict):
+                logger.warning(f"Element {element_id} has no geometry_2d, skipping")
+                continue
+            
+            try:
+                geometry_2d = Geometry2D(**geometry_2d_dict)
+            except Exception as e:
+                logger.warning(f"Failed to parse geometry_2d for element {element_id}: {e}")
+                continue
+            
+            element_map[element_id] = ElementDetail(
+                id=element_data["id"],
+                speckle_id=element_data.get("speckle_id"),
+                speckle_type=element_data["speckle_type"],
+                geometry_2d=geometry_2d,
+                height=element_data.get("height"),
+                base_offset=element_data.get("base_offset"),
+                material=element_data.get("material"),
+                level_id=element_data["level_id"],
+                zone_id=element_data.get("zone_id"),
+                inspection_lot_id=element_data.get("inspection_lot_id"),
+                status=element_data.get("status", "Draft"),
+                confidence=element_data.get("confidence"),
+                locked=element_data.get("locked", False),
+                connected_elements=connected_elements,
+                created_at=convert_neo4j_datetime(element_data.get("created_at")) or datetime.now(),
+                updated_at=convert_neo4j_datetime(element_data.get("updated_at")) or datetime.now(),
+            )
+        
+        # 找出未找到的ID
+        not_found = [eid for eid in element_ids if eid not in found_ids]
+        
+        # 按输入顺序返回结果
+        items = [element_map[eid] for eid in element_ids if eid in element_map]
+        
+        return {
+            "items": items,
+            "not_found": not_found,
         }
     
     def get_element(self, element_id: str) -> Optional[ElementDetail]:
@@ -228,6 +321,7 @@ class WorkbenchService:
         skip = (page - 1) * page_size
         
         # 查询未分配的构件（inspection_lot_id 为 NULL）
+        # 优化：使用索引字段（inspection_lot_id）进行COUNT查询，性能更好
         count_query = "MATCH (e:Element) WHERE e.inspection_lot_id IS NULL RETURN count(e) as total"
         count_result = self.client.execute_query(count_query)
         total = count_result[0]["total"] if count_result else 0
@@ -447,6 +541,48 @@ class WorkbenchService:
             updated_count=len(updated_ids),
             element_ids=updated_ids,
         )
+    
+    def delete_element(self, element_id: str) -> Dict[str, Any]:
+        """删除构件及其所有关联关系
+        
+        使用 DETACH DELETE 删除构件节点及其所有关系（包括：
+        - 与其他构件的连接关系 (CONNECTED_TO)
+        - 所属检验批关系 (BELONGS_TO_LOT)
+        - 其他可能的关联关系）
+        
+        Args:
+            element_id: 要删除的构件 ID
+            
+        Returns:
+            Dict: 删除结果，包含 id 和 deleted 字段
+                - id: 被删除的构件 ID
+                - deleted: 布尔值，表示是否成功删除
+                
+        Raises:
+            ValueError: 如果构件不存在
+            
+        Note:
+            - 删除操作不可撤销，请谨慎使用
+            - 删除后，相关的检验批中的构件数量会自动更新
+        """
+        # 验证构件存在
+        element = self.get_element(element_id)
+        if not element:
+            raise ValueError(f"Element not found: {element_id}")
+        
+        # 使用 DETACH DELETE 删除节点及其所有关系
+        delete_query = """
+        MATCH (e:Element {id: $element_id})
+        DETACH DELETE e
+        """
+        self.client.execute_write(delete_query, {"element_id": element_id})
+        
+        logger.info(f"Deleted element: {element_id}")
+        
+        return {
+            "id": element_id,
+            "deleted": True,
+        }
     
     def classify_element(
         self,

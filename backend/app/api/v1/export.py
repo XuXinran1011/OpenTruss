@@ -3,11 +3,12 @@
 提供检验批和项目的 IFC 文件导出接口
 """
 
-from typing import List, Optional
+from typing import Optional
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from fastapi.responses import Response
 
 from app.services.export import ExportService
+from app.models.api.export import BatchExportRequest
 from app.utils.memgraph import get_memgraph_client, MemgraphClient
 
 router = APIRouter(prefix="/export", tags=["export"])
@@ -83,16 +84,12 @@ async def export_ifc(
     description="批量导出多个检验批为 IFC 文件（合并为一个文件）"
 )
 async def batch_export_ifc(
-    lot_ids: List[str],
+    request: BatchExportRequest,
     service: ExportService = Depends(get_export_service),
 ) -> Response:
     """批量导出 IFC 文件"""
     try:
-        if not lot_ids:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="lot_ids cannot be empty"
-            )
+        lot_ids = request.lot_ids
         
         # 使用多检验批合并导出功能
         ifc_bytes = service._export_multiple_lots_to_ifc(lot_ids)

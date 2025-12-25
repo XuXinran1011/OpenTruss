@@ -187,18 +187,88 @@ def ingest_elements(elements: List[SpeckleObject]) -> IngestResult:
 
 #### 3.3.3 规则引擎 (Rule Engine)
 
-**职责**：
-- 执行检验批划分规则
-- 自动聚合符合条件的构件
-- 创建 InspectionLot 节点
-- 建立节点关系
+规则引擎是 OpenTruss 的核心校验组件，采用**分层防御策略**，通过前后端协同工作，确保数据质量。详细设计参见 [规则引擎架构文档](RULE_ENGINE.md)。
 
-**规则示例**：
+**架构概述**：
+
+```mermaid
+graph TB
+    subgraph FrontendRuleEngine["前端规则引擎 (UX Layer)"]
+        FE1[SemanticValidator<br/>语义校验]
+        FE2[ConstructabilityValidator<br/>构造校验]
+        FE3[SpatialValidator<br/>空间校验]
+        FE4[RuleEngine<br/>聚合器]
+    end
+    
+    subgraph BackendRuleEngine["后端规则引擎 (Data Layer)"]
+        BE1[ValidationService<br/>校验服务]
+        BE2[SemanticValidator<br/>语义校验]
+        BE3[CompletenessValidator<br/>完整性校验]
+        BE4[TopologyValidator<br/>拓扑校验]
+        BE5[RuleConfig<br/>配置管理]
+    end
+    
+    FrontendRuleEngine -->|实时校验| API
+    API --> BackendRuleEngine
+    BackendRuleEngine -->|提交阻断| Approval
+    BackendRuleEngine -->|数据校验| Memgraph
+    BE5 -->|加载配置| ConfigFiles[规则配置文件]
+    
+    style FrontendRuleEngine fill:#e1f5ff
+    style BackendRuleEngine fill:#fff4e6
+```
+
+**核心职责**：
+
+1. **检验批划分规则执行**（已有功能）：
+   - 执行检验批划分规则
+   - 自动聚合符合条件的构件
+   - 创建 InspectionLot 节点
+   - 建立节点关系
+
+2. **数据质量校验**（新增功能，分阶段实施）：
+   - **规则引擎 Phase 1: 语义校验**：防止违反常识的连接（如：水管接柱子）
+   - **规则引擎 Phase 2: 构造校验**：角度吸附、Z轴完整性检查
+   - **规则引擎 Phase 3: 空间校验**：物理碰撞检测（2.5D 包围盒）
+   - **规则引擎 Phase 4: 拓扑校验**：确保系统逻辑闭环（无悬空端点、无孤立子图）
+
+**技术栈**：
+- **前端**：TypeScript, Turf.js, RBush
+- **后端**：Python, Memgraph (Cypher), Pydantic
+- **配置**：JSON 配置文件（Rule as Code）
+
+**与其他服务的交互**：
+
+```mermaid
+graph LR
+    Workbench -->|实时校验请求| RuleEngine
+    Approval -->|提交时校验| RuleEngine
+    RuleEngine -->|读取配置| ConfigFiles
+    RuleEngine -->|查询数据| Memgraph
+    RuleEngine -->|校验结果| Approval
+    RuleEngine -->|实时反馈| Workbench
+    
+    style RuleEngine fill:#fff4e6
+```
+
+**规则示例**（检验批划分）：
 ```
 IF Element.level_id == 'F1' 
 AND Element.speckle_type == 'Wall'
 AND Element.item_id == 'item_001'
 THEN Assign To InspectionLot 'lot_001'
+```
+
+**校验规则示例**（语义校验）：
+```python
+# 语义连接白名单
+semantic_allowlist = {
+    "Objects.BuiltElements.Pipe": [
+        "Objects.BuiltElements.Pipe",
+        "Objects.BuiltElements.Valve",
+        "Objects.BuiltElements.Pump"
+    ]
+}
 ```
 
 #### 3.3.4 审批工作流服务 (Approval Service)
@@ -301,6 +371,97 @@ sequenceDiagram
     Memgraph-->>RuleEngine: 确认创建
     RuleEngine-->>API: 返回检验批信息
     API-->>Approver: 返回创建结果
+```
+
+### 4.4 规则引擎校验流程
+
+规则引擎在校验过程中分为**实时校验（前端）**和**提交校验（后端）**两个阶段。
+
+#### 4.4.1 实时校验流程（前端）
+
+```mermaid
+sequenceDiagram
+    participant Editor as Editor
+    participant Frontend as HITL Workbench
+    participant RuleEngine as 前端规则引擎
+    participant ConfigAPI as 配置 API
+    participant SpatialIndex as 空间索引<br/>(RBush)
+    
+    Editor->>Frontend: 拖拽连接构件
+    Frontend->>RuleEngine: validateDragAction(source, target, path)
+    
+    RuleEngine->>ConfigAPI: 获取语义规则配置
+    ConfigAPI-->>RuleEngine: 返回 semantic_allowlist
+    RuleEngine->>RuleEngine: 语义校验<br/>(canConnect)
+    
+    alt 语义校验失败
+        RuleEngine-->>Frontend: {valid: false, error: "Invalid connection"}
+        Frontend-->>Editor: 显示错误，阻止连接
+    else 语义校验通过
+        RuleEngine->>ConfigAPI: 获取角度标准
+        ConfigAPI-->>RuleEngine: 返回 angle_standards
+        RuleEngine->>RuleEngine: 角度吸附<br/>(snapAngle)
+        
+        RuleEngine->>SpatialIndex: 空间碰撞检测
+        SpatialIndex-->>RuleEngine: 返回碰撞结果
+        
+        alt 有碰撞
+            RuleEngine-->>Frontend: {valid: true, warning: "Collision detected"}
+            Frontend-->>Editor: 显示警告（构件变红）
+        else 无碰撞
+            RuleEngine-->>Frontend: {valid: true, suggestions: [...]}
+            Frontend-->>Editor: 应用建议（如角度修正）
+        end
+    end
+```
+
+#### 4.4.2 提交校验流程（后端）
+
+```mermaid
+sequenceDiagram
+    participant Editor as Editor
+    participant API as Approval API
+    participant ValidationService as 校验服务
+    participant SemanticValidator as 语义校验器
+    participant CompletenessValidator as 完整性校验器
+    participant TopologyValidator as 拓扑校验器
+    participant Memgraph as Memgraph
+    
+    Editor->>API: POST /api/v1/inspection-lots/{lot_id}/submit
+    API->>ValidationService: submit_for_approval(lot_id)
+    
+    ValidationService->>Memgraph: 查询检验批和构件
+    Memgraph-->>ValidationService: 返回数据
+    
+    ValidationService->>SemanticValidator: 语义校验
+    SemanticValidator->>SemanticValidator: 检查连接白名单
+    alt 语义校验失败
+        SemanticValidator-->>ValidationService: 错误：无效连接
+        ValidationService-->>API: HTTP 422 Validation Error
+        API-->>Editor: 提交失败（无效连接）
+    else 语义校验通过
+        ValidationService->>CompletenessValidator: 完整性校验
+        CompletenessValidator->>CompletenessValidator: 检查 height, base_offset
+        alt 完整性校验失败
+            CompletenessValidator-->>ValidationService: 错误：缺失字段
+            ValidationService-->>API: HTTP 422 Validation Error
+            API-->>Editor: 提交失败（不完整构件）
+        else 完整性校验通过
+            ValidationService->>TopologyValidator: 拓扑校验
+            TopologyValidator->>Memgraph: 执行 Cypher 查询<br/>检查悬空端点、孤立子图
+            Memgraph-->>TopologyValidator: 返回拓扑错误
+            alt 拓扑校验失败
+                TopologyValidator-->>ValidationService: 错误：拓扑问题
+                ValidationService-->>API: HTTP 422 Validation Error
+                API-->>Editor: 提交失败（拓扑错误）
+            else 所有校验通过
+                ValidationService->>Memgraph: 更新状态为 SUBMITTED
+                Memgraph-->>ValidationService: 确认更新
+                ValidationService-->>API: 校验通过
+                API-->>Editor: 提交成功
+            end
+        end
+    end
 ```
 
 ---

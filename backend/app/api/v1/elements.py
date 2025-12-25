@@ -45,6 +45,8 @@ async def get_elements(
     speckle_type: Optional[str] = Query(None, description="筛选：构件类型"),
     has_height: Optional[bool] = Query(None, description="筛选：是否有高度"),
     has_material: Optional[bool] = Query(None, description="筛选：是否有材质"),
+    min_confidence: Optional[float] = Query(None, ge=0.0, le=1.0, description="筛选：最小置信度（0.0-1.0）"),
+    max_confidence: Optional[float] = Query(None, ge=0.0, le=1.0, description="筛选：最大置信度（0.0-1.0）"),
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=20, ge=1, le=100, description="每页数量"),
     service: WorkbenchService = Depends(get_workbench_service),
@@ -58,6 +60,8 @@ async def get_elements(
         speckle_type=speckle_type,
         has_height=has_height,
         has_material=has_material,
+        min_confidence=min_confidence,
+        max_confidence=max_confidence,
         page=page,
         page_size=page_size,
     )
@@ -236,6 +240,40 @@ async def classify_element(
         raise HTTPException(
             status_code=status_code,
             detail=error_msg,
+        )
+
+
+@router.delete(
+    "/{element_id}",
+    response_model=dict,
+    summary="删除构件",
+    description="删除指定的构件及其所有关系"
+)
+async def delete_element(
+    element_id: str,
+    service: WorkbenchService = Depends(get_workbench_service),
+) -> dict:
+    """删除构件"""
+    try:
+        result = service.delete_element(element_id)
+        return {
+            "status": "success",
+            "data": result,
+        }
+    except ValueError as e:
+        error_msg = str(e)
+        status_code = status.HTTP_404_NOT_FOUND
+        if "not found" in error_msg.lower():
+            status_code = status.HTTP_404_NOT_FOUND
+        
+        raise HTTPException(
+            status_code=status_code,
+            detail=error_msg,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete element: {str(e)}"
         )
 
 

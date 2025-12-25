@@ -14,7 +14,7 @@
 """
 
 from typing import Optional, List, Dict, Any, Literal, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from .base import SpeckleBuiltElementBase, Geometry2D
 
 
@@ -25,8 +25,7 @@ class Opening(SpeckleBuiltElementBase):
     """
     geometry_2d: Optional[Geometry2D] = Field(None, alias='outline', description='洞口轮廓')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Topography(SpeckleBuiltElementBase):
@@ -36,8 +35,7 @@ class Topography(SpeckleBuiltElementBase):
     """
     geometry_2d: Optional[Geometry2D] = Field(None, description='地形几何')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class GridLine(SpeckleBuiltElementBase):
@@ -48,8 +46,7 @@ class GridLine(SpeckleBuiltElementBase):
     geometry_2d: Geometry2D = Field(..., alias='baseLine', description='2D geometry (converted from ICurve baseLine, grid line)')
     name: Optional[str] = Field(None, description='网格线名称')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Profile(SpeckleBuiltElementBase):
@@ -59,8 +56,7 @@ class Profile(SpeckleBuiltElementBase):
     """
     geometry_2d: Optional[Geometry2D] = Field(None, description='轮廓几何')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Network(SpeckleBuiltElementBase):
@@ -70,8 +66,7 @@ class Network(SpeckleBuiltElementBase):
     """
     geometry_2d: Optional[Geometry2D] = Field(None, description='网络几何')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class View(SpeckleBuiltElementBase):
@@ -81,8 +76,7 @@ class View(SpeckleBuiltElementBase):
     """
     name: Optional[str] = Field(None, description='视图名称')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Alignment(SpeckleBuiltElementBase):
@@ -92,8 +86,7 @@ class Alignment(SpeckleBuiltElementBase):
     """
     geometry_2d: Optional[Geometry2D] = Field(None, description='对齐路线几何')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Baseline(SpeckleBuiltElementBase):
@@ -103,8 +96,7 @@ class Baseline(SpeckleBuiltElementBase):
     """
     geometry_2d: Optional[Geometry2D] = Field(None, description='基线几何')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Featureline(SpeckleBuiltElementBase):
@@ -114,8 +106,7 @@ class Featureline(SpeckleBuiltElementBase):
     """
     geometry_2d: Optional[Geometry2D] = Field(None, description='特征线几何')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class Station(SpeckleBuiltElementBase):
@@ -125,6 +116,5 @@ class Station(SpeckleBuiltElementBase):
     """
     station: Optional[float] = Field(None, description='桩号值')
     
-    class Config:
-        populate_by_name = True  # Pydantic v2
+    model_config = ConfigDict(populate_by_name=True)
 

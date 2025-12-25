@@ -648,15 +648,6 @@ class ExportService:
             # 如果获取失败，创建新的上下文
             model_context = run("context.add_context", ifc_file, context_type="Model")
         
-        # 创建坐标系（默认使用全局坐标系）
-        placement = run(
-            "geometry.add_axis_representation",
-            ifc_file,
-            context=model_context,
-            axis=[1.0, 0.0, 0.0],
-            ref_direction=[0.0, 1.0, 0.0]
-        )
-        
         # 2. 将 2D 坐标转换为 3D 坐标（在 XY 平面，Z = base_offset）
         coordinates_3d = []
         for coord in geometry_2d.coordinates:
