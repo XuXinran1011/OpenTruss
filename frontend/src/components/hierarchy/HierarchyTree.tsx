@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useHierarchyStore } from '@/stores/hierarchy';
 import { getProjectHierarchy } from '@/services/hierarchy';
@@ -109,7 +109,7 @@ function HierarchyTreeComponent({ projectId }: HierarchyTreeProps) {
       console.error('Failed to get elements for node:', error);
       setSelectedElementIds([]);
     }
-  };
+  }, [setSelectedNodeId, setSelectedElementIds, canvasRef]);
 
   if (isLoading) {
     return (
@@ -151,4 +151,6 @@ function HierarchyTreeComponent({ projectId }: HierarchyTreeProps) {
     </div>
   );
 }
+
+export { HierarchyTreeComponent as HierarchyTree };
 

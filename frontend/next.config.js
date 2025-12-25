@@ -10,6 +10,14 @@ const nextConfig = {
       },
     ]
   },
+  // 排除e2e测试文件
+  pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+    }
+    return config
+  },
 }
 
 module.exports = nextConfig

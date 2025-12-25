@@ -2,6 +2,7 @@
  * LotManagementPanel 组件测试
  */
 
+import React from 'react'
 import { render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { LotManagementPanel } from '../LotManagementPanel'
@@ -26,7 +27,7 @@ jest.mock('@/lib/utils', () => ({
 const { useItemDetailForLots, useLotElements, useUpdateLotStatus, useRemoveElementsFromLot, useAssignElementsToLot } = require('@/hooks/useLotStrategy')
 const { useHierarchyStore } = require('@/stores/hierarchy')
 
-const TestWrapper = ({ children }: { children: React.ReactNode }) => {
+function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -35,14 +36,16 @@ const TestWrapper = ({ children }: { children: React.ReactNode }) => {
     },
   })
   
-  return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
-  )
+  const Wrapper = ({ children }: { children: React.ReactNode }) => {
+    return (
+      <QueryClientProvider client={queryClient}>
+        {children}
+      </QueryClientProvider>
+    )
+  }
+  
+  return Wrapper
 }
-
-const createWrapper = () => TestWrapper
 
 describe('LotManagementPanel', () => {
   beforeEach(() => {

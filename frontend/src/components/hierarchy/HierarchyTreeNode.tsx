@@ -189,7 +189,7 @@ function HierarchyTreeNodeComponent({ node, level = 0, onSelect }: HierarchyTree
       {hasChildren && isExpanded && (
         <div>
           {node.children.map((child) => (
-            <HierarchyTreeNode
+            <HierarchyTreeNodeComponent
               key={child.id}
               node={child}
               level={level + 1}

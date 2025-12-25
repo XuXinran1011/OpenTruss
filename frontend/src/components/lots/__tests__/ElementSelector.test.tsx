@@ -2,6 +2,7 @@
  * ElementSelector 组件测试
  */
 
+import React from 'react'
 import { render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ElementSelector } from '../ElementSelector'
@@ -18,7 +19,7 @@ jest.mock('@/lib/utils', () => ({
 
 const { useQuery } = require('@tanstack/react-query')
 
-const TestWrapper = ({ children }: { children: React.ReactNode }) => {
+function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -27,14 +28,16 @@ const TestWrapper = ({ children }: { children: React.ReactNode }) => {
     },
   })
   
-  return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
-  )
+  const Wrapper = ({ children }: { children: React.ReactNode }) => {
+    return (
+      <QueryClientProvider client={queryClient}>
+        {children}
+      </QueryClientProvider>
+    )
+  }
+  
+  return Wrapper
 }
-
-const createWrapper = () => TestWrapper
 
 describe('ElementSelector', () => {
   const mockProps = {

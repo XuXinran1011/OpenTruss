@@ -2,6 +2,7 @@
  * useExport Hook 测试
  */
 
+import React from 'react'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
@@ -29,7 +30,7 @@ const mockExportProjectToIFC = exportProjectToIFC as jest.MockedFunction<typeof 
 const mockBatchExportLotsToIFC = batchExportLotsToIFC as jest.MockedFunction<typeof batchExportLotsToIFC>
 const mockDownloadBlob = downloadBlob as jest.MockedFunction<typeof downloadBlob>
 
-const TestWrapper = ({ children }: { children: React.ReactNode }) => {
+function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -41,14 +42,12 @@ const TestWrapper = ({ children }: { children: React.ReactNode }) => {
     },
   })
   
-  return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
-  )
+  const Wrapper = ({ children }: { children: React.ReactNode }) => {
+    return React.createElement(QueryClientProvider, { client: queryClient }, children)
+  }
+  
+  return Wrapper
 }
-
-const createWrapper = () => TestWrapper
 
 describe('useExport', () => {
   beforeEach(() => {

@@ -2,6 +2,7 @@
  * useApproval Hook 测试
  */
 
+import React from 'react'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useApproveLot, useRejectLot, useApprovalHistory } from '../useApproval'
@@ -18,7 +19,7 @@ const mockApproveLot = approveLot as jest.MockedFunction<typeof approveLot>
 const mockRejectLot = rejectLot as jest.MockedFunction<typeof rejectLot>
 const mockGetApprovalHistory = getApprovalHistory as jest.MockedFunction<typeof getApprovalHistory>
 
-const TestWrapper = ({ children }: { children: React.ReactNode }) => {
+function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
@@ -30,14 +31,12 @@ const TestWrapper = ({ children }: { children: React.ReactNode }) => {
     },
   })
   
-  return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-    </QueryClientProvider>
-  )
+  const Wrapper = ({ children }: { children: React.ReactNode }) => {
+    return React.createElement(QueryClientProvider, { client: queryClient }, children)
+  }
+  
+  return Wrapper
 }
-
-const createWrapper = () => TestWrapper
 
 describe('useApproval', () => {
   beforeEach(() => {

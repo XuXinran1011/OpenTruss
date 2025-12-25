@@ -116,3 +116,5 @@ function TriageQueueComponent() {
   );
 }
 
+export { TriageQueueComponent as TriageQueue };
+
