@@ -3,7 +3,10 @@
 'use client';
 
 import { useEffect, useRef, useMemo, useState, useCallback } from 'react';
-import * as d3 from 'd3';
+/* eslint-disable */
+// Using require for d3 to work around Next.js module resolution issues
+const d3: any = require('d3');
+/* eslint-enable */
 import { useQuery } from '@tanstack/react-query';
 import { getElements, ElementListItem, ElementDetail, getElementDetail, batchGetElementDetails } from '@/services/elements';
 import { WorkbenchMode, Geometry2D } from '@/types';
@@ -154,7 +157,7 @@ export function CanvasRenderer({
       return;
     }
 
-    const svg = d3.select(svgRef.current);
+    const svg = (d3 as any).select(svgRef.current);
     svg.selectAll('*').remove();
 
     // 设置 SVG 尺寸
@@ -177,17 +180,17 @@ export function CanvasRenderer({
       g.attr('transform', transform.toString());
     }, 16); // 约60fps
 
-    const zoom = d3
-      .zoom<SVGSVGElement, unknown>()
+    const zoom = (d3 as any)
+      .zoom()
       .scaleExtent([0.1, 10])
-      .on('zoom', (event) => {
+      .on('zoom', (event: any) => {
         throttledZoomUpdate(event.transform);
       });
 
     // D3 zoom 类型处理：使用类型断言确保类型安全
     // 注意：D3的类型定义在某些情况下需要类型断言
-    (svg as unknown as d3.Selection<SVGSVGElement, unknown, null, undefined>).call(zoom);
-    (svg as unknown as d3.Selection<SVGSVGElement, unknown, null, undefined>).call(zoom.transform, initialTransform);
+    (svg as any).call(zoom);
+    (svg as any).call(zoom.transform, initialTransform);
 
     // 框选逻辑（仅在 trace 或 lift 模式下启用）
     if ((mode === 'trace' || mode === 'lift') && onSelectionChange) {
@@ -210,7 +213,7 @@ export function CanvasRenderer({
         // 否则在空白区域开始框选
         if (event.button === 0) { // 左键
           event.preventDefault(); // 防止默认行为
-          const point = d3.pointer(event, svgRef.current);
+          const point = (d3 as any).pointer(event, svgRef.current);
           const transformedPoint = initialTransform.invert(point);
           
           selectionStartRef.current = { x: transformedPoint[0], y: transformedPoint[1] };
@@ -234,7 +237,7 @@ export function CanvasRenderer({
 
         if (!isSelecting || !selectionStartRef.current) return;
 
-        const point = d3.pointer(event, svgRef.current);
+        const point = (d3 as any).pointer(event, svgRef.current);
         const transformedPoint = initialTransform.invert(point);
         const startX = selectionStartRef.current.x;
         const startY = selectionStartRef.current.y;
@@ -258,7 +261,7 @@ export function CanvasRenderer({
           return;
         }
 
-        const point = d3.pointer(event, svgRef.current);
+        const point = (d3 as any).pointer(event, svgRef.current);
         const transformedPoint = initialTransform.invert(point);
         const startX = selectionStartRef.current.x;
         const startY = selectionStartRef.current.y;
@@ -349,7 +352,9 @@ export function CanvasRenderer({
             elementDetailsMap,
             setSnapLine,
             SNAP_DISTANCE,
-            viewTransform
+            viewTransform,
+            setIsDraggingElement,
+            setDraggedElementIds
           );
         } else {
           // 如果还没有加载详情，使用占位渲染
@@ -416,7 +421,9 @@ function renderElement(
   elementDetailsMap?: Map<string, ElementDetail>,
   setSnapLine?: (line: { from: { x: number; y: number }; to: { x: number; y: number } } | null) => void,
   snapDistance: number = 10,
-  currentViewTransform?: { x: number; y: number; scale: number }
+  currentViewTransform?: { x: number; y: number; scale: number },
+  setIsDraggingElement?: (isDragging: boolean) => void,
+  setDraggedElementIds?: (ids: string[] | null) => void
 ) {
   const { geometry_2d } = element;
   if (!geometry_2d || !geometry_2d.coordinates || geometry_2d.coordinates.length < 2) {
@@ -448,7 +455,7 @@ function renderElement(
 
   // 添加点击事件
   if (onElementClick) {
-    elementGroup.on('click', function (event: MouseEvent) {
+    elementGroup.on('click', function (this: any, event: MouseEvent) {
       event.stopPropagation();
       onElementClick(element.id, event);
     });
@@ -457,9 +464,9 @@ function renderElement(
     // Trace Mode 下的拖拽和磁吸
     if (mode === 'trace' && isSelected && onElementDrag && onElementDragEnd) {
       // 在 mousedown 时标记正在拖拽，防止框选逻辑触发
-      elementGroup.on('mousedown', function (event: MouseEvent) {
+      elementGroup.on('mousedown', function (this: any, event: MouseEvent) {
         event.stopPropagation();
-        setIsDraggingElement(true);
+        setIsDraggingElement?.(true);
       });
     // 收集所有其他构件的端点用于磁吸检测（带元素信息）
     const getAllSnapPointsWithElement = (): SnapPointElement[] => {
@@ -476,10 +483,7 @@ function renderElement(
                   y: endpoint.y,
                   elementId: el.id,
                   element: detail ? {
-                    id: detail.id,
-                    speckle_type: detail.speckle_type,
-                    geometry_2d: detail.geometry_2d,
-                    ...detail, // 包含其他属性
+                    ...detail, // 包含所有属性
                   } : undefined,
                 });
               });
@@ -497,19 +501,19 @@ function renderElement(
     };
 
     // D3 拖拽行为
-    const drag = d3
-      .drag<SVGGElement, unknown>()
-      .on('start', function () {
-        d3.select(this).style('cursor', 'grabbing');
+    const drag = (d3 as any)
+      .drag()
+      .on('start', function (this: any) {
+        (d3 as any).select(this).style('cursor', 'grabbing');
         coordinates = [...originalCoordinates]; // 重置为原始坐标
         isDraggingElementRef.current = true;
-        setIsDraggingElement(true);
+        setIsDraggingElement?.(true);
       })
-      .on('end', function () {
-        setIsDraggingElement(false);
+      .on('end', function (this: any) {
+        setIsDraggingElement?.(false);
         isDraggingElementRef.current = false;
       })
-      .on('drag', function (event) {
+      .on('drag', function (this: any, event) {
         // 计算拖拽偏移量（需要考虑缩放）
         const scale = currentViewTransform?.scale || 1;
         const dx = event.dx / scale;
@@ -563,8 +567,8 @@ function renderElement(
         //   onElementDrag(element.id, adjustedCoordinates);
         // }
       })
-      .on('end', function () {
-        d3.select(this).style('cursor', 'grab');
+      .on('end', function (this: any) {
+        (d3 as any).select(this).style('cursor', 'grab');
         if (setSnapLine) {
           setSnapLine(null);
         }
@@ -640,12 +644,12 @@ function renderElement(
     let dragStartX = 0;
     let dragStartY = 0;
     elementGroup
-      .on('mousedown', function (event: MouseEvent) {
+      .on('mousedown', function (this: any, event: MouseEvent) {
         dragStartX = event.clientX;
         dragStartY = event.clientY;
         onElementDragStart([element.id]);
         // 存储拖拽数据到Context（供 HierarchyTreeNode 使用）
-        setDraggedElementIds([element.id]);
+        setDraggedElementIds?.([element.id]);
       });
   }
 }
@@ -687,7 +691,7 @@ function renderElementPlaceholder(
 
   // 添加点击事件
   if (onElementClick) {
-    elementGroup.on('click', function (event: MouseEvent) {
+    elementGroup.on('click', function (this: any, event: MouseEvent) {
       event.stopPropagation();
       onElementClick(element.id, event);
     });
@@ -696,19 +700,19 @@ function renderElementPlaceholder(
   // 为 Classify 模式添加拖拽支持（使用鼠标事件）
   if (mode === 'classify' && isSelected && onElementDragStart) {
     elementGroup
-      .on('mousedown', function (event: MouseEvent) {
+      .on('mousedown', function (this: any, event: MouseEvent) {
         event.stopPropagation();
         onElementDragStart([element.id]);
         // 存储拖拽数据到Context（供 HierarchyTreeNode 使用）
-        setDraggedElementIds([element.id]);
+        setDraggedElementIds?.([element.id]);
         // 添加拖拽视觉反馈：降低透明度
-        d3.select(this).style('opacity', '0.6');
+        (d3 as any).select(this).style('opacity', '0.6');
       })
-      .on('mouseup', function () {
+      .on('mouseup', function (this: any) {
         // 恢复透明度
-        d3.select(this).style('opacity', '1');
+        (d3 as any).select(this).style('opacity', '1');
       })
-      .on('mouseleave', function () {
+      .on('mouseleave', function (this: any) {
         // 如果鼠标离开时还在拖拽，保持半透明
         // 透明度将在drop时恢复
       });

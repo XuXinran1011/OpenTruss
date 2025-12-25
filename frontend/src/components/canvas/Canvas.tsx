@@ -24,6 +24,7 @@ export const Canvas = forwardRef<CanvasHandle>((props, ref) => {
     canvasSize,
     setCanvasSize,
     viewTransform,
+    setViewTransform,
     showGrid,
     showDwgBackground,
     dwgImageUrl,

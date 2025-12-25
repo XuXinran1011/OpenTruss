@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Disable font optimization in CI to avoid network issues
+  optimizeFonts: process.env.CI !== 'true',
   // API 代理配置（如果需要）
   async rewrites() {
     return [
