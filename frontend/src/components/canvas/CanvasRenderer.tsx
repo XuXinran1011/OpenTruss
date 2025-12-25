@@ -196,8 +196,8 @@ export function CanvasRenderer({
     if ((mode === 'trace' || mode === 'lift') && onSelectionChange) {
       const handleMouseDown = (event: MouseEvent) => {
         // 检查拖拽状态，如果正在拖拽构件，不执行框选
-        if (isDraggingElementRef.current) {
-          isDraggingElementRef.current = false;
+        if (isDraggingElementRef?.current) {
+          if (isDraggingElementRef) isDraggingElementRef.current = false;
           return;
         }
 
@@ -218,7 +218,7 @@ export function CanvasRenderer({
           
           selectionStartRef.current = { x: transformedPoint[0], y: transformedPoint[1] };
           setIsSelecting(true);
-          isDraggingElementRef.current = false;
+          if (isDraggingElementRef) isDraggingElementRef.current = false;
           
           // 如果未按住 Ctrl/Cmd 键，清空当前选择
           if (!event.ctrlKey && !event.metaKey) {
@@ -231,7 +231,7 @@ export function CanvasRenderer({
 
       const handleMouseMove = (event: MouseEvent) => {
         // 如果正在拖拽构件，不执行框选
-        if (isDraggingElementRef.current) {
+        if (isDraggingElementRef?.current) {
           return;
         }
 
@@ -252,8 +252,8 @@ export function CanvasRenderer({
 
       const handleMouseUp = (event: MouseEvent) => {
         // 如果正在拖拽构件，只清理状态，不执行框选
-        if (isDraggingElementRef.current) {
-          isDraggingElementRef.current = false;
+        if (isDraggingElementRef?.current) {
+          if (isDraggingElementRef) isDraggingElementRef.current = false;
           return;
         }
 
@@ -354,11 +354,12 @@ export function CanvasRenderer({
             SNAP_DISTANCE,
             viewTransform,
             setIsDraggingElement,
-            setDraggedElementIds
+            setDraggedElementIds,
+            isDraggingElementRef
           );
         } else {
           // 如果还没有加载详情，使用占位渲染
-          renderElementPlaceholder(g, element, isSelected, mode, liftMode, onElementDragStart, onElementClick);
+          renderElementPlaceholder(g, element, isSelected, mode, liftMode, onElementDragStart, onElementClick, setDraggedElementIds);
         }
       });
       
@@ -423,7 +424,8 @@ function renderElement(
   snapDistance: number = 10,
   currentViewTransform?: { x: number; y: number; scale: number },
   setIsDraggingElement?: (isDragging: boolean) => void,
-  setDraggedElementIds?: (ids: string[] | null) => void
+  setDraggedElementIds?: (ids: string[] | null) => void,
+  isDraggingElementRef?: React.MutableRefObject<boolean>
 ) {
   const { geometry_2d } = element;
   if (!geometry_2d || !geometry_2d.coordinates || geometry_2d.coordinates.length < 2) {
@@ -506,14 +508,14 @@ function renderElement(
       .on('start', function (this: any) {
         (d3 as any).select(this).style('cursor', 'grabbing');
         coordinates = [...originalCoordinates]; // 重置为原始坐标
-        isDraggingElementRef.current = true;
+        if (isDraggingElementRef) isDraggingElementRef.current = true;
         setIsDraggingElement?.(true);
       })
       .on('end', function (this: any) {
         setIsDraggingElement?.(false);
-        isDraggingElementRef.current = false;
+        if (isDraggingElementRef) isDraggingElementRef.current = false;
       })
-      .on('drag', function (this: any, event) {
+      .on('drag', function (this: any, event: any) {
         // 计算拖拽偏移量（需要考虑缩放）
         const scale = currentViewTransform?.scale || 1;
         const dx = event.dx / scale;
@@ -611,10 +613,10 @@ function renderElement(
         .attr('stroke-dasharray', elemStrokeDasharray || null);
     } else if (geomType === 'Polyline') {
       // 使用 D3 line 生成器创建路径
-      const lineGenerator = d3
-        .line<[number, number]>()
-        .x((d) => d[0])
-        .y((d) => d[1]);
+      const lineGenerator = (d3 as any)
+        .line()
+        .x((d: any) => d[0])
+        .y((d: any) => d[1]);
 
       // 如果是闭合的 Polyline，添加起始点
       const pathData = closed && coords.length > 0
@@ -664,7 +666,8 @@ function renderElementPlaceholder(
   mode: WorkbenchMode,
   liftMode: { showZMissing: boolean },
   onElementDragStart?: (elementIds: string[]) => void,
-  onElementClick?: (elementId: string, event: MouseEvent) => void
+  onElementClick?: (elementId: string, event: MouseEvent) => void,
+  setDraggedElementIds?: (ids: string[] | null) => void
 ) {
   // 占位渲染：简单的矩形
   // 使用 element.id 作为种子生成固定位置，避免每次渲染位置变化
