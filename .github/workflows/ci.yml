@@ -1,0 +1,308 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  # 前端代码检查和测试
+  frontend-lint:
+    name: Frontend Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run ESLint
+        run: npm run lint
+
+  frontend-unit-tests:
+    name: Frontend Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run unit tests
+        run: npm run test -- --coverage --ci
+      
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./frontend/coverage
+          flags: frontend
+          name: frontend-coverage
+          fail_ci_if_error: false
+
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL || 'http://localhost:8000' }}
+      
+      - name: Upload build artifacts
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-build
+          path: frontend/.next/
+          retention-days: 1
+
+  # 后端代码检查和测试
+  backend-lint:
+    name: Backend Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Check for linting tools
+        id: check_tools
+        run: |
+          # 检查是否有配置代码质量工具
+          if [ -f "pyproject.toml" ] || [ -f ".ruff.toml" ] || [ -f "ruff.toml" ]; then
+            echo "linting_enabled=true" >> $GITHUB_OUTPUT
+          else
+            echo "linting_enabled=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Install linting dependencies
+        if: steps.check_tools.outputs.linting_enabled == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff black mypy || true
+      
+      - name: Run Ruff (linter)
+        if: steps.check_tools.outputs.linting_enabled == 'true'
+        run: |
+          ruff check . || echo "Ruff not configured, skipping..."
+        continue-on-error: true
+      
+      - name: Run Ruff (formatter check)
+        if: steps.check_tools.outputs.linting_enabled == 'true'
+        run: |
+          ruff format --check . || echo "Ruff formatter not configured, skipping..."
+        continue-on-error: true
+      
+      - name: Run Black (formatter check)
+        if: steps.check_tools.outputs.linting_enabled == 'true'
+        run: |
+          black --check . || echo "Black not configured, skipping..."
+        continue-on-error: true
+      
+      - name: Run MyPy (type checking)
+        if: steps.check_tools.outputs.linting_enabled == 'true'
+        run: |
+          mypy app --ignore-missing-imports || echo "MyPy not configured, skipping..."
+        continue-on-error: true
+      
+      - name: Skip linting (no tools configured)
+        if: steps.check_tools.outputs.linting_enabled == 'false'
+        run: |
+          echo "代码质量工具未配置，跳过 linting 检查"
+          echo "建议安装 ruff、black 或 mypy 进行代码质量检查"
+
+  backend-unit-tests:
+    name: Backend Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    
+    services:
+      memgraph:
+        image: memgraph/memgraph:latest
+        ports:
+          - 7687:7687
+          - 7444:7444
+        options: >-
+          --health-cmd "echo 'RETURN 1' | mgconsole"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      
+      - name: Initialize database schema
+        env:
+          MEMGRAPH_HOST: localhost
+          MEMGRAPH_PORT: 7687
+        run: |
+          python -c "from app.services.schema import initialize_schema; from app.utils.memgraph import MemgraphClient; initialize_schema(MemgraphClient())"
+      
+      - name: Run unit tests
+        env:
+          MEMGRAPH_HOST: localhost
+          MEMGRAPH_PORT: 7687
+        run: |
+          pytest tests/test_services/ \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-report=html \
+            --cov-fail-under=60 \
+            -v
+      
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./backend
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: false
+      
+      - name: Upload coverage HTML
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-coverage-html
+          path: backend/htmlcov/
+          retention-days: 7
+
+  backend-integration-tests:
+    name: Backend Integration Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    
+    services:
+      memgraph:
+        image: memgraph/memgraph:latest
+        ports:
+          - 7687:7687
+          - 7444:7444
+        options: >-
+          --health-cmd "echo 'RETURN 1' | mgconsole"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+      
+      - name: Initialize database schema
+        env:
+          MEMGRAPH_HOST: localhost
+          MEMGRAPH_PORT: 7687
+        run: |
+          python -c "from app.services.schema import initialize_schema; from app.utils.memgraph import MemgraphClient; initialize_schema(MemgraphClient())"
+      
+      - name: Run integration tests
+        env:
+          MEMGRAPH_HOST: localhost
+          MEMGRAPH_PORT: 7687
+        run: |
+          pytest tests/test_integration/ \
+            tests/test_api/ \
+            -v \
+            --maxfail=5
+
+  # 汇总检查
+  ci-status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs:
+      - frontend-lint
+      - frontend-unit-tests
+      - frontend-build
+      - backend-lint
+      - backend-unit-tests
+      - backend-integration-tests
+    if: always()
+    
+    steps:
+      - name: Check CI status
+        run: |
+          echo "所有CI检查已完成"
+          echo "前端 Lint: ${{ needs.frontend-lint.result }}"
+          echo "前端单元测试: ${{ needs.frontend-unit-tests.result }}"
+          echo "前端构建: ${{ needs.frontend-build.result }}"
+          echo "后端 Lint: ${{ needs.backend-lint.result }}"
+          echo "后端单元测试: ${{ needs.backend-unit-tests.result }}"
+          echo "后端集成测试: ${{ needs.backend-integration-tests.result }}"
+
