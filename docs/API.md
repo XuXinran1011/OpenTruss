@@ -968,14 +968,14 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
 }
 ```
 
-#### POST /api/v1/validation/completeness-check
+#### POST /api/v1/validation/constructability/validate-angle
 
-完整性校验（规则引擎 Phase 2）。检查构件的 Z 轴完整性（height、base_offset）。
+构造校验 - 验证角度（规则引擎 Phase 2）。验证角度是否符合标准（45°, 90°, 180°），返回吸附后的角度。
 
 **请求体**:
 ```json
 {
-  "element_ids": ["element_001", "element_002"]
+  "angle": 88.5
 }
 ```
 
@@ -985,7 +985,8 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
   "status": "success",
   "data": {
     "valid": true,
-    "incomplete_elements": []
+    "snapped_angle": 90,
+    "error": null
   }
 }
 ```
@@ -993,29 +994,87 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
 **错误响应** (422 Validation Error):
 ```json
 {
-  "status": "error",
-  "error": {
-    "code": "INCOMPLETE_ELEMENTS",
-    "message": "存在不完整的构件",
-    "details": {
-      "incomplete_elements": [
-        {
-          "element_id": "element_001",
-          "missing_fields": ["height", "base_offset"],
-          "element_type": "Wall"
-        }
-      ]
-    }
+  "status": "success",
+  "data": {
+    "valid": false,
+    "snapped_angle": null,
+    "error": "角度 95.0° 不在标准角度列表中 [45, 90, 180]，且不允许自定义角度"
   }
 }
 ```
 
-#### GET /api/v1/validation/topology-check
+#### POST /api/v1/validation/constructability/validate-z-axis
 
-拓扑完整性校验（规则引擎 Phase 4）。检查是否存在悬空端点或孤立子图。
+构造校验 - 验证Z轴完整性（规则引擎 Phase 2）。验证元素的Z轴完整性（height、base_offset是否都存在）。
 
-**查询参数**:
-- `lot_id`: 检验批 ID（可选，不指定则检查整个项目）
+**请求体**:
+```json
+{
+  "element_id": "element_001",
+  "speckle_type": "Wall",
+  "height": 3.0,
+  "base_offset": 0.0
+}
+```
+
+**响应** (200 OK):
+```json
+{
+  "status": "success",
+  "data": {
+    "valid": true,
+    "errors": [],
+    "warnings": []
+  }
+}
+```
+
+**错误响应** (200 OK，但 valid 为 false):
+```json
+{
+  "status": "success",
+  "data": {
+    "valid": false,
+    "errors": [
+      "元素 element_001 (Wall) 缺少必需的 height 属性"
+    ],
+    "warnings": []
+  }
+}
+```
+
+#### POST /api/v1/validation/constructability/calculate-path-angle
+
+构造校验 - 计算路径角度（规则引擎 Phase 2）。计算路径的角度并返回吸附后的角度。
+
+**请求体**:
+```json
+{
+  "path": [[0.0, 0.0], [5.0, 0.0], [10.0, 5.0]]
+}
+```
+
+**响应** (200 OK):
+```json
+{
+  "status": "success",
+  "data": {
+    "angle": 26.565,
+    "snapped_angle": null
+  }
+}
+```
+
+#### POST /api/v1/validation/topology/validate
+
+拓扑完整性校验（规则引擎 Phase 4）。验证检验批的拓扑完整性（无悬空端点、无孤立元素）。
+
+**请求体**:
+```json
+{
+  "lot_id": "lot_001"
+}
+```
 
 **响应** (200 OK):
 ```json
@@ -1024,70 +1083,146 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
   "data": {
     "valid": true,
     "open_ends": [],
-    "isolated_elements": []
+    "isolated_elements": [],
+    "errors": []
   }
 }
 ```
 
-**错误响应** (422 Validation Error):
+**错误响应** (200 OK，但 valid 为 false):
 ```json
 {
-  "status": "error",
-  "error": {
-    "code": "TOPOLOGY_ERRORS",
-    "message": "存在拓扑错误",
-    "details": {
-      "open_ends": [
-        {
-          "element_id": "pipe_001",
-          "degree": 1,
-          "reason": "Open pipe end detected"
-        }
-      ],
-      "isolated_elements": [
-        {
-          "element_id": "pipe_002",
-          "reason": "Isolated element"
-        }
-      ]
-    }
+  "status": "success",
+  "data": {
+    "valid": false,
+    "open_ends": ["element_001", "element_002"],
+    "isolated_elements": ["element_003"],
+    "errors": [
+      "发现 2 个悬空端点",
+      "发现 1 个孤立元素"
+    ]
   }
 }
 ```
 
-#### GET /api/v1/rules/config
+#### POST /api/v1/validation/topology/find-open-ends
 
-获取规则配置（前端使用）。
+查找悬空端点（规则引擎 Phase 4）。查找指定元素列表中连接数小于2的元素（悬空端点）。
 
-**查询参数**:
-- `type`: 配置类型 (`semantic` | `fitting` | `all`，默认: `all`)
+**请求体**:
+```json
+{
+  "element_ids": ["element_001", "element_002", "element_003"]
+}
+```
 
 **响应** (200 OK):
 ```json
 {
   "status": "success",
   "data": {
-    "version": "1.0",
-    "semantic_allowlist": {
-      "Objects.BuiltElements.Pipe": [
-        "Objects.BuiltElements.Pipe",
-        "Objects.BuiltElements.Valve"
-      ]
-    },
-    "fitting_standards": {
-      "angles": {
-        "standard": [90, 45, 180],
-        "tolerance": 5,
-        "allow_custom": false
+    "element_ids": ["element_001", "element_002"]
+  }
+}
+```
+
+#### POST /api/v1/validation/topology/find-isolated
+
+查找孤立元素（规则引擎 Phase 4）。查找指定元素列表中没有任何连接的元素（孤立元素）。
+
+**请求体**:
+```json
+{
+  "element_ids": ["element_001", "element_002", "element_003"]
+}
+```
+
+**响应** (200 OK):
+```json
+{
+  "status": "success",
+  "data": {
+    "element_ids": ["element_003"]
+  }
+}
+```
+
+#### GET /api/v1/rules
+
+获取规则列表。获取所有可用的检验批划分规则列表。
+
+**响应** (200 OK):
+```json
+{
+  "status": "success",
+  "data": {
+    "rules": [
+      {
+        "rule_type": "BY_LEVEL",
+        "name": "按楼层划分",
+        "description": "根据构件的楼层（Level）自动分组创建检验批",
+        "is_custom": false
+      },
+      {
+        "rule_type": "BY_ZONE",
+        "name": "按区域划分",
+        "description": "根据构件的区域（Zone）自动分组创建检验批",
+        "is_custom": false
+      },
+      {
+        "rule_type": "BY_LEVEL_AND_ZONE",
+        "name": "按楼层+区域划分",
+        "description": "根据楼层和区域的组合自动分组创建检验批",
+        "is_custom": false
       }
-    }
+    ]
+  }
+}
+```
+
+#### POST /api/v1/rules/preview
+
+预览规则效果。预览规则应用后的效果（预估创建的检验批数量和分组信息）。
+
+**请求体**:
+```json
+{
+  "item_id": "item_001",
+  "rule_type": "BY_LEVEL"
+}
+```
+
+**响应** (200 OK):
+```json
+{
+  "status": "success",
+  "data": {
+    "rule_type": "BY_LEVEL",
+    "estimated_lots": 3,
+    "groups": [
+      {
+        "key": "F1",
+        "count": 25,
+        "label": "1#楼F1层"
+      },
+      {
+        "key": "F2",
+        "count": 30,
+        "label": "1#楼F2层"
+      },
+      {
+        "key": "F3",
+        "count": 28,
+        "label": "1#楼F3层"
+      }
+    ]
   }
 }
 ```
 
 **权限说明**:
-- 所有已认证用户都可以获取规则配置
-- 配置信息不包含敏感数据，可以安全地暴露给前端
+- 需要 Approver 权限才能预览规则效果
+- 预览功能不会实际创建检验批，只用于评估规则效果
 
 ---
 
@@ -1144,6 +1279,417 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
   }
 }
 ```
+
+---
+
+## 4.12 路径规划 API
+
+### 4.12.1 计算路径
+
+**POST** `/api/v1/routing/calculate`
+
+计算符合约束的 MEP 路径，返回路径点列表（不包含具体配件信息）。
+
+**请求体**:
+```json
+{
+  "start": [0.0, 0.0],
+  "end": [10.0, 10.0],
+  "element_type": "Pipe",
+  "element_properties": {
+    "diameter": 100
+  },
+  "system_type": "gravity_drainage",
+  "source_element_type": "Pump",
+  "target_element_type": "Pipe",
+  "validate_semantic": true
+}
+```
+
+**参数说明**:
+- `start`: 起点坐标 `[x, y]`
+- `end`: 终点坐标 `[x, y]`
+- `element_type`: 元素类型（`Pipe`, `Duct`, `CableTray`, `Conduit`, `Wire`）
+- `element_properties`: 元素属性（单位：毫米）
+  - `diameter`: 直径（管道、导管）
+  - `width`: 宽度（电缆桥架、矩形风管）
+  - `height`: 高度（矩形风管）
+  - `cable_bend_radius`: 电缆转弯半径（电缆桥架）
+- `system_type`: 系统类型（如：`gravity_drainage`, `pressure_water`, `power_cable`）
+- `source_element_type`: 源元素类型（用于Brick Schema语义验证）
+- `target_element_type`: 目标元素类型（用于Brick Schema语义验证）
+- `validate_semantic`: 是否进行Brick Schema语义验证
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "path_points": [[0.0, 0.0], [5.0, 0.0], [5.0, 5.0], [10.0, 10.0]],
+    "constraints": {
+      "bend_radius": 0.1,
+      "pattern": "double_45"
+    },
+    "warnings": [],
+    "errors": []
+  }
+}
+```
+
+**注意**: 响应只包含路径点，不包含具体配件信息（弯头、三通等）。配件生成作为独立功能，在导出或高精度模式时实现。
+
+### 4.12.2 验证路径
+
+**POST** `/api/v1/routing/validate`
+
+验证路径是否符合约束和Brick Schema语义规范。
+
+**请求体**:
+```json
+{
+  "path_points": [[0.0, 0.0], [5.0, 0.0], [5.0, 5.0], [10.0, 10.0]],
+  "element_type": "Pipe",
+  "system_type": "gravity_drainage",
+  "element_properties": {
+    "diameter": 100
+  },
+  "source_element_type": "Pump",
+  "target_element_type": "Pipe"
+}
+```
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "valid": true,
+    "semantic_valid": true,
+    "constraint_valid": true,
+    "errors": [],
+    "warnings": [],
+    "semantic_errors": [],
+    "constraint_errors": []
+  }
+}
+```
+
+**字段说明**:
+- `valid`: 整体验证是否通过
+- `semantic_valid`: Brick Schema语义验证是否通过
+- `constraint_valid`: 约束验证是否通过
+- `errors`: 错误信息列表
+- `warnings`: 警告信息列表
+- `semantic_errors`: 语义验证错误
+- `constraint_errors`: 约束验证错误
+
+详见 [MEP_ROUTING.md](./MEP_ROUTING.md)。
+
+### 4.12.3 查询障碍物
+
+**GET** `/api/v1/routing/obstacles`
+
+查询指定区域内的障碍物（用于路由规划）。
+
+**查询参数**:
+- `level_id`: 楼层 ID（必填）
+- `bbox`: 边界框 `[min_x, min_y, max_x, max_y]`（可选，不提供则查询整个楼层）
+- `obstacle_types`: 障碍物类型列表（可选，如：`["Beam", "Column", "Wall", "Space"]`）
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "obstacles": [
+      {
+        "id": "beam_001",
+        "type": "Beam",
+        "geometry_2d": {
+          "type": "Line",
+          "coordinates": [[0, 0], [10, 0]]
+        },
+        "height": 0.5,
+        "base_offset": 3.0
+      },
+      {
+        "id": "space_001",
+        "type": "Space",
+        "geometry_2d": {
+          "type": "Polyline",
+          "coordinates": [[5, 5], [15, 5], [15, 15], [5, 15], [5, 5]]
+        },
+        "forbid_horizontal_mep": true,
+        "forbid_vertical_mep": false
+      }
+    ],
+    "total": 2
+  }
+}
+```
+
+### 4.12.4 批量路由规划
+
+**POST** `/api/v1/routing/batch`
+
+批量计算多个路径的路由规划。
+
+**请求体**:
+```json
+{
+  "routes": [
+    {
+      "route_id": "route_001",
+      "start": [0.0, 0.0],
+      "end": [10.0, 10.0],
+      "element_type": "Pipe",
+      "element_properties": {
+        "diameter": 100
+      },
+      "system_type": "gravity_drainage"
+    },
+    {
+      "route_id": "route_002",
+      "start": [20.0, 0.0],
+      "end": [30.0, 10.0],
+      "element_type": "Duct",
+      "element_properties": {
+        "width": 500,
+        "height": 300
+      },
+      "system_type": "air_conditioning"
+    }
+  ]
+}
+```
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "results": [
+      {
+        "route_id": "route_001",
+        "path_points": [[0.0, 0.0], [5.0, 0.0], [5.0, 5.0], [10.0, 10.0]],
+        "constraints": {
+          "bend_radius": 0.1,
+          "pattern": "double_45"
+        },
+        "warnings": [],
+        "errors": []
+      },
+      {
+        "route_id": "route_002",
+        "path_points": [[20.0, 0.0], [25.0, 0.0], [25.0, 5.0], [30.0, 10.0]],
+        "constraints": {
+          "bend_radius": 0.5
+        },
+        "warnings": [],
+        "errors": []
+      }
+    ],
+    "total": 2,
+    "success_count": 2,
+    "failure_count": 0
+  }
+}
+```
+
+### 4.12.5 管线综合排布
+
+**POST** `/api/v1/routing/coordination`
+
+进行3D管线综合排布，解决碰撞问题。
+
+**请求体**:
+```json
+{
+  "level_id": "level_f1",
+  "element_ids": ["element_001", "element_002", "element_003"],
+  "constraints": {
+    "priorities": {
+      "element_001": 1,
+      "element_002": 2,
+      "element_003": 3
+    },
+    "avoid_collisions": true,
+    "minimize_bends": true,
+    "close_to_ceiling": true
+  }
+}
+```
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "adjusted_elements": [
+      {
+        "element_id": "element_001",
+        "original_path": [[0, 0], [10, 0]],
+        "adjusted_path": [[0, 0], [5, 0], [5, -0.2], [10, -0.2]],
+        "adjustment_type": "vertical_translation",
+        "adjustment_reason": "避开碰撞"
+      }
+    ],
+    "collisions_resolved": 2,
+    "warnings": []
+  }
+}
+```
+
+### 4.12.6 设置空间限制
+
+**PUT** `/api/v1/spaces/{space_id}/mep-restrictions`
+
+设置空间禁止MEP管线穿过（MEP专业负责人和总工权限）。
+
+**请求体**:
+```json
+{
+  "forbid_horizontal_mep": true,
+  "forbid_vertical_mep": false
+}
+```
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "space_id": "space_001",
+    "forbid_horizontal_mep": true,
+    "forbid_vertical_mep": false,
+    "updated_at": "2024-01-01T12:00:00Z"
+  }
+}
+```
+
+### 4.12.7 获取优先级配置
+
+**GET** `/api/v1/routing/priority-config`
+
+获取MEP系统优先级配置。
+
+**查询参数**:
+- `project_id`: 项目 ID（可选，不提供则返回系统默认配置）
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "config": {
+      "default_priority_levels": [
+        {
+          "level": 1,
+          "name": "重力流管道",
+          "systems": ["gravity_drainage", "gravity_rainwater", "condensate"]
+        },
+        {
+          "level": 2,
+          "name": "大截面风管",
+          "systems": ["smoke_exhaust", "air_conditioning", "fresh_air"]
+        }
+      ],
+      "conflict_resolution": {
+        "same_priority_order": [
+          "少翻弯",
+          "较小管径/截面积避让较大管径/截面积",
+          "尽量贴近本楼层顶板"
+        ]
+      }
+    },
+    "is_default": true
+  }
+}
+```
+
+### 4.12.8 更新优先级配置
+
+**PUT** `/api/v1/routing/priority-config`
+
+更新MEP系统优先级配置（MEP专业负责人权限）。
+
+**请求体**:
+```json
+{
+  "project_id": "project_001",
+  "config": {
+    "default_priority_levels": [
+      {
+        "level": 1,
+        "name": "重力流管道",
+        "systems": ["gravity_drainage"]
+      }
+    ],
+    "custom_overrides": {
+      "by_sub_item": {
+        "item_001": {
+          "gravity_drainage": 2
+        }
+      },
+      "by_material": {
+        "stainless_steel": {
+          "pressure_water": 1
+        }
+      }
+    }
+  }
+}
+```
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "project_id": "project_001",
+    "config": { ... },
+    "updated_at": "2024-01-01T12:00:00Z"
+  }
+}
+```
+
+### 4.12.9 路由规划状态管理
+
+**PUT** `/api/v1/routing/status`
+
+更新路由规划状态（MEP专业负责人权限）。
+
+**请求体**:
+```json
+{
+  "level_id": "level_f1",
+  "status": "routing_completed",
+  "notes": "已完成2D路由规划"
+}
+```
+
+**状态值**:
+- `routing` - 进行路由规划
+- `routing_completed` - 路由规划完成
+- `coordinating` - 进行管线综合排布
+- `coordination_completed` - 管线综合排布完成
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "level_id": "level_f1",
+    "status": "routing_completed",
+    "updated_at": "2024-01-01T12:00:00Z"
+  }
+}
+```
+
+**注意**: 
+- 状态从 `routing_completed` 可以进入 `coordinating`
+- 状态从 `coordinating` 可以退回 `routing`
+- 详细说明见 [MEP_ROUTING_DETAILED.md](./MEP_ROUTING_DETAILED.md) 和 [MEP_COORDINATION.md](./MEP_COORDINATION.md)
 
 ---
 

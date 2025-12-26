@@ -57,6 +57,14 @@
 - [规则配置示例](RULE_CONFIG_EXAMPLES.md) - 规则配置文件示例
 - [阶段参考文档](PHASE_REFERENCE.md) - 开发阶段参考信息
 
+### 🔧 MEP 路由规划
+
+- [MEP路由规划系统](MEP_ROUTING.md) - MEP路径规划系统概述
+- [MEP路由规划详细规格](MEP_ROUTING_DETAILED.md) - 路由规划详细规格文档
+- [管线综合排布规格](MEP_COORDINATION.md) - 3D管线综合排布详细规格
+- [MEP系统优先级配置](MEP_SYSTEM_PRIORITY.md) - MEP系统优先级配置文档
+- [穿墙/穿楼板节点生成](MEP_PENETRATION.md) - 穿墙/穿楼板节点生成规则
+
 ## 📖 文档分类
 
 ### 按角色分类

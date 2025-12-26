@@ -9,9 +9,10 @@ import { getElements, ElementListItem, ElementDetail, getElementDetail, batchGet
 import { WorkbenchMode, Geometry2D } from '@/types';
 import { useCanvasStore } from '@/stores/canvas';
 import { useWorkbenchStore } from '@/stores/workbench';
-import { findNearestSnapPoint, getGeometryEndpoints, createRectangle, rectangleIntersectsGeometryPrecise, type SnapPointElement } from '@/utils/topology';
+import { findNearestSnapPoint, getGeometryEndpoints, getGeometryMidpoints, getGeometryIntersections, createRectangle, rectangleIntersectsGeometryPrecise, getGeometryBoundingBox, type SnapPointElement, type Rectangle } from '@/utils/topology';
 import { calculateViewportBounds, isGeometryInViewport, throttle } from '@/utils/performance';
 import { useDrag } from '@/contexts/DragContext';
+import { SpatialIndex } from '@/utils/spatial-index';
 
 interface CanvasRendererProps {
   width: number;
@@ -19,6 +20,8 @@ interface CanvasRendererProps {
   viewTransform: { x: number; y: number; scale: number };
   selectedElementIds: string[];
   mode: WorkbenchMode;
+  routingPath?: { x: number; y: number }[] | null; // MEP路径规划路径点
+  collidingElementIds?: string[]; // 碰撞的构件ID列表（用于视觉反馈）
   onElementDragStart?: (elementIds: string[]) => void;
   onElementClick?: (elementId: string, event: MouseEvent) => void;
   onElementDrag?: (elementId: string, newCoordinates: number[][]) => void;
@@ -34,6 +37,8 @@ export function CanvasRenderer({
   viewTransform,
   selectedElementIds,
   mode,
+  routingPath,
+  collidingElementIds = [],
   onElementDragStart,
   onElementClick,
   onElementDrag,
@@ -45,7 +50,8 @@ export function CanvasRenderer({
   const svgRef = useRef<SVGSVGElement>(null);
   const { setViewTransform } = useCanvasStore();
   const { liftMode } = useWorkbenchStore();
-  const { setIsDraggingElement, setDraggedElementIds } = useDrag();
+  const { setIsDraggingElement, setDraggedElementIds, setDragPosition } = useDrag();
+  const { traceMode } = useWorkbenchStore();
   
   // 存储磁吸辅助线的状态
   const [snapLine, setSnapLine] = useState<{ from: { x: number; y: number }; to: { x: number; y: number } } | null>(null);
@@ -57,12 +63,34 @@ export function CanvasRenderer({
   const isDraggingElementRef = useRef(false);
   
   // 磁吸距离阈值（根据缩放动态调整，基准值为10像素）
-  const SNAP_DISTANCE = Math.max(5, Math.min(20, 10 / (viewTransform.scale || 1)));
+  // 在屏幕空间中保持固定的像素距离，在世界坐标中根据缩放调整
+  // 公式：屏幕像素距离 / 缩放比例 = 世界坐标距离
+  // 限制在合理范围内：最小5像素，最大20像素（屏幕空间）
+  const BASE_SNAP_PIXELS = 10; // 基准像素距离（屏幕空间）
+  const MIN_SNAP_PIXELS = 5;   // 最小像素距离（屏幕空间）
+  const MAX_SNAP_PIXELS = 20;  // 最大像素距离（屏幕空间）
+  const scale = viewTransform.scale || 1;
+  // 确保屏幕空间距离在合理范围内，然后转换为世界坐标距离
+  const screenSnapPixels = Math.max(MIN_SNAP_PIXELS, Math.min(MAX_SNAP_PIXELS, BASE_SNAP_PIXELS));
+  const SNAP_DISTANCE = screenSnapPixels / scale; // 转换为世界坐标距离
 
   // 获取构件列表（使用分页，避免一次性加载过多）
+  // 智能加载策略：根据视口大小和缩放级别动态调整加载数量
+  const loadPageSize = useMemo(() => {
+    // 根据缩放级别调整：缩放越大，需要加载的构件越多（因为视口覆盖的世界坐标范围更小）
+    const scale = viewTransform.scale || 1;
+    // 基础加载数量：500
+    // 当缩放较大时（>2），增加加载数量以覆盖更多细节
+    // 当缩放较小时（<0.5），减少加载数量以节省资源
+    const baseSize = 500;
+    const adjustedSize = Math.max(200, Math.min(1000, baseSize * scale));
+    return Math.round(adjustedSize);
+  }, [viewTransform.scale]);
+
   const { data: elementsData } = useQuery({
-    queryKey: ['elements', 'canvas'],
-    queryFn: () => getElements({ page: 1, page_size: 500 }), // 减少初始加载数量
+    queryKey: ['elements', 'canvas', loadPageSize],
+    queryFn: () => getElements({ page: 1, page_size: loadPageSize }),
+    staleTime: 10000, // 10秒内使用缓存
   });
 
   // 计算视口边界（用于视口剔除）
@@ -71,83 +99,150 @@ export function CanvasRenderer({
   }, [width, height, viewTransform]);
 
   // 筛选视口内的构件（视口剔除）- 优化：优先加载视口附近的构件
+  // 智能筛选策略：根据视口位置和缩放级别，优先加载视口内和附近的构件
   const visibleElementIds = useMemo(() => {
     if (!elementsData?.items || elementsData.items.length === 0) return [];
     
     // 如果构件数量较少，直接返回所有ID
-    if (elementsData.items.length <= 500) {
+    if (elementsData.items.length <= loadPageSize) {
       return elementsData.items.map((el) => el.id);
     }
     
-    // 如果构件数量较多，优先返回前500个（后续会在视口过滤中进一步筛选）
-    // 这样可以在保持性能的同时，确保视口内的构件能被正确加载
-    return elementsData.items.slice(0, 500).map((el) => el.id);
-  }, [elementsData]);
+    // 如果构件数量较多，优先返回前loadPageSize个
+    // 后续会在视口过滤中进一步筛选，确保视口内的构件能被正确加载
+    return elementsData.items.slice(0, loadPageSize).map((el) => el.id);
+  }, [elementsData, loadPageSize]);
   
   // 使用去重后的ID列表（避免重复请求）
   const uniqueVisibleElementIds = useMemo(() => {
     return Array.from(new Set(visibleElementIds));
   }, [visibleElementIds]);
 
+  // 为查询创建稳定的key（排序后的ID字符串）
+  const elementDetailsQueryKey = useMemo(() => {
+    return ['element-details', [...uniqueVisibleElementIds].sort().join(',')];
+  }, [uniqueVisibleElementIds]);
+
   const elementDetailsQueries = useQuery({
-    queryKey: ['element-details', uniqueVisibleElementIds],
+    queryKey: elementDetailsQueryKey, // 使用稳定的key，确保缓存一致性
     queryFn: async () => {
-      // 批量获取，但限制并发数量（优化：增加批次大小以提高效率）
-      const BATCH_SIZE = 30; // 从20增加到30，提高批量获取效率
+      // 使用批量API，限制批次大小为100（API限制）
+      const BATCH_SIZE = 100; // API支持最多100个ID
       const detailsMap = new Map<string, ElementDetail>();
       
-      // 并行处理多个批次（但限制总并发数）
-      const MAX_CONCURRENT_BATCHES = 3;
+      // 分批处理
       const batches: string[][] = [];
       for (let i = 0; i < uniqueVisibleElementIds.length; i += BATCH_SIZE) {
         batches.push(uniqueVisibleElementIds.slice(i, i + BATCH_SIZE));
       }
       
-      // 分批并行处理
-      for (let i = 0; i < batches.length; i += MAX_CONCURRENT_BATCHES) {
-        const concurrentBatches = batches.slice(i, i + MAX_CONCURRENT_BATCHES);
-        const batchResults = await Promise.all(
-          concurrentBatches.map(async (batch) => {
-            const batchDetails = await Promise.all(
+      // 并行处理所有批次（批量API已经处理了并发控制）
+      const batchResults = await Promise.allSettled(
+        batches.map(async (batch) => {
+          try {
+            const result = await batchGetElementDetails(batch);
+            return result.items;
+          } catch (error) {
+            console.error(`Failed to fetch batch of ${batch.length} elements:`, error);
+            // 如果批量获取失败，回退到逐个获取（仅对失败的批次）
+            const fallbackResults = await Promise.allSettled(
               batch.map((id) =>
-                getElementDetail(id).catch((error) => {
-                  console.error(`Failed to fetch element ${id}:`, error);
+                getElementDetail(id).catch((err) => {
+                  console.error(`Failed to fetch element ${id}:`, err);
                   return null;
                 })
               )
             );
-            return batchDetails.filter((detail): detail is ElementDetail => detail !== null);
-          })
-        );
-        
-        // 合并结果
-        batchResults.flat().forEach((detail) => {
-          detailsMap.set(detail.id, detail);
-        });
-      }
+            return fallbackResults
+              .map((result) => (result.status === 'fulfilled' ? result.value : null))
+              .filter((detail): detail is ElementDetail => detail !== null);
+          }
+        })
+      );
+      
+      // 合并所有成功的结果
+      batchResults.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          result.value.forEach((detail) => {
+            detailsMap.set(detail.id, detail);
+          });
+        }
+      });
       
       return detailsMap;
     },
     enabled: uniqueVisibleElementIds.length > 0,
     staleTime: 30000, // 30秒内使用缓存，避免频繁重新获取
+    gcTime: 5 * 60 * 1000, // 5分钟后清理缓存（React Query v5）
   });
 
   const elementDetailsMap = elementDetailsQueries.data || new Map<string, ElementDetail>();
 
+  // 创建空间索引（用于快速查询视口内的元素）
+  const spatialIndex = useMemo(() => {
+    const index = new SpatialIndex();
+    
+    if (elementDetailsMap && elementsData?.items) {
+      // 批量加载元素到空间索引
+      const elementsToIndex = elementsData.items
+        .map((element) => {
+          const detail = elementDetailsMap.get(element.id);
+          if (detail?.geometry_2d?.coordinates) {
+            return {
+              id: element.id,
+              coordinates: detail.geometry_2d.coordinates,
+            };
+          }
+          return null;
+        })
+        .filter((item): item is { id: string; coordinates: number[][] } => item !== null);
+      
+      index.load(elementsToIndex);
+    }
+    
+    return index;
+  }, [elementDetailsMap, elementsData]);
+
   // 进一步筛选视口内的构件（基于实际几何数据）
+  // 优化：使用空间索引快速查询，然后进行精确检测
+  // 使用更大的缓冲区（200px），确保在视口边缘的构件也能被加载
+  // 同时考虑缩放级别：缩放越大，缓冲区越小（因为世界坐标范围更小）
   const viewportFilteredElements = useMemo(() => {
     if (!elementsData?.items) return [];
     
+    // 根据缩放级别调整缓冲区大小
+    const scale = viewTransform.scale || 1;
+    const bufferSize = Math.max(100, Math.min(300, 200 / scale)); // 缩放越大，缓冲区越小
+    
+    // 扩展视口边界（添加缓冲区）
+    const expandedViewport: Rectangle = {
+      x: viewportBounds.minX - bufferSize,
+      y: viewportBounds.minY - bufferSize,
+      width: (viewportBounds.maxX - viewportBounds.minX) + bufferSize * 2,
+      height: (viewportBounds.maxY - viewportBounds.minY) + bufferSize * 2,
+    };
+    
+    // 使用空间索引快速查询候选元素
+    const candidateIds = spatialIndex.search(expandedViewport);
+    const candidateSet = new Set(candidateIds);
+    
+    // 过滤出候选元素，并进行精确检测
     return elementsData.items.filter((element) => {
       const detail = elementDetailsMap.get(element.id);
       if (!detail?.geometry_2d?.coordinates) {
         // 如果没有几何数据，默认显示（占位渲染）
         return true;
       }
-      // 检查几何是否在视口内
-      return isGeometryInViewport(detail.geometry_2d.coordinates, viewportBounds, 200);
+      
+      // 如果不在空间索引的候选列表中，直接排除
+      if (!candidateSet.has(element.id)) {
+        return false;
+      }
+      
+      // 进行精确检测（带缓冲区）
+      return isGeometryInViewport(detail.geometry_2d.coordinates, viewportBounds, bufferSize);
     });
-  }, [elementsData, elementDetailsMap, viewportBounds]);
+  }, [elementsData, elementDetailsMap, viewportBounds, viewTransform.scale, spatialIndex]);
 
   useEffect(() => {
     if (!svgRef.current || width === 0 || height === 0) {
@@ -333,12 +428,14 @@ export function CanvasRenderer({
       elements.forEach((element) => {
         const elementDetail = elementDetailsMap.get(element.id);
         const isSelected = selectedElementIds.includes(element.id);
+        const isColliding = collidingElementIds.includes(element.id);
         if (elementDetail?.geometry_2d) {
           // 使用实际几何数据渲染
           renderElement(
             g,
             elementDetail,
             isSelected,
+            isColliding,
             mode,
             liftMode,
             onElementDragStart,
@@ -348,31 +445,124 @@ export function CanvasRenderer({
             elementsData?.items || [],
             elementDetailsMap,
             setSnapLine,
-            SNAP_DISTANCE,
+            traceMode.snapEnabled ? SNAP_DISTANCE : 0, // 如果磁吸被禁用，设置距离为0
             viewTransform,
             setIsDraggingElement,
             setDraggedElementIds,
-            isDraggingElementRef
+            isDraggingElementRef,
+            setDragPosition
           );
         } else {
           // 如果还没有加载详情，使用占位渲染
-          renderElementPlaceholder(g, element, isSelected, mode, liftMode, onElementDragStart, onElementClick, setDraggedElementIds);
+          renderElementPlaceholder(g, element, isSelected, isColliding, mode, liftMode, onElementDragStart, onElementClick, setDraggedElementIds, setDragPosition);
         }
       });
       
-      // 渲染磁吸辅助线
+      // 渲染MEP路径规划路径（如果存在）
+      if (routingPath && routingPath.length >= 2) {
+        const pathGroup = g.append('g').attr('class', 'routing-path-group');
+        
+        // 创建路径数据（转换为屏幕坐标）
+        const pathData = routingPath.map((pt) => [
+          pt.x * viewTransform.scale + viewTransform.x,
+          pt.y * viewTransform.scale + viewTransform.y,
+        ] as [number, number]);
+        
+        // 使用D3的line生成器创建路径
+        const lineGenerator = d3.line()
+          .x((d: [number, number]) => d[0])
+          .y((d: [number, number]) => d[1]);
+        
+        // 渲染路径线
+        pathGroup
+          .append('path')
+          .attr('d', lineGenerator(pathData))
+          .attr('fill', 'none')
+          .attr('stroke', '#3B82F6') // blue-500
+          .attr('stroke-width', 2)
+          .attr('stroke-dasharray', '5,5')
+          .attr('pointer-events', 'none');
+        
+        // 渲染路径点（小圆点）
+        pathGroup
+          .selectAll('circle.routing-point')
+          .data(pathData)
+          .enter()
+          .append('circle')
+          .attr('class', 'routing-point')
+          .attr('cx', (d: [number, number]) => d[0])
+          .attr('cy', (d: [number, number]) => d[1])
+          .attr('r', 3)
+          .attr('fill', '#3B82F6') // blue-500
+          .attr('stroke', '#FFFFFF')
+          .attr('stroke-width', 1)
+          .attr('pointer-events', 'none');
+        
+        // 标记起点和终点
+        if (pathData.length > 0) {
+          // 起点（绿色）
+          pathGroup
+            .append('circle')
+            .attr('class', 'routing-start-point')
+            .attr('cx', pathData[0][0])
+            .attr('cy', pathData[0][1])
+            .attr('r', 5)
+            .attr('fill', '#10B981') // green-500
+            .attr('stroke', '#FFFFFF')
+            .attr('stroke-width', 2)
+            .attr('pointer-events', 'none');
+          
+          // 终点（红色）
+          const lastPoint = pathData[pathData.length - 1];
+          pathGroup
+            .append('circle')
+            .attr('class', 'routing-end-point')
+            .attr('cx', lastPoint[0])
+            .attr('cy', lastPoint[1])
+            .attr('r', 5)
+            .attr('fill', '#EF4444') // red-500
+            .attr('stroke', '#FFFFFF')
+            .attr('stroke-width', 2)
+            .attr('pointer-events', 'none');
+        }
+      }
+      
+      // 渲染磁吸辅助线和磁吸点（改进：更明显的视觉反馈）
       if (snapLine) {
         const snapLineGroup = g.append('g').attr('class', 'snap-line');
+        
+        // 磁吸辅助线（更粗、更明显）
         snapLineGroup
           .append('line')
           .attr('x1', snapLine.from.x)
           .attr('y1', snapLine.from.y)
           .attr('x2', snapLine.to.x)
           .attr('y2', snapLine.to.y)
-          .attr('stroke', '#EA580C')
-          .attr('stroke-width', 1)
-          .attr('stroke-dasharray', '2,2')
-          .attr('opacity', 0.6);
+          .attr('stroke', '#EA580C') // 橙色（与选中颜色一致）
+          .attr('stroke-width', 2) // 增加线宽，从1改为2
+          .attr('stroke-dasharray', '4,2') // 调整虚线样式
+          .attr('opacity', 0.8) // 提高不透明度，从0.6改为0.8
+          .attr('stroke-linecap', 'round');
+        
+        // 磁吸起点（小圆点）
+        snapLineGroup
+          .append('circle')
+          .attr('cx', snapLine.from.x)
+          .attr('cy', snapLine.from.y)
+          .attr('r', 3)
+          .attr('fill', '#EA580C')
+          .attr('opacity', 0.8);
+        
+        // 磁吸终点（较大圆点，高亮显示）
+        snapLineGroup
+          .append('circle')
+          .attr('cx', snapLine.to.x)
+          .attr('cy', snapLine.to.y)
+          .attr('r', 5) // 较大的圆点
+          .attr('fill', '#EA580C')
+          .attr('opacity', 1)
+          .attr('stroke', '#FFFFFF') // 白色边框，提高对比度
+          .attr('stroke-width', 1.5);
       }
 
       // 渲染选择框
@@ -391,7 +581,7 @@ export function CanvasRenderer({
           .attr('pointer-events', 'none');
       }
     }
-  }, [svgRef, viewportFilteredElements, elementDetailsMap, width, height, viewTransform, selectedElementIds, mode, liftMode, setViewTransform, onElementDragStart, onElementClick, onElementDrag, onElementDragEnd, snapLine, selectionBox, isSelecting, elementsData, onSelectionChange, onSelectionAdd, onSelectionClear, SNAP_DISTANCE]);
+  }, [svgRef, viewportFilteredElements, elementDetailsMap, width, height, viewTransform, selectedElementIds, mode, liftMode, setViewTransform, onElementDragStart, onElementClick, onElementDrag, onElementDragEnd, snapLine, selectionBox, isSelecting, elementsData, onSelectionChange, onSelectionAdd, onSelectionClear, SNAP_DISTANCE, routingPath]);
 
   return (
     <svg
@@ -409,6 +599,7 @@ function renderElement(
   g: Selection<SVGGElement, unknown, null, undefined>,
   element: ElementDetail,
   isSelected: boolean,
+  isColliding: boolean,
   mode: WorkbenchMode,
   liftMode: { showZMissing: boolean },
   onElementDragStart?: (elementIds: string[]) => void,
@@ -422,22 +613,24 @@ function renderElement(
   currentViewTransform?: { x: number; y: number; scale: number },
   setIsDraggingElement?: (isDragging: boolean) => void,
   setDraggedElementIds?: (ids: string[] | null) => void,
-  isDraggingElementRef?: React.MutableRefObject<boolean>
+  isDraggingElementRef?: React.MutableRefObject<boolean>,
+  setDragPosition?: (position: { x: number; y: number } | null) => void
 ) {
   const { geometry_2d } = element;
   if (!geometry_2d || !geometry_2d.coordinates || geometry_2d.coordinates.length < 2) {
     return;
   }
 
-  // 确定颜色和样式
-  const color =
-    mode === 'lift' && liftMode.showZMissing && !element.height
-      ? '#9333EA' // Z-Missing: violet-600
-      : isSelected
-      ? '#EA580C' // Selected: orange-600
-      : element.status === 'Verified'
-      ? '#059669' // Verified: emerald-600
-      : '#3F3F46'; // Default: zinc-700
+  // 确定颜色和样式（碰撞检测优先级最高）
+  const color = isColliding
+    ? '#DC2626' // Colliding: red-600
+    : mode === 'lift' && liftMode.showZMissing && !element.height
+    ? '#9333EA' // Z-Missing: violet-600
+    : isSelected
+    ? '#EA580C' // Selected: orange-600
+    : element.status === 'Verified'
+    ? '#059669' // Verified: emerald-600
+    : '#3F3F46'; // Default: zinc-700
 
   const strokeWidth = isSelected ? 2 : 1;
   const strokeDasharray =
@@ -493,15 +686,51 @@ function renderElement(
       return snapPoints;
     };
     
-    // 收集所有其他构件的端点用于磁吸检测（向后兼容）
+    // 收集所有其他构件的磁吸点（端点、中点、交点）
     const getAllSnapPoints = (): { x: number; y: number }[] => {
       const snapPointsWithElement = getAllSnapPointsWithElement();
-      return snapPointsWithElement.map(sp => ({ x: sp.x, y: sp.y }));
+      const endpointPoints = snapPointsWithElement.map(sp => ({ x: sp.x, y: sp.y }));
+      
+      // 添加中点（如果启用）
+      const midpoints: { x: number; y: number }[] = [];
+      if (allElements && elementDetailsMap) {
+        allElements.forEach((el) => {
+          if (el.id !== element.id) {
+            const detail = elementDetailsMap.get(el.id);
+            if (detail?.geometry_2d?.coordinates && detail.geometry_2d.coordinates.length >= 2) {
+              const elementMidpoints = getGeometryMidpoints(detail.geometry_2d.coordinates);
+              midpoints.push(...elementMidpoints);
+            }
+          }
+        });
+      }
+      
+      // 添加交点（如果启用，但为了性能，限制计算数量）
+      const intersections: { x: number; y: number }[] = [];
+      if (allElements && elementDetailsMap && coordinates.length >= 2) {
+        // 只计算与当前几何的交点（限制其他几何数量以提高性能）
+        const otherGeometries = allElements
+          .filter(el => el.id !== element.id)
+          .slice(0, 20) // 限制最多20个其他几何，避免性能问题
+          .map(el => {
+            const detail = elementDetailsMap.get(el.id);
+            return detail?.geometry_2d?.coordinates ? { coordinates: detail.geometry_2d.coordinates } : null;
+          })
+          .filter((g): g is { coordinates: number[][] } => g !== null);
+        
+        if (otherGeometries.length > 0) {
+          const elementIntersections = getGeometryIntersections(coordinates, otherGeometries);
+          intersections.push(...elementIntersections);
+        }
+      }
+      
+      // 合并所有磁吸点（端点、中点、交点）
+      return [...endpointPoints, ...midpoints, ...intersections];
     };
 
     // D3 拖拽行为
-    const drag = d3
-      .drag<SVGGElement, unknown>()
+    const drag = (d3.drag as any)() as any;
+    drag
       .on('start', function (this: SVGGElement) {
         d3.select(this).style('cursor', 'grabbing');
         coordinates = [...originalCoordinates]; // 重置为原始坐标
@@ -524,30 +753,34 @@ function renderElement(
           (coord[1] || 0) + dy,
         ]);
 
-        // 磁吸检测：检测第一个和最后一个点
-        const snapPoints = getAllSnapPoints();
-        const firstPoint = { x: newCoordinates[0][0] || 0, y: newCoordinates[0][1] || 0 };
-        const lastPoint = {
-          x: newCoordinates[newCoordinates.length - 1][0] || 0,
-          y: newCoordinates[newCoordinates.length - 1][1] || 0,
-        };
-
+        // 磁吸检测：检测第一个和最后一个点（仅在启用磁吸时）
+        // 磁吸开关通过snapDistance参数控制：如果snapDistance为0，则磁吸被禁用
         let adjustedCoordinates: [number, number][] = [...newCoordinates];
         let snapLineData: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
 
-        // 检测第一个点的磁吸
-        const snapToFirst = findNearestSnapPoint(firstPoint, snapPoints, snapDistance);
-        if (snapToFirst) {
-          adjustedCoordinates[0] = [snapToFirst.x, snapToFirst.y];
-          snapLineData = { from: firstPoint, to: snapToFirst };
-        }
+        // 检查磁吸是否启用（通过snapDistance > 0判断）
+        if (snapDistance > 0) {
+          const snapPoints = getAllSnapPoints();
+          const firstPoint = { x: newCoordinates[0][0] || 0, y: newCoordinates[0][1] || 0 };
+          const lastPoint = {
+            x: newCoordinates[newCoordinates.length - 1][0] || 0,
+            y: newCoordinates[newCoordinates.length - 1][1] || 0,
+          };
 
-        // 检测最后一个点的磁吸
-        const snapToLast = findNearestSnapPoint(lastPoint, snapPoints, snapDistance);
-        if (snapToLast) {
-          adjustedCoordinates[adjustedCoordinates.length - 1] = [snapToLast.x, snapToLast.y];
-          if (!snapLineData) {
-            snapLineData = { from: lastPoint, to: snapToLast };
+          // 检测第一个点的磁吸
+          const snapToFirst = findNearestSnapPoint(firstPoint, snapPoints, snapDistance);
+          if (snapToFirst) {
+            adjustedCoordinates[0] = [snapToFirst.x, snapToFirst.y];
+            snapLineData = { from: firstPoint, to: snapToFirst };
+          }
+
+          // 检测最后一个点的磁吸
+          const snapToLast = findNearestSnapPoint(lastPoint, snapPoints, snapDistance);
+          if (snapToLast) {
+            adjustedCoordinates[adjustedCoordinates.length - 1] = [snapToLast.x, snapToLast.y];
+            if (!snapLineData) {
+              snapLineData = { from: lastPoint, to: snapToLast };
+            }
           }
         }
 
@@ -610,10 +843,9 @@ function renderElement(
         .attr('stroke-dasharray', elemStrokeDasharray || null);
     } else if (geomType === 'Polyline') {
       // 使用 D3 line 生成器创建路径
-      const lineGenerator = d3
-        .line<[number, number]>()
-        .x((d) => d[0])
-        .y((d) => d[1]);
+      const lineGenerator = (d3.line as any)()
+        .x((d: [number, number]) => d[0])
+        .y((d: [number, number]) => d[1]);
 
       // 如果是闭合的 Polyline，添加起始点
       const pathData = closed && coords.length > 0
@@ -640,15 +872,30 @@ function renderElement(
 
   // 为 Classify 模式添加拖拽支持（使用鼠标事件，因为 SVG 不支持 HTML5 drag）
   if (mode === 'classify' && isSelected && onElementDragStart) {
-    let dragStartX = 0;
-    let dragStartY = 0;
     elementGroup
       .on('mousedown', function (this: SVGGElement, event: MouseEvent) {
-        dragStartX = event.clientX;
-        dragStartY = event.clientY;
+        event.stopPropagation();
         onElementDragStart([element.id]);
         // 存储拖拽数据到Context（供 HierarchyTreeNode 使用）
         setDraggedElementIds?.([element.id]);
+        // 设置拖拽起始位置
+        setDragPosition?.({ x: event.clientX, y: event.clientY });
+        // 添加拖拽视觉反馈：降低透明度和添加拖拽样式
+        const group = d3.select(this);
+        group.style('opacity', '0.6');
+        group.style('cursor', 'grabbing');
+        group.style('filter', 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))');
+      })
+      .on('mouseup', function (this: SVGGElement) {
+        // 恢复透明度和样式
+        const group = d3.select(this);
+        group.style('opacity', '1');
+        group.style('cursor', 'grab');
+        group.style('filter', null);
+        // 清除拖拽位置（延迟清除，让drop事件先处理）
+        setTimeout(() => {
+          setDragPosition?.(null);
+        }, 100);
       });
   }
 }
@@ -664,7 +911,8 @@ function renderElementPlaceholder(
   liftMode: { showZMissing: boolean },
   onElementDragStart?: (elementIds: string[]) => void,
   onElementClick?: (elementId: string, event: MouseEvent) => void,
-  setDraggedElementIds?: (ids: string[] | null) => void
+  setDraggedElementIds?: (ids: string[] | null) => void,
+  setDragPosition?: (position: { x: number; y: number } | null) => void
 ) {
   // 占位渲染：简单的矩形
   // 使用 element.id 作为种子生成固定位置，避免每次渲染位置变化
@@ -672,14 +920,15 @@ function renderElementPlaceholder(
   const x = (seed % 400) + 50;
   const y = ((seed * 7) % 400) + 50;
 
-  const color =
-    mode === 'lift' && liftMode.showZMissing && !element.has_height
-      ? '#9333EA' // Z-Missing: violet-600
-      : isSelected
-      ? '#EA580C' // Selected: orange-600
-      : element.status === 'Verified'
-      ? '#059669' // Verified: emerald-600
-      : '#3F3F46'; // Default: zinc-700
+  const color = isColliding
+    ? '#DC2626' // Colliding: red-600
+    : mode === 'lift' && liftMode.showZMissing && !element.has_height
+    ? '#9333EA' // Z-Missing: violet-600
+    : isSelected
+    ? '#EA580C' // Selected: orange-600
+    : element.status === 'Verified'
+    ? '#059669' // Verified: emerald-600
+    : '#3F3F46'; // Default: zinc-700
 
   const strokeDasharray =
     mode === 'lift' && liftMode.showZMissing && !element.has_height ? '4,4' : undefined;
@@ -705,20 +954,30 @@ function renderElementPlaceholder(
         onElementDragStart([element.id]);
         // 存储拖拽数据到Context（供 HierarchyTreeNode 使用）
         setDraggedElementIds?.([element.id]);
-        // 添加拖拽视觉反馈：降低透明度
-        d3.select(this).style('opacity', '0.6');
+        // 设置拖拽起始位置
+        setDragPosition?.({ x: event.clientX, y: event.clientY });
+        // 添加拖拽视觉反馈：降低透明度和添加拖拽样式
+        const group = d3.select(this);
+        group.style('opacity', '0.6');
+        group.style('cursor', 'grabbing');
+        group.style('filter', 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3))');
       })
       .on('mouseup', function (this: SVGGElement) {
-        // 恢复透明度
-        d3.select(this).style('opacity', '1');
+        // 恢复透明度和样式
+        const group = d3.select(this);
+        group.style('opacity', '1');
+        group.style('cursor', 'grab');
+        group.style('filter', null);
+        // 清除拖拽位置
+        setDragPosition?.(null);
       })
       .on('mouseleave', function (this: SVGGElement) {
         // 如果鼠标离开时还在拖拽，保持半透明
-        // 透明度将在drop时恢复
+        // 透明度将在drop或mouseup时恢复
       });
   }
 
-  // 占位矩形（改进：添加加载指示）
+  // 占位矩形（改进：添加加载指示和动画效果）
   const placeholderRect = elementGroup.append('rect')
     .attr('x', x)
     .attr('y', y)
@@ -727,18 +986,43 @@ function renderElementPlaceholder(
     .attr('fill', 'none')
     .attr('stroke', color)
     .attr('stroke-width', isSelected ? 2 : 1)
-    .attr('stroke-dasharray', strokeDasharray || null)
-    .attr('opacity', 0.5); // 降低占位元素的不透明度，表明这是占位符
+    .attr('stroke-dasharray', strokeDasharray || '5,5')
+    .attr('opacity', 0.4) // 降低占位元素的不透明度，表明这是占位符
+    .attr('rx', 4) // 圆角，更现代的外观
+    .attr('ry', 4);
 
-  // 添加加载指示文本
-  elementGroup.append('text')
-    .attr('x', x + 50)
-    .attr('y', y + 30)
-    .attr('text-anchor', 'middle')
-    .attr('font-size', '10px')
+  // 添加加载指示动画（脉动效果）
+  const loadingIndicator = elementGroup.append('circle')
+    .attr('cx', x + 50)
+    .attr('cy', y + 25)
+    .attr('r', 4)
     .attr('fill', color)
-    .attr('opacity', 0.6)
-    .text('Loading...');
+    .attr('opacity', 0.6);
+
+  // 简单的脉动动画
+  const animateLoading = () => {
+    (loadingIndicator as any)
+      .transition()
+      .duration(800)
+      .attr('r', 6)
+      .attr('opacity', 0.3)
+      .transition()
+      .duration(800)
+      .attr('r', 4)
+      .attr('opacity', 0.6)
+      .on('end', animateLoading);
+  };
+  animateLoading();
+
+  // 添加加载指示文本（可选，减少视觉噪音）
+  // elementGroup.append('text')
+  //   .attr('x', x + 50)
+  //   .attr('y', y + 40)
+  //   .attr('text-anchor', 'middle')
+  //   .attr('font-size', '9px')
+  //   .attr('fill', color)
+  //   .attr('opacity', 0.5)
+  //   .text('Loading...');
 
   // 添加标题提示
   elementGroup.append('title')

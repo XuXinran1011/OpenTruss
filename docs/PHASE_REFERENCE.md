@@ -10,7 +10,7 @@ OpenTruss 项目按照功能模块划分为四个主要开发阶段：
 |-------|------|---------|------|------|
 | **OpenTruss Phase 1** | 基础架构 | Foundation & Hierarchy | 搭建 Memgraph/FastAPI，实现 GB50300 六级节点 Schema | ✅ 已完成 |
 | **OpenTruss Phase 2** | 数据清洗 | Ingestion & Editor | 实现 Ingestion API，开发 HITL Workbench (Trace & Lift 功能) | 🚧 进行中 |
-| **OpenTruss Phase 3** | 检验批策划 | The Approver's Tool | 开发 Lot Strategy UI，实现规则引擎（检验批划分） | 📋 待开发 |
+| **OpenTruss Phase 3** | 检验批策划 | The Approver's Tool | 开发 Lot Strategy UI，实现规则引擎（检验批划分） | ✅ 已完成 |
 | **OpenTruss Phase 4** | 交付 | Workflow & Export | 实现审批状态机，集成 ifcopenshell 编译器，按检验批导出 IFC | 📋 待开发 |
 
 ### 详细说明

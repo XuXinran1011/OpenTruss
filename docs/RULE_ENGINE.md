@@ -525,6 +525,8 @@ def submit_for_approval(self, lot_id: str, user_id: str) -> Dict[str, Any]:
 
 ### 规则引擎 Phase 2: 构造"规范化" (Alpha)
 
+**实现状态**：✅ **已实现**（OpenTruss Phase 3）
+
 **目标**：解决 2D 到 3D 的转换合理性（如：角度吸附、管径匹配、Z轴完整性）。
 
 **优先级**：高（Alpha 版本核心功能）
@@ -535,32 +537,33 @@ def submit_for_approval(self, lot_id: str, user_id: str) -> Dict[str, Any]:
 
 **内容**：定义允许的角度容差、Z轴完整性要求等
 
-**配置结构**：
+**实际配置结构**（已实现）：
 ```json
 {
   "version": "1.0",
-  "rules": {
-    "fitting_standards": {
-      "angles": {
-        "standard": [90, 45, 180],
-        "tolerance": 5,
-        "allow_custom": false
-      },
-      "z_axis": {
-        "require_height": true,
-        "require_base_offset": true,
-        "element_types": ["Wall", "Column"]
-      }
-    }
+  "description": "构造标准配置（规则引擎 Phase 2）",
+  "angles": {
+    "standard": [45, 90, 180],
+    "tolerance": 5,
+    "allow_custom": false,
+    "description": "标准角度列表（度）和容差（度），如果 allow_custom 为 false，则只允许标准角度"
+  },
+  "z_axis": {
+    "require_height": true,
+    "require_base_offset": true,
+    "element_types": ["Wall", "Column"],
+    "description": "Z轴完整性要求：对于指定的元素类型，必须同时提供 height 和 base_offset"
   }
 }
 ```
 
-#### 3.2.2 前端实现（智能吸附）
+#### 3.2.2 前端实现（智能吸附）✅ 已实现
 
 **文件位置**：`frontend/src/lib/rules/ConstructabilityValidator.ts`
 
 **功能**：拖拽结束时的角度自动吸附
+
+**集成位置**：`frontend/src/components/canvas/Canvas.tsx`（在 `handleElementDragEnd` 中调用）
 
 **代码示例**：
 ```typescript
@@ -660,18 +663,33 @@ const handleDragEnd = (element: Element, newPath: number[][]) => {
 - 用户画了一个 88° 的线，松手后自动变成 90°
 - 显示提示："角度已自动修正：88° → 90°"
 
-#### 3.2.3 后端实现（Z轴完整性检查）
+#### 3.2.3 后端实现 ✅ 已实现
 
-**功能**：检查 Wall、Column 等构件的 height 和 baseOffset 字段
+**文件位置**：`backend/app/core/validators.py` - `ConstructabilityValidator` 类
+
+**功能**：
+- 角度验证和吸附：`validate_angle()`, `snap_angle()`, `calculate_path_angle()`
+- Z轴完整性检查：`validate_z_axis_completeness()`
 
 **逻辑**：这是"逆向重构"特有的规则。如果发现 height == null，拒绝将状态变更为 SUBMITTED
 
-**代码示例**：
-```python
-# backend/app/services/validation.py
+**API 端点**（已实现）：
+- `POST /api/v1/validation/constructability/validate-angle` - 验证角度
+- `POST /api/v1/validation/constructability/validate-z-axis` - 验证Z轴完整性
+- `POST /api/v1/validation/constructability/calculate-path-angle` - 计算路径角度
 
-class CompletenessValidator:
-    """完整性校验器"""
+**集成位置**：
+- `backend/app/api/v1/lots.py` - 在 `update_lot_status` 中，当状态转换为 SUBMITTED 时自动调用
+
+**代码示例**（实际实现）：
+```python
+# backend/app/core/validators.py
+
+class ConstructabilityValidator:
+    """构造校验器（规则引擎 Phase 2）
+    
+    实现角度吸附和Z轴完整性检查
+    """
     
     def __init__(self, config_path: Path):
         """初始化完整性校验器
@@ -767,6 +785,8 @@ def submit_for_approval(self, lot_id: str, user_id: str) -> Dict[str, Any]:
 ---
 
 ### 规则引擎 Phase 3: 空间"避障" (Beta)
+
+**实现状态**：✅ **已实现**
 
 **目标**：简单的物理碰撞检测（无需重型 3D 引擎）。
 
@@ -1016,6 +1036,8 @@ const handleDragMove = (element: Element, newPath: number[][]) => {
 
 ### 规则引擎 Phase 4: 拓扑"完整性" (RC / Production)
 
+**实现状态**：✅ **已实现**（OpenTruss Phase 3）
+
 **目标**：确保系统逻辑闭环（如：没有悬空的管道端点、无孤立子图）。
 
 **优先级**：高（生产环境必须功能）
@@ -1028,38 +1050,68 @@ const handleDragMove = (element: Element, newPath: number[][]) => {
 
 **规则 2 (Islands)**：系统中不应存在孤立的子图（比如一根管子谁也不连）
 
-#### 3.4.2 后端实现（Cypher 校验）
+#### 3.4.2 后端实现（Cypher 校验）✅ 已实现
 
-**代码示例**：
+**文件位置**：`backend/app/core/validators.py` - `TopologyValidator` 类
+
+**主要方法**：
+- `validate_topology(lot_id)` - 验证检验批的拓扑完整性
+- `find_open_ends(element_ids)` - 查找悬空端点（连接数 < 2 的元素）
+- `find_isolated_elements(element_ids)` - 查找孤立元素（连接数为 0 的元素）
+
+**API 端点**（已实现）：
+- `POST /api/v1/validation/topology/validate` - 验证拓扑完整性
+- `POST /api/v1/validation/topology/find-open-ends` - 查找悬空端点
+- `POST /api/v1/validation/topology/find-isolated` - 查找孤立元素
+
+**集成位置**：
+- `backend/app/api/v1/lots.py` - 在 `update_lot_status` 中，当状态转换为 SUBMITTED 时自动调用
+- `frontend/src/components/validation/TopologyValidationPanel.tsx` - 前端校验结果展示面板
+
+**代码示例**（实际实现）：
 ```python
-# backend/app/services/validation.py
+# backend/app/core/validators.py
 
 class TopologyValidator:
-    """拓扑完整性校验器"""
+    """拓扑校验器（规则引擎 Phase 4）
     
-    def __init__(self, client: MemgraphClient):
+    确保系统逻辑闭环：无悬空端点、无孤立子图
+    """
+    
+    def __init__(self, client):
         """初始化拓扑校验器
         
         Args:
-            client: Memgraph 客户端
+            client: MemgraphClient 实例
         """
         self.client = client
     
-    def find_open_ends(self, lot_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """查找所有悬空的管道端点
-        
-        规则：管道端点必须连接到某个设备或另一根管道（除非标记为 Cap/堵头）
+    def validate_topology(self, lot_id: str) -> Dict[str, Any]:
+        """验证检验批的拓扑完整性
         
         Args:
-            lot_id: 检验批 ID（可选，如果提供则只检查该检验批）
-            
+            lot_id: 检验批 ID
+        
         Returns:
-            List[Dict]: 悬空端点列表
-                - element_id: 构件 ID
-                - degree: 连接度
-                - reason: 原因
+            {
+                "valid": bool,
+                "open_ends": List[str],  # 悬空端点元素ID列表
+                "isolated_elements": List[str],  # 孤立元素ID列表
+                "errors": List[str]
+            }
         """
-        if lot_id:
+        # ... 实现代码 ...
+    
+    def find_open_ends(self, element_ids: List[str]) -> List[str]:
+        """查找悬空端点（连接数 < 2 的元素）
+        
+        Args:
+            element_ids: 元素ID列表
+        
+        Returns:
+            悬空端点元素ID列表
+        """
+        # 实际实现：使用 Cypher 查询查找连接数 < 2 的元素
             # 只检查指定检验批的构件
             query = """
             MATCH (lot:InspectionLot {id: $lot_id})-[:CONTAINS]->(e:Element)-[r:CONNECTED_TO]-(target)
@@ -1322,8 +1374,55 @@ graph TD
 
 **参考点**：它的 Space 和 BuildingComponent 之间的拓扑定义非常严谨（如 `isPartOf`, `isLocatedIn`），适合用来校验构件的空间归属。
 
+### 5.2 Brick Schema 集成实现
+
+**状态**：已实现（v2.0）
+
+**实现位置**：
+- `backend/app/core/brick_validator.py` - Brick Schema 验证器
+- `backend/app/core/speckle_brick_mapping.json` - Speckle 到 Brick 类型映射
+
+**功能**：
+- 使用 Brick Schema 验证 MEP 连接的语义正确性
+- 支持 `feeds`, `feeds_from`, `controls`, `located_in` 等关系验证
+- 集成到路径规划系统中，确保连接语义正确
+
+**使用示例**：
+```python
+from app.core.brick_validator import get_brick_validator
+
+validator = get_brick_validator()
+result = validator.validate_mep_connection(
+    source_type="Pump",
+    target_type="Pipe",
+    relationship="feeds"
+)
+```
+
+详见 [MEP_ROUTING.md](./MEP_ROUTING.md)。
+
 **资源地址**：
 - [RealEstateCore GitHub](https://github.com/RealEstateCore/rec)
+
+### 5.4 MEP路由规划规则
+
+**状态**：已实现（v2.1）
+
+**实现位置**：
+- `backend/app/core/mep_routing_config.py` - MEP路由配置加载器
+- `backend/app/core/brick_validator.py` - Brick Schema验证器（已包含）
+- `backend/app/services/routing.py` - 路由规划服务
+- `backend/app/core/validators.py` - MEP路由验证器（扩展）
+
+**功能**：
+- 坡度验证（重力流管道必须 slope > 0）
+- 空间限制验证（禁止穿过的空间）
+- 碰撞检测规则（MEP与MEP、MEP与结构）
+- 避障优先级规则（5级系统）
+- 竖向/水平管线判定规则
+- 原始路由约束规则
+
+详细说明参见本文档的 "MEP路由规划规则" 部分和 [MEP_ROUTING_DETAILED.md](./MEP_ROUTING_DETAILED.md)。
 
 ### 5.2 构造约束 (Constructability Constraints)
 
@@ -1928,7 +2027,135 @@ class ApprovalService:
 
 ---
 
-## 8. 总结
+## 8. MEP路由规划规则扩展
+
+### 8.1 坡度验证规则
+
+**配置文件位置**：`backend/app/config/rules/mep_routing_config.json`
+
+**规则**：
+- 重力流管道（`gravity_drainage`, `gravity_rainwater`, `condensate`）必须满足 `slope > 0`（向下倾斜）
+- 坡度单位使用百分比（%）
+- 最小坡度由配置中的 `slope_constraints.gravity_flow.min_slope_percent` 定义（默认 0.5%）
+
+**实现位置**：
+- `backend/app/core/mep_routing_validator.py` - `validate_slope` 方法
+
+**使用示例**：
+```python
+from app.core.mep_routing_validator import MEPRoutingValidator
+
+validator = MEPRoutingValidator(config_path)
+result = validator.validate_slope(
+    element_type="Pipe",
+    system_type="gravity_drainage",
+    slope=0.3  # 0.3% < 0.5% (最小坡度)
+)
+# result = {"valid": False, "reason": "重力流管道坡度必须 >= 0.5%"}
+```
+
+### 8.2 空间限制规则
+
+**数据模型**：`Space` 元素包含 `forbid_horizontal_mep` 和 `forbid_vertical_mep` 属性
+
+**规则**：
+- 当 `Space.forbid_horizontal_mep == True` 时，禁止水平MEP管线穿过该空间
+- 当 `Space.forbid_vertical_mep == True` 时，禁止竖向MEP管线穿过该空间
+- MEP专业负责人和总工程师可以设置空间的限制标志
+
+**实现位置**：
+- `backend/app/models/speckle/spatial.py` - `Space` 模型定义
+- `backend/app/services/routing.py` - `FlexibleRouter.find_route` 方法（查询空间限制）
+
+**API端点**：
+- `PUT /api/v1/spaces/{space_id}/mep-restrictions` - 设置空间MEP限制
+
+### 8.3 碰撞检测规则
+
+**规则分类**：
+
+1. **MEP与MEP碰撞**：
+   - 在管线综合排布阶段进行检测
+   - 使用避障优先级系统决定避让关系
+   - 碰撞检测在MEP Coordination阶段完成
+
+2. **MEP与结构碰撞**：
+   - 梁、柱：MEP管线默认避让，除非手动确认可通过
+   - 板、墙：需要考虑防火/防水要求，生成相应节点（详见 [MEP_PENETRATION.md](./MEP_PENETRATION.md)）
+
+**实现位置**：
+- `backend/app/services/routing.py` - `FlexibleRouter` 碰撞检测
+- `backend/app/core/mep_routing_validator.py` - `validate_collision` 方法
+
+**API端点**：
+- `GET /api/v1/routing/obstacles` - 查询障碍物
+
+### 8.4 避障优先级规则
+
+**5级默认优先级**（详细配置见 [MEP_SYSTEM_PRIORITY.md](./MEP_SYSTEM_PRIORITY.md)）：
+
+1. **优先级1（最高）**：重力流管道
+   - 系统：`gravity_drainage`, `gravity_rainwater`, `condensate`
+   - 约束：最短路由，不能倒坡，不能上下翻弯
+
+2. **优先级2**：大截面风管
+   - 系统：`smoke_exhaust`, `air_conditioning`, `fresh_air`, `supply_exhaust`
+   - 约束：翻弯困难，成本高
+
+3. **优先级3**：大口径有压管道
+   - 系统：`fire_suppression`, `water_supply`, `chilled_water`, `cooling_water`, `hot_water`, `heating_main`
+   - 约束：弯头占据空间较大
+
+4. **优先级4**：电缆桥架
+   - 系统：`power_cable`, `weak_cable`
+   - 约束：翻弯占据空间小，成本稍高
+
+5. **优先级5（最低）**：小口径有压管道及电线导管
+   - 系统：`fire_suppression_branch`, `water_supply_branch`, `chilled_water_branch`, `hot_water_branch`, `heating_branch`
+   - 约束：翻弯占据空间小，成本较低
+
+**优先级冲突处理**（相同优先级时，按顺序）：
+1. 少翻弯（优先）
+2. 较小管径/截面积避让较大管径/截面积
+3. 尽量贴近本楼层顶板
+
+**实现位置**：
+- `backend/app/config/rules/mep_routing_config.json` - 配置文件
+- `backend/app/core/mep_routing_config.py` - 配置加载器
+- `backend/app/services/routing.py` - 优先级管理器
+
+**API端点**：
+- `GET /api/v1/routing/priority-config` - 获取优先级配置
+- `PUT /api/v1/routing/priority-config` - 更新优先级配置（MEP专业负责人）
+
+### 8.5 竖向/水平管线判定规则
+
+**判定标准**：
+- 竖向管线：Z方向变化超过阈值（默认1.0米，配置在 `vertical_pipe_detection.z_change_threshold`）
+- 水平管线：Z方向变化 <= 阈值
+
+**规则**：
+- 竖向管线不参与自动路由规划（Trace Mode）
+- 竖向管线在管线综合排布时尽量贴近附近的墙、柱，避免与其他竖向管线和水平管线的连接处碰撞
+
+**实现位置**：
+- `backend/app/core/mep_routing_validator.py` - `is_vertical_pipe` 方法
+- `backend/app/services/routing.py` - `FlexibleRouter.is_vertical_route` 方法
+
+### 8.6 原始路由约束规则
+
+**规则**：
+- 新路由不能经过原路由未经过的房间（空间）
+- 端点（包括风口等）不能自动调整
+- 用于确保新路由不会偏离原始设计意图
+
+**实现位置**：
+- `backend/app/services/routing.py` - `FlexibleRouter.find_route` 方法（`original_route_geometry` 参数）
+
+**API参数**：
+- `/api/v1/routing/calculate` 请求体中的 `original_route_geometry` 字段（可选）
+
+## 9. 总结
 
 OpenTruss 规则引擎采用**分层防御策略**，通过前后端协同工作，构建了一个轻量、可扩展的校验体系：
 
@@ -1936,12 +2163,13 @@ OpenTruss 规则引擎采用**分层防御策略**，通过前后端协同工作
 - **规则引擎 Phase 2 (构造校验)**：解决 2D 到 3D 转换的合理性，提升用户体验
 - **规则引擎 Phase 3 (空间校验)**：物理碰撞检测，属于高级特性
 - **规则引擎 Phase 4 (拓扑校验)**：确保系统逻辑闭环，生产环境必须
+- **MEP路由规划规则（扩展）**：坡度验证、空间限制、碰撞检测、避障优先级、竖向/水平判定、原始路由约束
 
 每个阶段都有明确的**目标、实现方式、代码示例和测试策略**，开发者可以按照开发排期逐步实施，最终实现"垃圾进，精华出"的核心目标。
 
 ---
 
-**文档版本**：1.0  
+**文档版本**：1.1  
 **最后更新**：2024年  
 **维护者**：OpenTruss 开发团队
 

@@ -141,21 +141,21 @@ class ElementNode(BaseModel):
 [ ] 实现 GB50300 六级节点 Schema (Project to InspectionLot)。
 
 **OpenTruss Phase 2**: Ingestion & Editor (数据清洗)
-[ ] 实现 Ingestion API (Speckle 适配)。
-[ ] 开发 HITL Workbench (Trace & Lift 功能)。
-[ ] 实现构件的"归类"功能（拖拽分配分项）。
-[ ] 实施规则引擎 Phase 1（语义校验）：防止违反常识的连接。
+[x] 实现 Ingestion API (Speckle 适配)。
+[x] 开发 HITL Workbench (Trace & Lift 功能)。
+[x] 实现构件的"归类"功能（拖拽分配分项）。
+[x] 实施规则引擎 Phase 1（语义校验）：防止违反常识的连接。
 
 **OpenTruss Phase 3**: The Approver's Tool (检验批策划)
-[ ] 开发 Lot Strategy UI: 允许负责人按楼层/区域批量创建检验批。
-[ ] 实现"规则引擎"（检验批划分）：IF Element.level == 'F1' AND Element.type == 'Wall' THEN Assign To Lot_001。
-[ ] 实施规则引擎 Phase 2（构造校验）：角度吸附、Z轴完整性检查。
-[ ] 实施规则引擎 Phase 4（拓扑校验）：确保系统逻辑闭环。
+[x] 开发 Lot Strategy UI: 允许负责人按楼层/区域批量创建检验批。
+[x] 实现"规则引擎"（检验批划分）：IF Element.level == 'F1' AND Element.type == 'Wall' THEN Assign To Lot_001。
+[x] 实施规则引擎 Phase 2（构造校验）：角度吸附、Z轴完整性检查。
+[x] 实施规则引擎 Phase 4（拓扑校验）：确保系统逻辑闭环。
 
 **OpenTruss Phase 4**: Workflow & Export (交付)
 [ ] 实现基于检验批的审批状态机。
 [ ] 集成 ifcopenshell 编译器，按检验批导出 IFC。
-[ ] 实施规则引擎 Phase 3（空间校验）：物理碰撞检测（可选，高级特性）。
+[x] 实施规则引擎 Phase 3（空间校验）：物理碰撞检测（可选，高级特性）。
 7. Success Metrics (成功指标)
 合规性: 生成的数据结构 100% 对应 GB50300 验收表格，可直接用于打印报验单。
 策划效率: 负责人能在 5 分钟内完成一栋单体楼（30层）的所有检验批划分规则配置。

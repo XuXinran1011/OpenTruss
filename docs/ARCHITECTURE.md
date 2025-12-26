@@ -202,10 +202,11 @@ graph TB
     
     subgraph BackendRuleEngine["后端规则引擎 (Data Layer)"]
         BE1[ValidationService<br/>校验服务]
-        BE2[SemanticValidator<br/>语义校验]
-        BE3[CompletenessValidator<br/>完整性校验]
-        BE4[TopologyValidator<br/>拓扑校验]
-        BE5[RuleConfig<br/>配置管理]
+        BE2[SemanticValidator<br/>语义校验 ✅]
+        BE3[ConstructabilityValidator<br/>构造校验 ✅]
+        BE4[TopologyValidator<br/>拓扑校验 ✅]
+        BE5[SpatialValidator<br/>空间校验 ✅]
+        BE6[RuleConfig<br/>配置管理]
     end
     
     FrontendRuleEngine -->|实时校验| API
@@ -226,11 +227,11 @@ graph TB
    - 创建 InspectionLot 节点
    - 建立节点关系
 
-2. **数据质量校验**（新增功能，分阶段实施）：
-   - **规则引擎 Phase 1: 语义校验**：防止违反常识的连接（如：水管接柱子）
-   - **规则引擎 Phase 2: 构造校验**：角度吸附、Z轴完整性检查
-   - **规则引擎 Phase 3: 空间校验**：物理碰撞检测（2.5D 包围盒）
-   - **规则引擎 Phase 4: 拓扑校验**：确保系统逻辑闭环（无悬空端点、无孤立子图）
+2. **数据质量校验**（分阶段实施）：
+   - **规则引擎 Phase 1: 语义校验**：防止违反常识的连接（如：水管接柱子） - ✅ 已实现（OpenTruss Phase 2）
+   - **规则引擎 Phase 2: 构造校验**：角度吸附、Z轴完整性检查 - ✅ 已实现（OpenTruss Phase 3）
+   - **规则引擎 Phase 3: 空间校验**：物理碰撞检测（2.5D 包围盒） - ✅ 已实现（Beta 特性）
+   - **规则引擎 Phase 4: 拓扑校验**：确保系统逻辑闭环（无悬空端点、无孤立子图） - ✅ 已实现（OpenTruss Phase 3）
 
 **技术栈**：
 - **前端**：TypeScript, Turf.js, RBush
@@ -288,6 +289,108 @@ semantic_allowlist = {
 - 几何生成（2D → 3D Lift）
 - IFC 文件生成与验证
 - 支持 Revit/Navisworks 兼容性
+
+#### 3.3.6 MEP 路由规划服务 (Routing Service)
+
+**职责**：
+- 2D 路由规划（Trace Mode）
+- 轻量级路径点计算
+- 支持系统特定约束（角度、转弯半径、宽度）
+- Brick Schema 语义验证
+- 障碍物查询和处理
+
+**架构**：
+
+```mermaid
+graph TB
+    subgraph RoutingService["MEP 路由规划服务"]
+        Router[FlexibleRouter<br/>路径规划算法]
+        ConfigLoader[MEPRoutingConfigLoader<br/>配置加载]
+        BrickValidator[BrickSemanticValidator<br/>Brick Schema验证]
+        ObstacleQuery[障碍物查询服务]
+    end
+    
+    subgraph Frontend["前端"]
+        Canvas[Canvas<br/>Trace Mode]
+        RoutingPanel[MEPRoutingPanel<br/>路由控制面板]
+    end
+    
+    subgraph Database["数据库"]
+        Memgraph[(Memgraph)]
+        ConfigFile[配置文件<br/>mep_routing_config.json]
+    end
+    
+    Canvas -->|路由请求| Router
+    Router --> ConfigLoader
+    Router --> BrickValidator
+    Router --> ObstacleQuery
+    ConfigLoader --> ConfigFile
+    ObstacleQuery --> Memgraph
+    Router -->|路径点| Canvas
+    
+    style RoutingService fill:#fff4e6
+    style Frontend fill:#e1f5ff
+    style Database fill:#e8f5e9
+```
+
+**核心功能**：
+1. **路由规划**：计算符合约束的最短路径
+2. **约束验证**：坡度、角度、转弯半径、宽度约束
+3. **空间限制**：检查并避开禁止穿过的空间
+4. **原始路由约束**：新路由不能经过原始路由未经过的房间
+5. **分步路由规划**：支持按分项/系统/规格区间筛选
+
+详细说明参见 [MEP_ROUTING_DETAILED.md](./MEP_ROUTING_DETAILED.md)。
+
+#### 3.3.7 管线综合排布服务 (Coordination Service)
+
+**职责**：
+- 3D 管线综合排布
+- 碰撞检测和避让
+- 优先级管理
+- 穿墙/穿楼板节点生成
+
+**架构**：
+
+```mermaid
+graph TB
+    subgraph CoordinationService["管线综合排布服务"]
+        CollisionDetector[碰撞检测服务]
+        PriorityManager[优先级管理服务]
+        CoordinationEngine[综合排布引擎]
+        PenetrationGenerator[穿墙节点生成服务]
+    end
+    
+    subgraph Frontend["前端"]
+        Canvas3D[3D Canvas<br/>Coordination Mode]
+    end
+    
+    subgraph Database["数据库"]
+        Memgraph[(Memgraph)]
+        PriorityConfig[优先级配置]
+    end
+    
+    Canvas3D -->|排布请求| CoordinationEngine
+    CoordinationEngine --> CollisionDetector
+    CoordinationEngine --> PriorityManager
+    PriorityManager --> PriorityConfig
+    CollisionDetector --> Memgraph
+    CoordinationEngine -->|调整路径| Canvas3D
+    CoordinationEngine -->|节点生成| PenetrationGenerator
+    
+    style CoordinationService fill:#fff4e6
+    style Frontend fill:#e1f5ff
+    style Database fill:#e8f5e9
+```
+
+**核心功能**：
+1. **碰撞检测**：MEP元素之间、MEP与结构之间的3D空间碰撞
+2. **避障优先级**：5级系统优先级，支持用户自定义
+3. **路径调整**：局部平移、垂直平移、增加翻弯
+4. **目标优化**：避开碰撞 > 贴近顶板 > 少翻弯
+5. **节点生成**：完成排布后生成防火封堵、防水套管等节点
+
+详细说明参见 [MEP_COORDINATION.md](./MEP_COORDINATION.md) 和 [MEP_PENETRATION.md](./MEP_PENETRATION.md)。
 
 ### 3.4 数据层 (Data Layer)
 
@@ -462,6 +565,74 @@ sequenceDiagram
             end
         end
     end
+```
+
+### 4.5 MEP路由规划和管线综合排布流程
+
+MEP路由规划和管线综合排布是两阶段工作流，详细说明参见 [MEP_ROUTING_DETAILED.md](./MEP_ROUTING_DETAILED.md) 和 [MEP_COORDINATION.md](./MEP_COORDINATION.md)。
+
+#### 4.5.1 路由规划流程（2D Trace Mode）
+
+```mermaid
+sequenceDiagram
+    participant MEPEngineer as MEP专业负责人
+    participant Frontend as Canvas (Trace Mode)
+    participant RoutingAPI as Routing API
+    participant RoutingService as 路由规划服务
+    participant Memgraph as Memgraph
+    
+    MEPEngineer->>Frontend: 选择源和目标元素
+    Frontend->>RoutingAPI: POST /routing/calculate<br/>{start, end, element_type, system_type}
+    RoutingAPI->>RoutingService: 计算路径
+    RoutingService->>Memgraph: 查询障碍物<br/>(Beam, Column, Space)
+    Memgraph-->>RoutingService: 返回障碍物
+    RoutingService->>RoutingService: 检查空间限制<br/>(forbid_horizontal_mep)
+    RoutingService->>RoutingService: 计算最短路径<br/>(符合约束条件)
+    RoutingService-->>RoutingAPI: 返回路径点
+    RoutingAPI-->>Frontend: {path_points, constraints, warnings}
+    Frontend-->>MEPEngineer: 显示路径（虚线/半透明）
+    MEPEngineer->>Frontend: 确认应用路径
+    Frontend->>RoutingAPI: 更新元素路径
+    RoutingAPI->>Memgraph: 更新元素几何
+    Memgraph-->>RoutingAPI: 确认更新
+    RoutingAPI-->>Frontend: 更新成功
+```
+
+#### 4.5.2 管线综合排布流程（3D Coordination）
+
+```mermaid
+sequenceDiagram
+    participant MEPEngineer as MEP专业负责人
+    participant Frontend as Canvas (Coordination Mode)
+    participant CoordinationAPI as Coordination API
+    participant CoordinationService as 管线综合排布服务
+    participant CollisionDetector as 碰撞检测服务
+    participant PriorityManager as 优先级管理服务
+    participant Memgraph as Memgraph
+    
+    MEPEngineer->>Frontend: 进入管线综合排布
+    Frontend->>CoordinationAPI: POST /routing/coordination<br/>{level_id, element_ids}
+    CoordinationAPI->>CoordinationService: 开始综合排布
+    CoordinationService->>CollisionDetector: 检测碰撞
+    CollisionDetector->>Memgraph: 查询MEP元素和结构
+    Memgraph-->>CollisionDetector: 返回元素数据
+    CollisionDetector->>CollisionDetector: 3D碰撞检测<br/>(AABB + Z-Range)
+    CollisionDetector-->>CoordinationService: 返回碰撞列表
+    
+    CoordinationService->>PriorityManager: 获取优先级配置
+    PriorityManager-->>CoordinationService: 返回优先级配置
+    CoordinationService->>CoordinationService: 按优先级解决碰撞<br/>(避开碰撞 > 贴近顶板 > 少翻弯)
+    CoordinationService->>CoordinationService: 计算调整路径<br/>(局部平移/垂直平移/增加翻弯)
+    CoordinationService-->>CoordinationAPI: 返回调整方案
+    CoordinationAPI-->>Frontend: {adjusted_elements, collisions_resolved}
+    Frontend-->>MEPEngineer: 显示调整结果
+    MEPEngineer->>Frontend: 确认完成排布
+    Frontend->>CoordinationAPI: PUT /routing/status<br/>{status: "coordination_completed"}
+    CoordinationAPI->>CoordinationService: 生成穿墙/穿楼板节点
+    CoordinationService->>Memgraph: 创建节点<br/>(防火封堵、防水套管等)
+    Memgraph-->>CoordinationService: 确认创建
+    CoordinationService-->>CoordinationAPI: 生成完成
+    CoordinationAPI-->>Frontend: 排布完成
 ```
 
 ---

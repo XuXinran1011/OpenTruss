@@ -325,7 +325,175 @@ curl -X POST https://api.opentruss.com/api/v1/inspection-lots/lot_001/reject \
   }'
 ```
 
-### 3.7 场景 7: 导出 IFC 模型
+### 3.7 场景 7: 验证角度和Z轴完整性
+
+**目标**: 使用构造校验 API 验证角度和Z轴参数（规则引擎 Phase 2）
+
+**步骤**:
+
+1. **验证角度**:
+```bash
+curl -X POST https://api.opentruss.com/api/v1/validation/constructability/validate-angle \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "angle": 88.5
+  }'
+```
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "valid": true,
+    "snapped_angle": 90,
+    "error": null
+  }
+}
+```
+
+2. **验证Z轴完整性**:
+```bash
+curl -X POST https://api.opentruss.com/api/v1/validation/constructability/validate-z-axis \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "element_id": "element_001",
+    "speckle_type": "Wall",
+    "height": 3.0,
+    "base_offset": 0.0
+  }'
+```
+
+### 3.8 场景 8: 拓扑校验
+
+**目标**: 使用拓扑校验 API 检查检验批的拓扑完整性（规则引擎 Phase 4）
+
+**步骤**:
+
+1. **验证拓扑完整性**:
+```bash
+curl -X POST https://api.opentruss.com/api/v1/validation/topology/validate \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "lot_id": "lot_001"
+  }'
+```
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "valid": false,
+    "open_ends": ["element_001", "element_002"],
+    "isolated_elements": ["element_003"],
+    "errors": [
+      "发现 2 个悬空端点",
+      "发现 1 个孤立元素"
+    ]
+  }
+}
+```
+
+2. **查找悬空端点**:
+```bash
+curl -X POST https://api.opentruss.com/api/v1/validation/topology/find-open-ends \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "element_ids": ["element_001", "element_002", "element_003"]
+  }'
+```
+
+3. **查找孤立元素**:
+```bash
+curl -X POST https://api.opentruss.com/api/v1/validation/topology/find-isolated \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "element_ids": ["element_001", "element_002", "element_003"]
+  }'
+```
+
+### 3.9 场景 9: 规则管理和预览
+
+**目标**: 获取规则列表和预览规则效果（Approver 权限）
+
+**步骤**:
+
+1. **获取规则列表**:
+```bash
+curl -X GET https://api.opentruss.com/api/v1/rules \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "rules": [
+      {
+        "rule_type": "BY_LEVEL",
+        "name": "按楼层划分",
+        "description": "根据构件的楼层（Level）自动分组创建检验批",
+        "is_custom": false
+      },
+      {
+        "rule_type": "BY_ZONE",
+        "name": "按区域划分",
+        "description": "根据构件的区域（Zone）自动分组创建检验批",
+        "is_custom": false
+      },
+      {
+        "rule_type": "BY_LEVEL_AND_ZONE",
+        "name": "按楼层+区域划分",
+        "description": "根据楼层和区域的组合自动分组创建检验批",
+        "is_custom": false
+      }
+    ]
+  }
+}
+```
+
+2. **预览规则效果**:
+```bash
+curl -X POST https://api.opentruss.com/api/v1/rules/preview \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "item_id": "item_001",
+    "rule_type": "BY_LEVEL"
+  }'
+```
+
+**响应**:
+```json
+{
+  "status": "success",
+  "data": {
+    "rule_type": "BY_LEVEL",
+    "estimated_lots": 3,
+    "groups": [
+      {
+        "key": "F1",
+        "count": 25,
+        "label": "1#楼F1层"
+      },
+      {
+        "key": "F2",
+        "count": 30,
+        "label": "1#楼F2层"
+      }
+    ]
+  }
+}
+```
+
+### 3.10 场景 10: 导出 IFC 模型
 
 **目标**: 导出已验收的检验批为 IFC 文件
 
@@ -542,6 +710,69 @@ class OpenTrussAPI:
         response = requests.post(url, headers=self.headers)
         response.raise_for_status()
         return response.json()
+    
+    def validate_angle(self, angle):
+        """验证角度是否符合标准"""
+        url = f"{self.base_url}/validation/constructability/validate-angle"
+        data = {"angle": angle}
+        response = requests.post(url, headers=self.headers, json=data)
+        response.raise_for_status()
+        return response.json()
+    
+    def validate_z_axis(self, element_id, speckle_type, height=None, base_offset=None):
+        """验证Z轴完整性"""
+        url = f"{self.base_url}/validation/constructability/validate-z-axis"
+        data = {
+            "element_id": element_id,
+            "speckle_type": speckle_type,
+            "height": height,
+            "base_offset": base_offset
+        }
+        response = requests.post(url, headers=self.headers, json=data)
+        response.raise_for_status()
+        return response.json()
+    
+    def validate_topology(self, lot_id):
+        """验证拓扑完整性"""
+        url = f"{self.base_url}/validation/topology/validate"
+        data = {"lot_id": lot_id}
+        response = requests.post(url, headers=self.headers, json=data)
+        response.raise_for_status()
+        return response.json()
+    
+    def find_open_ends(self, element_ids):
+        """查找悬空端点"""
+        url = f"{self.base_url}/validation/topology/find-open-ends"
+        data = {"element_ids": element_ids}
+        response = requests.post(url, headers=self.headers, json=data)
+        response.raise_for_status()
+        return response.json()
+    
+    def find_isolated_elements(self, element_ids):
+        """查找孤立元素"""
+        url = f"{self.base_url}/validation/topology/find-isolated"
+        data = {"element_ids": element_ids}
+        response = requests.post(url, headers=self.headers, json=data)
+        response.raise_for_status()
+        return response.json()
+    
+    def get_rules(self):
+        """获取规则列表"""
+        url = f"{self.base_url}/rules"
+        response = requests.get(url, headers=self.headers)
+        response.raise_for_status()
+        return response.json()
+    
+    def preview_rule(self, item_id, rule_type):
+        """预览规则效果"""
+        url = f"{self.base_url}/rules/preview"
+        data = {
+            "item_id": item_id,
+            "rule_type": rule_type
+        }
+        response = requests.post(url, headers=self.headers, json=data)
+        response.raise_for_status()
+        return response.json()
 
 # 使用示例
 api = OpenTrussAPI(
@@ -576,6 +807,34 @@ api.batch_lift(
 
 # 提交审批
 api.submit_inspection_lot("lot_001")
+
+# 验证角度
+angle_result = api.validate_angle(88.5)
+print(f"角度验证结果: {angle_result['data']}")
+
+# 验证Z轴完整性
+z_axis_result = api.validate_z_axis(
+    element_id="element_001",
+    speckle_type="Wall",
+    height=3.0,
+    base_offset=0.0
+)
+print(f"Z轴验证结果: {z_axis_result['data']}")
+
+# 拓扑校验
+topology_result = api.validate_topology("lot_001")
+if not topology_result['data']['valid']:
+    print(f"拓扑校验失败: {topology_result['data']['errors']}")
+    open_ends = api.find_open_ends(["element_001", "element_002"])
+    print(f"悬空端点: {open_ends['data']['element_ids']}")
+
+# 获取规则列表
+rules = api.get_rules()
+print(f"可用规则: {rules['data']['rules']}")
+
+# 预览规则效果
+preview = api.preview_rule("item_001", "BY_LEVEL")
+print(f"预计创建 {preview['data']['estimated_lots']} 个检验批")
 ```
 
 ### 7.2 JavaScript 示例
@@ -630,6 +889,75 @@ class OpenTrussAPI {
     });
     return await response.json();
   }
+
+  async validateAngle(angle) {
+    const response = await fetch(`${this.baseUrl}/validation/constructability/validate-angle`, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({ angle })
+    });
+    return await response.json();
+  }
+
+  async validateZAxis(elementId, speckleType, height = null, baseOffset = null) {
+    const response = await fetch(`${this.baseUrl}/validation/constructability/validate-z-axis`, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({
+        element_id: elementId,
+        speckle_type: speckleType,
+        height,
+        base_offset: baseOffset
+      })
+    });
+    return await response.json();
+  }
+
+  async validateTopology(lotId) {
+    const response = await fetch(`${this.baseUrl}/validation/topology/validate`, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({ lot_id: lotId })
+    });
+    return await response.json();
+  }
+
+  async findOpenEnds(elementIds) {
+    const response = await fetch(`${this.baseUrl}/validation/topology/find-open-ends`, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({ element_ids: elementIds })
+    });
+    return await response.json();
+  }
+
+  async findIsolatedElements(elementIds) {
+    const response = await fetch(`${this.baseUrl}/validation/topology/find-isolated`, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({ element_ids: elementIds })
+    });
+    return await response.json();
+  }
+
+  async getRules() {
+    const response = await fetch(`${this.baseUrl}/rules`, {
+      headers: this.headers
+    });
+    return await response.json();
+  }
+
+  async previewRule(itemId, ruleType) {
+    const response = await fetch(`${this.baseUrl}/rules/preview`, {
+      method: 'POST',
+      headers: this.headers,
+      body: JSON.stringify({
+        item_id: itemId,
+        rule_type: ruleType
+      })
+    });
+    return await response.json();
+  }
 }
 
 // 使用示例
@@ -651,6 +979,30 @@ const elements = [
 ];
 const result = await api.ingestElements('project_001', elements);
 console.log(`摄入 ${result.data.ingested_count} 个构件`);
+
+// 验证角度
+const angleResult = await api.validateAngle(88.5);
+console.log(`角度验证结果:`, angleResult.data);
+
+// 验证Z轴完整性
+const zAxisResult = await api.validateZAxis('element_001', 'Wall', 3.0, 0.0);
+console.log(`Z轴验证结果:`, zAxisResult.data);
+
+// 拓扑校验
+const topologyResult = await api.validateTopology('lot_001');
+if (!topologyResult.data.valid) {
+  console.log(`拓扑校验失败:`, topologyResult.data.errors);
+  const openEnds = await api.findOpenEnds(['element_001', 'element_002']);
+  console.log(`悬空端点:`, openEnds.data.element_ids);
+}
+
+// 获取规则列表
+const rules = await api.getRules();
+console.log(`可用规则:`, rules.data.rules);
+
+// 预览规则效果
+const preview = await api.previewRule('item_001', 'BY_LEVEL');
+console.log(`预计创建 ${preview.data.estimated_lots} 个检验批`);
 ```
 
 ---
