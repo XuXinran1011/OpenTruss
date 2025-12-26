@@ -1,0 +1,64 @@
+{
+  "version": "1.0",
+  "description": "Speckle 元素类型到 Brick Schema 类型的映射",
+  "mappings": {
+    "Pipe": "brick:Water_Supply_Pipe",
+    "Duct": "brick:Air_Duct",
+    "CableTray": "brick:Cable_Tray",
+    "Conduit": "brick:Conduit",
+    "Wire": "brick:Wire",
+    "Pump": "brick:Water_Pump",
+    "Valve": "brick:Valve",
+    "VAV": "brick:Variable_Air_Volume_Box",
+    "AirTerminal": "brick:Air_Terminal",
+    "Fan": "brick:Supply_Fan",
+    "Tank": "brick:Water_Tank",
+    "Room": "brick:Room",
+    "Zone": "brick:HVAC_Zone",
+    "Space": "brick:Space",
+    "Level": "brick:Floor"
+  },
+  "relationships": {
+    "feeds": {
+      "description": "供给关系（如：水泵 → 管道）",
+      "examples": [
+        ["Pump", "Pipe"],
+        ["Pipe", "Valve"],
+        ["Duct", "VAV"],
+        ["VAV", "AirTerminal"]
+      ]
+    },
+    "feeds_from": {
+      "description": "被供给关系（如：管道 ← 水泵）",
+      "examples": [
+        ["Pipe", "Pump"],
+        ["Valve", "Pipe"],
+        ["VAV", "Duct"],
+        ["AirTerminal", "VAV"]
+      ]
+    },
+    "controls": {
+      "description": "控制关系（如：阀门 → 管道）",
+      "examples": [
+        ["Valve", "Pipe"],
+        ["VAV", "Duct"]
+      ]
+    },
+    "located_in": {
+      "description": "位于关系（如：设备 → 房间）",
+      "examples": [
+        ["Pump", "Room"],
+        ["VAV", "Zone"],
+        ["AirTerminal", "Space"]
+      ]
+    },
+    "serves": {
+      "description": "服务关系（如：VAV → 房间）",
+      "examples": [
+        ["VAV", "Room"],
+        ["AirTerminal", "Space"]
+      ]
+    }
+  }
+}
+

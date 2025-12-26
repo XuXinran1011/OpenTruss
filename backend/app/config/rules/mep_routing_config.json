@@ -1,0 +1,163 @@
+{
+  "version": "2.1",
+  "description": "MEP 路径规划轻量级配置（不包含配件详细信息）",
+  "system_priority": {
+    "default_priority_levels": [
+      {
+        "level": 1,
+        "name": "重力流管道",
+        "description": "重力排水、重力雨水、冷凝水等",
+        "systems": ["gravity_drainage", "gravity_rainwater", "condensate"],
+        "constraints": {
+          "priority_rules": "优先规划最短路由，不能倒坡，不能上下翻弯，严重影响功能"
+        }
+      },
+      {
+        "level": 2,
+        "name": "大截面风管",
+        "description": "防排烟、空调风、新风、送排风等",
+        "systems": ["smoke_exhaust", "air_conditioning", "fresh_air", "supply_exhaust"],
+        "constraints": {
+          "priority_rules": "次优先规划路由，翻弯困难，成本高，弯头占据空间大，影响功能"
+        }
+      },
+      {
+        "level": 3,
+        "name": "大口径有压管道",
+        "description": "消防、给水、冷冻水、冷却水、生活热水、供暖主干管道等",
+        "systems": ["fire_suppression", "water_supply", "chilled_water", "cooling_water", "hot_water", "heating_main"],
+        "constraints": {
+          "priority_rules": "第三优先规划路由，弯头占据空间较大"
+        }
+      },
+      {
+        "level": 4,
+        "name": "电缆桥架",
+        "description": "强电桥架、弱电桥架等",
+        "systems": ["power_cable", "weak_cable"],
+        "constraints": {
+          "priority_rules": "第四优先级规划路由，翻弯占据空间小，成本稍高"
+        }
+      },
+      {
+        "level": 5,
+        "name": "小口径有压管道及电线导管",
+        "description": "消防、给水、冷冻水、生活热水、供暖支管",
+        "systems": ["fire_suppression_branch", "water_supply_branch", "chilled_water_branch", "hot_water_branch", "heating_branch"],
+        "constraints": {
+          "priority_rules": "最后规划路由，翻弯占据空间小，成本较低"
+        }
+      }
+    ],
+    "conflict_resolution": {
+      "same_priority_order": [
+        "少翻弯",
+        "较小管径/截面积避让较大管径/截面积",
+        "尽量贴近本楼层顶板"
+      ]
+    }
+  },
+  "maintenance_space": {
+    "default_clearance": 0.05,
+    "unit": "meters",
+    "description": "默认检修操作空间（管道周边预留空间）",
+    "type_specific": {
+      "Pipe": {
+        "valve_clearance": 0.1,
+        "description": "阀门手柄或执行机构操作空间"
+      },
+      "Duct": {
+        "valve_clearance": 0.15,
+        "description": "风阀执行机构操作空间"
+      },
+      "CableTray": {
+        "default_clearance": 0.05
+      }
+    }
+  },
+  "slope_constraints": {
+    "gravity_flow": {
+      "min_slope_percent": 0.5,
+      "description": "重力流管道最小坡度（百分比%）",
+      "systems": ["gravity_drainage", "gravity_rainwater", "condensate"]
+    }
+  },
+  "vertical_pipe_detection": {
+    "z_change_threshold": 1.0,
+    "unit": "meters",
+    "description": "竖向管线判定阈值：Z方向变化超过此值判定为竖向管线"
+  },
+  "routing_constraints": {
+    "Pipe": {
+      "gravity_drainage": {
+        "allowed_angles": [45, 180],
+        "forbidden_angles": [90],
+        "requires_double_45": true,
+        "note": "重力排水系统禁止90°弯头，使用双45°弯头模式"
+      },
+      "pressure_water": {
+        "allowed_angles": [45, 90, 180],
+        "forbidden_angles": []
+      },
+      "general": {
+        "allowed_angles": [45, 90, 180],
+        "forbidden_angles": []
+      },
+      "bend_radius_ratio_by_diameter": {
+        "0-50": 1.0,
+        "50-150": 1.5,
+        "150-300": 2.0,
+        "300-500": 2.5,
+        "500+": 3.0
+      }
+    },
+    "Duct": {
+      "bend_radius_ratio_by_size": {
+        "rectangular": {
+          "0-500": 0.75,
+          "500-1000": 1.0,
+          "1000-2000": 1.5,
+          "2000+": 2.0
+        },
+        "circular": {
+          "0-500": 1.0,
+          "500-1000": 1.5,
+          "1000+": 2.0
+        }
+      },
+      "allowed_angles": [45, 90, 180],
+      "forbidden_angles": []
+    },
+    "CableTray": {
+      "min_width_by_cable_bend_radius": {
+        "0-50": 2.0,
+        "50-150": 3.0,
+        "150-300": 4.0,
+        "300+": 5.0
+      },
+      "allowed_angles": [45, 90, 180],
+      "forbidden_angles": [],
+      "note": "电缆桥架采用宽度约束，确保电缆转弯半径可通过，不生成圆弧弯头"
+    },
+    "Conduit": {
+      "bend_radius_ratio_by_diameter": {
+        "0-25": 6.0,
+        "25-50": 8.0,
+        "50+": 10.0
+      },
+      "allowed_angles": [45, 90, 180],
+      "forbidden_angles": []
+    },
+    "Wire": {
+      "bend_radius_ratio_by_cross_section": {
+        "0-50": 6.0,
+        "50-150": 8.0,
+        "150-300": 10.0,
+        "300+": 12.0
+      },
+      "allowed_angles": [45, 90, 180],
+      "forbidden_angles": []
+    }
+  }
+}
+

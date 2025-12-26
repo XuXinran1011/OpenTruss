@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import ingest, hierarchy, elements, lots, approval, export, auth, metrics
+from app.api.v1 import ingest, hierarchy, elements, lots, approval, export, auth, metrics, background, routing, validation, rules
 from app.core.config import settings
 from app.services.schema import initialize_schema
 from app.utils.memgraph import MemgraphClient
@@ -65,6 +65,10 @@ app.include_router(elements.router, prefix="/api/v1")
 app.include_router(lots.router, prefix="/api/v1")
 app.include_router(approval.router, prefix="/api/v1")
 app.include_router(export.router, prefix="/api/v1")
+app.include_router(background.router, prefix="/api/v1")
+app.include_router(routing.router, prefix="/api/v1")
+app.include_router(validation.router, prefix="/api/v1")
+app.include_router(rules.router, prefix="/api/v1")
 app.include_router(metrics.router)  # Metrics endpoint at /metrics (no prefix)
 
 

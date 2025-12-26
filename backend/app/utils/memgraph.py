@@ -18,6 +18,8 @@ except ImportError:
     )
 
 from app.core.config import settings
+from app.core.metrics import record_memgraph_query
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -95,11 +97,22 @@ class MemgraphClient:
             uri = f"bolt://{self.host}:{self.port}"
             
             # 创建驱动（使用 Neo4j 驱动连接 Memgraph）
+            # 优化：配置连接池参数，提高连接复用效率
+            driver_config = {
+                "max_connection_lifetime": self._max_connection_lifetime,
+                "max_connection_pool_size": self._max_connection_pool_size,
+                "connection_acquisition_timeout": self._connection_acquisition_timeout,
+            }
+            
             if self.user and self.password:
-                self._driver = GraphDatabase.driver(uri, auth=(self.user, self.password))
+                self._driver = GraphDatabase.driver(
+                    uri,
+                    auth=(self.user, self.password),
+                    **driver_config
+                )
             else:
                 # 无认证连接（Memgraph 默认无认证）
-                self._driver = GraphDatabase.driver(uri)
+                self._driver = GraphDatabase.driver(uri, **driver_config)
             
             # 测试连接
             with self._driver.session() as session:
@@ -114,6 +127,31 @@ class MemgraphClient:
         except Exception as e:
             logger.error(f"Unexpected error connecting to Memgraph: {e}")
             raise
+    
+    def _extract_query_type(self, query: str) -> str:
+        """从查询语句中提取查询类型
+        
+        Args:
+            query: Cypher 查询语句
+            
+        Returns:
+            str: 查询类型（如 'MATCH', 'CREATE', 'UPDATE' 等）
+        """
+        query_upper = query.strip().upper()
+        if query_upper.startswith('MATCH'):
+            return 'MATCH'
+        elif query_upper.startswith('CREATE'):
+            return 'CREATE'
+        elif query_upper.startswith('MERGE'):
+            return 'MERGE'
+        elif query_upper.startswith('SET') or query_upper.startswith('UPDATE'):
+            return 'UPDATE'
+        elif query_upper.startswith('DELETE') or query_upper.startswith('DETACH DELETE'):
+            return 'DELETE'
+        elif query_upper.startswith('RETURN'):
+            return 'RETURN'
+        else:
+            return 'OTHER'
     
     def execute_query(
         self,
@@ -136,6 +174,10 @@ class MemgraphClient:
         if not self._driver:
             self._connect()
         
+        query_type = self._extract_query_type(query)
+        start_time = time.time()
+        success = True
+        
         try:
             with self._driver.session() as session:
                 if parameters:
@@ -144,14 +186,25 @@ class MemgraphClient:
                     result = session.run(query)
                 
                 # 转换为字典列表
-                return [dict(record) for record in result]
+                results = [dict(record) for record in result]
+                
+                duration = time.time() - start_time
+                record_memgraph_query(query_type, duration, success=True)
+                
+                return results
             
         except (ServiceUnavailable, TransientError) as e:
+            success = False
+            duration = time.time() - start_time
+            record_memgraph_query(query_type, duration, success=False)
             logger.error(f"Memgraph connection error: {e}")
             # 尝试重连
             self._connect()
             raise ConnectionError(f"Memgraph connection lost: {e}") from e
         except Exception as e:
+            success = False
+            duration = time.time() - start_time
+            record_memgraph_query(query_type, duration, success=False)
             logger.error(f"Query execution failed: {e}\nQuery: {query}\nParameters: {parameters}")
             raise
     
@@ -176,6 +229,10 @@ class MemgraphClient:
         if not self._driver:
             self._connect()
         
+        query_type = self._extract_query_type(query)
+        start_time = time.time()
+        success = True
+        
         try:
             with self._driver.session() as session:
                 if parameters:
@@ -186,14 +243,23 @@ class MemgraphClient:
                 # 消费结果（写入操作需要消费结果才能提交）
                 result.consume()
             
+            duration = time.time() - start_time
+            record_memgraph_query(query_type, duration, success=True)
+            
             # 返回统计信息
             return {"status": "success"}
             
         except (ServiceUnavailable, TransientError) as e:
+            success = False
+            duration = time.time() - start_time
+            record_memgraph_query(query_type, duration, success=False)
             logger.error(f"Memgraph connection error: {e}")
             self._connect()
             raise ConnectionError(f"Memgraph connection lost: {e}") from e
         except Exception as e:
+            success = False
+            duration = time.time() - start_time
+            record_memgraph_query(query_type, duration, success=False)
             logger.error(f"Write execution failed: {e}\nQuery: {query}\nParameters: {parameters}")
             raise
     

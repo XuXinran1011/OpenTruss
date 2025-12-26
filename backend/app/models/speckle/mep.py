@@ -42,6 +42,7 @@ class Pipe(SpeckleBuiltElementBase):
     diameter: Optional[float] = Field(None, description='管道直径')
     flowrate: Optional[float] = Field(None, alias='flowRate', description='流量')
     relative_roughness: Optional[float] = Field(None, alias='relativeRoughness', description='相对粗糙度')
+    slope: Optional[float] = Field(None, description='管道坡度（百分比%，正数表示向下，负数表示向上）')
     
     model_config = ConfigDict(populate_by_name=True)
 
@@ -76,7 +77,7 @@ class Wire(SpeckleBuiltElementBase):
     
     电线元素，使用 segments 列表表示电线的多段路径
     """
-    segments: Optional[List[Geometry2D]] = Field(None, description='电线路径段列表（每个段为一条 ICurve）')
+    segments: List[Geometry2D] = Field(..., description='电线路径段列表（每个段为一条 ICurve）')
     
     model_config = ConfigDict(populate_by_name=True)
 

@@ -60,6 +60,8 @@ class Space(SpeckleBuiltElementBase):
     phase_name: Optional[str] = Field(None, alias='phaseName', description='阶段名称')
     area: Optional[float] = Field(None, description='空间面积')
     volume: Optional[float] = Field(None, description='空间体积')
+    forbid_horizontal_mep: bool = Field(False, description='禁止水平MEP管线穿过此空间')
+    forbid_vertical_mep: bool = Field(False, description='禁止竖向MEP管线穿过此空间')
     
     model_config = ConfigDict(populate_by_name=True)
 

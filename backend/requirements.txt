@@ -25,3 +25,10 @@ bcrypt>=4.0.0
 
 # Monitoring
 prometheus-client>=0.19.0
+
+# Brick Schema & RDF
+brickschema>=0.7.0
+rdflib>=6.0.0
+
+# Graph Algorithms (optional, for routing)
+networkx>=3.0

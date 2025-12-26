@@ -42,6 +42,9 @@ class Settings(BaseSettings):
         """CORS 允许的源列表"""
         return [origin.strip() for origin in self.cors_origins_str.split(",") if origin.strip()]
     
+    # 数据目录配置
+    data_dir: str = Field(default="data", description="数据存储目录")
+    
     # 其他配置
     debug: bool = Field(default=False, description="调试模式")
     

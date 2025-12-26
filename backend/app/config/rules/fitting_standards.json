@@ -1,19 +1,16 @@
 {
   "version": "1.0",
-  "description": "构造标准配置（Phase 2）",
-  "rules": {
-    "fitting_standards": {
-      "angles": {
-        "standard": [90, 45, 180],
-        "tolerance": 5,
-        "allow_custom": false
-      },
-      "z_axis": {
-        "require_height": true,
-        "require_base_offset": true,
-        "element_types": ["Wall", "Column"]
-      }
-    }
+  "description": "构造标准配置（规则引擎 Phase 2）",
+  "angles": {
+    "standard": [45, 90, 180],
+    "tolerance": 5,
+    "allow_custom": false,
+    "description": "标准角度列表（度）和容差（度），如果 allow_custom 为 false，则只允许标准角度"
+  },
+  "z_axis": {
+    "require_height": true,
+    "require_base_offset": true,
+    "element_types": ["Wall", "Column"],
+    "description": "Z轴完整性要求：对于指定的元素类型，必须同时提供 height 和 base_offset"
   }
 }
-

@@ -69,16 +69,13 @@ class WorkbenchService:
             where_conditions.append("e.level_id = $level_id")
             query_params["level_id"] = params.level_id
         
-        # item_id 需要单独处理，因为它需要关联 InspectionLot
-        item_lot_ids = None
-        if params.item_id:
-            # 先查找该 Item 的所有 InspectionLot IDs
-            lot_query = """
-            MATCH (item:Item {id: $item_id})-[:HAS_LOT]->(lot:InspectionLot)
-            RETURN collect(lot.id) as lot_ids
-            """
-            lot_result = self.client.execute_query(lot_query, {"item_id": params.item_id})
-            item_lot_ids = lot_result[0]["lot_ids"] if lot_result and lot_result[0].get("lot_ids") else []
+        # item_id 优化：使用关系直接查询，避免 N+1 查询
+        # 如果同时指定了 item_id 和 inspection_lot_id，优先使用 inspection_lot_id
+        item_id_used_in_match = False
+        if params.item_id and not params.inspection_lot_id:
+            # 标记 item_id 已在 MATCH 中使用，不需要在 WHERE 中添加条件
+            item_id_used_in_match = True
+            query_params["item_id"] = params.item_id
         
         if params.inspection_lot_id:
             where_conditions.append("e.inspection_lot_id = $inspection_lot_id")
@@ -112,38 +109,95 @@ class WorkbenchService:
             where_conditions.append("e.confidence <= $max_confidence")
             query_params["max_confidence"] = params.max_confidence
         
-        # 处理 item_id 筛选（需要关联 InspectionLot）
-        if item_lot_ids is not None:
-            if item_lot_ids:
-                # Item 有 InspectionLot，查找这些 InspectionLot 的构件或未分配的构件
-                where_conditions.append("(e.inspection_lot_id IN $item_lot_ids OR e.inspection_lot_id IS NULL)")
-                query_params["item_lot_ids"] = item_lot_ids
-            else:
-                # Item 没有 InspectionLot，只查找未分配的构件
-                where_conditions.append("e.inspection_lot_id IS NULL")
+        # 生成缓存键
+        cache = get_cache()
+        cache_key = cache._generate_key(
+            "elements:query",
+            level_id=params.level_id,
+            item_id=params.item_id,
+            inspection_lot_id=params.inspection_lot_id,
+            status=params.status,
+            speckle_type=params.speckle_type,
+            has_height=params.has_height,
+            has_material=params.has_material,
+            min_confidence=params.min_confidence,
+            max_confidence=params.max_confidence,
+            page=params.page,
+            page_size=params.page_size,
+        )
         
-        # 构建 WHERE 子句
-        where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+        # 尝试从缓存获取
+        cached_result = cache.get(cache_key)
+        if cached_result is not None:
+            logger.debug(f"Cache hit for elements query: {cache_key}")
+            return cached_result
+        
+        logger.debug(f"Cache miss for elements query: {cache_key}")
+        
+        # 构建主查询
+        # 优化：如果使用 item_id，直接在 MATCH 中使用关系路径，避免 N+1 查询
+        if item_id_used_in_match:
+            # 使用关系路径直接查询，单次查询完成
+            where_conditions_clean = [c for c in where_conditions]
+            where_clause = " AND ".join(where_conditions_clean) if where_conditions_clean else "1=1"
+            
+            query = f"""
+            MATCH (item:Item {{id: $item_id}})-[:HAS_LOT]->(lot:InspectionLot)<-[:BELONGS_TO]-(e:Element)
+            WHERE {where_clause}
+            RETURN DISTINCT e.id as id,
+                   e.speckle_type as speckle_type,
+                   e.level_id as level_id,
+                   e.inspection_lot_id as inspection_lot_id,
+                   e.status as status,
+                   e.height as height,
+                   e.material as material,
+                   e.created_at as created_at,
+                   e.updated_at as updated_at
+            ORDER BY e.created_at DESC
+            SKIP $skip
+            LIMIT $limit
+            """
+            
+            count_query = f"""
+            MATCH (item:Item {{id: $item_id}})-[:HAS_LOT]->(lot:InspectionLot)<-[:BELONGS_TO]-(e:Element)
+            WHERE {where_clause}
+            RETURN count(DISTINCT e) as total
+            """
+        else:
+            # 标准查询路径
+            where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+            
+            query = f"""
+            MATCH (e:Element)
+            WHERE {where_clause}
+            RETURN e.id as id,
+                   e.speckle_type as speckle_type,
+                   e.level_id as level_id,
+                   e.inspection_lot_id as inspection_lot_id,
+                   e.status as status,
+                   e.height as height,
+                   e.material as material,
+                   e.created_at as created_at,
+                   e.updated_at as updated_at
+            ORDER BY e.created_at DESC
+            SKIP $skip
+            LIMIT $limit
+            """
+            
+            count_query = f"""
+            MATCH (e:Element)
+            WHERE {where_clause}
+            RETURN count(e) as total
+            """
+        
+        query_params["skip"] = skip
+        query_params["limit"] = params.page_size
         
         # 查询总数
-        count_query = f"MATCH (e:Element) WHERE {where_clause} RETURN count(e) as total"
         count_result = self.client.execute_query(count_query, query_params)
         total = count_result[0]["total"] if count_result else 0
         
         # 查询构件列表
-        query = f"""
-        MATCH (e:Element)
-        WHERE {where_clause}
-        RETURN e.id as id, e.speckle_type as speckle_type, e.level_id as level_id,
-               e.inspection_lot_id as inspection_lot_id, e.status as status,
-               e.height as height, e.material as material,
-               e.created_at as created_at, e.updated_at as updated_at
-        ORDER BY e.created_at DESC
-        SKIP $skip LIMIT $limit
-        """
-        query_params["skip"] = skip
-        query_params["limit"] = params.page_size
-        
         results = self.client.execute_query(query, query_params)
         
         items = []
@@ -160,12 +214,17 @@ class WorkbenchService:
                 updated_at=convert_neo4j_datetime(r.get("updated_at")) or datetime.now(),
             ))
         
-        return {
+        result = {
             "items": items,
             "total": total,
             "page": params.page,
             "page_size": params.page_size,
         }
+        
+        # 存入缓存（TTL: 30 秒）
+        cache.set(cache_key, result, ttl=30)
+        
+        return result
     
     def batch_get_elements(self, element_ids: List[str]) -> Dict[str, Any]:
         """批量获取构件详情
@@ -182,9 +241,9 @@ class WorkbenchService:
         if not element_ids:
             return {"items": [], "not_found": []}
         
-        # 限制批量查询数量，避免查询过大
-        if len(element_ids) > 100:
-            raise ValueError("最多支持批量查询100个构件")
+        # 限制批量查询数量，避免查询过大（从100提高到500）
+        if len(element_ids) > 500:
+            raise ValueError("最多支持批量查询500个构件")
         
         # 使用单个查询获取所有构件的详细信息和连接关系
         # 使用OPTIONAL MATCH来处理可能没有连接关系的构件
@@ -392,6 +451,10 @@ class WorkbenchService:
                 "element_id": element_id,
                 "geometry_2d": geometry_dict,
             })
+            
+            # 清除相关缓存
+            cache = get_cache()
+            cache.invalidate("elements:")
         
         # 更新连接关系
         if request.connected_elements is not None:
@@ -500,6 +563,10 @@ class WorkbenchService:
         
         logger.info(f"Updated element: {element_id}, fields: {updated_fields}")
         
+        # 清除相关缓存
+        cache = get_cache()
+        cache.invalidate("elements:")
+        
         return {
             "id": element_id,
             "updated_fields": updated_fields,
@@ -579,9 +646,184 @@ class WorkbenchService:
         
         logger.info(f"Deleted element: {element_id}")
         
+        # 清除相关缓存
+        cache = get_cache()
+        cache.invalidate("elements:")
+        
         return {
             "id": element_id,
             "deleted": True,
+        }
+    
+    def batch_update_elements(
+        self,
+        element_ids: List[str],
+        updates: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """批量更新构件
+        
+        优化：使用单个查询批量更新，提高性能
+        
+        Args:
+            element_ids: 构件 ID 列表
+            updates: 要更新的字段字典
+            
+        Returns:
+            Dict: 包含 success_count, failed_count, updated_ids, errors
+        """
+        if not element_ids:
+            return {
+                "success_count": 0,
+                "failed_count": 0,
+                "updated_ids": [],
+                "errors": [],
+            }
+        
+        # 构建更新字段
+        update_fields = []
+        update_params: Dict[str, Any] = {"element_ids": element_ids}
+        
+        if "height" in updates and updates["height"] is not None:
+            update_fields.append("e.height = $height")
+            update_params["height"] = updates["height"]
+        
+        if "base_offset" in updates and updates["base_offset"] is not None:
+            update_fields.append("e.base_offset = $base_offset")
+            update_params["base_offset"] = updates["base_offset"]
+        
+        if "material" in updates and updates["material"] is not None:
+            update_fields.append("e.material = $material")
+            update_params["material"] = updates["material"]
+        
+        if "status" in updates and updates["status"] is not None:
+            update_fields.append("e.status = $status")
+            update_params["status"] = updates["status"]
+        
+        if not update_fields:
+            return {
+                "success_count": 0,
+                "failed_count": len(element_ids),
+                "updated_ids": [],
+                "errors": [{"element_id": eid, "error_message": "没有提供要更新的字段"} for eid in element_ids],
+            }
+        
+        # 验证构件存在且未锁定
+        check_query = """
+        MATCH (e:Element)
+        WHERE e.id IN $element_ids
+        RETURN e.id as id, e.locked as locked
+        """
+        check_results = self.client.execute_query(check_query, {"element_ids": element_ids})
+        
+        valid_ids = []
+        errors = []
+        found_ids = {r["id"] for r in check_results}
+        
+        for element_id in element_ids:
+            if element_id not in found_ids:
+                errors.append({"element_id": element_id, "error_message": "构件不存在"})
+                continue
+            result = next((r for r in check_results if r["id"] == element_id), None)
+            if result and result.get("locked", False):
+                errors.append({"element_id": element_id, "error_message": "构件已锁定"})
+                continue
+            valid_ids.append(element_id)
+        
+        if not valid_ids:
+            return {
+                "success_count": 0,
+                "failed_count": len(element_ids),
+                "updated_ids": [],
+                "errors": errors,
+            }
+        
+        # 批量更新有效构件
+        update_query = f"""
+        MATCH (e:Element)
+        WHERE e.id IN $valid_ids
+        SET {', '.join(update_fields)}, e.updated_at = datetime()
+        RETURN e.id as id
+        """
+        update_params["valid_ids"] = valid_ids
+        self.client.execute_write(update_query, update_params)
+        
+        logger.info(f"Batch updated {len(valid_ids)} elements")
+        
+        # 清除相关缓存
+        cache = get_cache()
+        cache.invalidate("elements:")
+        
+        return {
+            "success_count": len(valid_ids),
+            "failed_count": len(errors),
+            "updated_ids": valid_ids,
+            "errors": errors,
+        }
+    
+    def batch_delete_elements(
+        self,
+        element_ids: List[str]
+    ) -> Dict[str, Any]:
+        """批量删除构件
+        
+        优化：使用单个查询批量删除，提高性能
+        
+        Args:
+            element_ids: 要删除的构件 ID 列表
+            
+        Returns:
+            Dict: 包含 success_count, failed_count, deleted_ids, errors
+        """
+        if not element_ids:
+            return {
+                "success_count": 0,
+                "failed_count": 0,
+                "deleted_ids": [],
+                "errors": [],
+            }
+        
+        # 验证构件存在
+        check_query = """
+        MATCH (e:Element)
+        WHERE e.id IN $element_ids
+        RETURN e.id as id
+        """
+        check_results = self.client.execute_query(check_query, {"element_ids": element_ids})
+        
+        valid_ids = [r["id"] for r in check_results]
+        errors = []
+        
+        for element_id in element_ids:
+            if element_id not in valid_ids:
+                errors.append({"element_id": element_id, "error_message": "构件不存在"})
+        
+        if not valid_ids:
+            return {
+                "success_count": 0,
+                "failed_count": len(element_ids),
+                "deleted_ids": [],
+                "errors": errors,
+            }
+        
+        # 批量删除有效构件（使用 DETACH DELETE 级联删除关系）
+        delete_query = """
+        MATCH (e:Element)
+        WHERE e.id IN $valid_ids
+        DETACH DELETE e
+        """
+        self.client.execute_write(delete_query, {"valid_ids": valid_ids})
+        
+        logger.info(f"Batch deleted {len(valid_ids)} elements")
+        
+        # 清除相关缓存
+        cache = get_cache()
+        cache.invalidate("elements:")
+        
+        return {
+            "success_count": len(valid_ids),
+            "failed_count": len(errors),
+            "deleted_ids": valid_ids,
+            "errors": errors,
         }
     
     def classify_element(
@@ -652,6 +894,11 @@ class WorkbenchService:
         self.client.execute_write(update_query, {"element_id": element_id})
         
         logger.info(f"Classified element {element_id} to item {request.item_id}")
+        
+        # 清除相关缓存
+        cache = get_cache()
+        cache.invalidate("elements:")
+        cache.invalidate("hierarchy:")
         
         return ClassifyResponse(
             element_id=element_id,

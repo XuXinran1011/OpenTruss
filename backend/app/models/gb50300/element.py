@@ -32,6 +32,12 @@ class ElementNode(BaseModel):
     zone_id: Optional[str] = Field(None, description="所属区域 ID")
     inspection_lot_id: Optional[str] = Field(None, description="所属检验批 ID")
     
+    # MEP 系统类型（可选）
+    mep_system_type: Optional[str] = Field(
+        None,
+        description="MEP 系统类型（如：gravity_drainage, pressure_water, power_cable）"
+    )
+    
     # 状态和元数据
     status: Literal["Draft", "Verified"] = Field(default="Draft", description="状态")
     confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="AI 识别置信度（0-1）")

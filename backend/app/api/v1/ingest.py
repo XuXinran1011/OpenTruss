@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, ValidationError
 from app.models.speckle import (
     SpeckleBuiltElement,
     Wall, Beam, Column, Floor, Ceiling, Roof, Brace,
+    Structure, Rebar,
     Duct, Pipe, CableTray, Conduit, Wire,
     Level, Room, Space, Zone, Area,
     Opening, Topography, GridLine, Profile, Network, View,
@@ -65,23 +66,30 @@ class IngestResponse(BaseModel):
 
 # Speckle 类型名称到模型类的映射
 SPECKLE_TYPE_MAP: Dict[str, type] = {
+    # Architectural
     "Wall": Wall,
-    "Beam": Beam,
-    "Column": Column,
     "Floor": Floor,
     "Ceiling": Ceiling,
     "Roof": Roof,
+    "Column": Column,
+    # Structural
+    "Beam": Beam,
     "Brace": Brace,
+    "Structure": Structure,
+    "Rebar": Rebar,
+    # MEP
     "Duct": Duct,
     "Pipe": Pipe,
     "CableTray": CableTray,
     "Conduit": Conduit,
     "Wire": Wire,
+    # Spatial
     "Level": Level,
     "Room": Room,
     "Space": Space,
     "Zone": Zone,
     "Area": Area,
+    # Other
     "Opening": Opening,
     "Topography": Topography,
     "GridLine": GridLine,

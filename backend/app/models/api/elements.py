@@ -54,6 +54,7 @@ class ElementDetail(BaseModel):
     level_id: str = Field(..., description="所属楼层 ID")
     zone_id: Optional[str] = Field(None, description="所属区域 ID")
     inspection_lot_id: Optional[str] = Field(None, description="所属检验批 ID")
+    mep_system_type: Optional[str] = Field(None, description="MEP 系统类型（如：gravity_drainage, pressure_water, power_cable）")
     status: Literal["Draft", "Verified"] = Field(..., description="状态")
     confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="AI 识别置信度")
     locked: bool = Field(..., description="是否锁定")
@@ -278,7 +279,7 @@ class ClassifyResponse(BaseModel):
 
 class BatchElementDetailRequest(BaseModel):
     """批量获取构件详情请求"""
-    element_ids: List[str] = Field(..., min_length=1, max_length=100, description="构件 ID 列表（最多100个）")
+    element_ids: List[str] = Field(..., min_length=1, max_length=500, description="构件 ID 列表（最多500个）")
     
     model_config = ConfigDict(json_schema_extra={
         "example": {

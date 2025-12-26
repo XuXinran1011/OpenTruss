@@ -75,6 +75,15 @@ def record_api_request(method: str, endpoint: str, status_code: int, duration: f
 
 def record_memgraph_query(query_type: str, duration: float, success: bool = True):
     """记录 Memgraph 查询指标"""
+    memgraph_query_duration.labels(query_type=query_type).observe(duration)
+    memgraph_query_count.labels(query_type=query_type, status="success" if success else "error").inc()
+    
+    # 记录慢查询（超过 1 秒）
+    if duration > 1.0:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Slow query detected: {query_type} took {duration:.3f}s")
+    """记录 Memgraph 查询指标"""
     status = "success" if success else "error"
     memgraph_query_count.labels(query_type=query_type, status=status).inc()
     memgraph_query_duration.labels(query_type=query_type).observe(duration)

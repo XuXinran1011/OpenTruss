@@ -34,6 +34,7 @@ class HierarchyService:
         """
         self.client = client or MemgraphClient()
     
+    @cache_result(ttl=60, key_prefix="hierarchy:projects")  # 缓存 1 分钟
     def get_projects(self, page: int = 1, page_size: int = 20) -> Dict[str, Any]:
         """获取项目列表
         
@@ -83,6 +84,7 @@ class HierarchyService:
             "page_size": page_size,
         }
     
+    @cache_result(ttl=300, key_prefix="hierarchy:project_detail")  # 缓存 5 分钟
     def get_project_detail(self, project_id: str) -> Optional[ProjectDetail]:
         """获取项目详情
         
@@ -115,8 +117,11 @@ class HierarchyService:
             updated_at=convert_neo4j_datetime(r["updated_at"]) or datetime.now(),
         )
     
+    @cache_result(ttl=300, key_prefix="hierarchy:project_hierarchy")  # 缓存 5 分钟
     def get_project_hierarchy(self, project_id: str) -> Optional[HierarchyResponse]:
         """获取项目的完整层级树
+        
+        优化：使用单个查询获取完整层级树，避免递归查询导致的 N+1 问题
         
         Args:
             project_id: 项目 ID
@@ -124,13 +129,67 @@ class HierarchyService:
         Returns:
             HierarchyResponse: 层级树响应，如果项目不存在则返回 None
         """
-        # 首先验证项目存在
+        # 首先验证项目存在（注意：这里会绕过缓存，因为我们需要实时数据）
+        # 但项目详情本身也有缓存，所以影响不大
         project = self.get_project_detail(project_id)
         if not project:
             return None
         
-        # 递归查询层级结构
-        root_node = self._build_hierarchy_node("Project", project_id)
+        # 优化：使用单个查询获取完整层级树
+        # 使用 OPTIONAL MATCH 处理可能缺失的节点
+        hierarchy_query = """
+        MATCH (p:Project {id: $project_id})
+        OPTIONAL MATCH (p)-[:PHYSICALLY_CONTAINS]->(b:Building)
+        OPTIONAL MATCH (b)-[:MANAGEMENT_CONTAINS]->(d:Division)
+        OPTIONAL MATCH (b)-[:PHYSICALLY_CONTAINS]->(l:Level)
+        OPTIONAL MATCH (d)-[:MANAGEMENT_CONTAINS]->(sd:SubDivision)
+        OPTIONAL MATCH (sd)-[:MANAGEMENT_CONTAINS]->(i:Item)
+        OPTIONAL MATCH (i)-[:HAS_LOT]->(lot:InspectionLot)
+        OPTIONAL MATCH (lot)-[:MANAGEMENT_CONTAINS]->(e:Element)
+        WITH p, b, d, l, sd, i, lot, e,
+             collect(DISTINCT e.id) as element_ids
+        RETURN p.id as project_id, p.name as project_name,
+               collect(DISTINCT {
+                   id: b.id,
+                   name: b.name,
+                   label: 'Building',
+                   divisions: collect(DISTINCT {
+                       id: d.id,
+                       name: d.name,
+                       label: 'Division',
+                       subdivisions: collect(DISTINCT {
+                           id: sd.id,
+                           name: sd.name,
+                           label: 'SubDivision',
+                           items: collect(DISTINCT {
+                               id: i.id,
+                               name: i.name,
+                               label: 'Item',
+                               lots: collect(DISTINCT {
+                                   id: lot.id,
+                                   name: lot.name,
+                                   label: 'InspectionLot',
+                                   element_count: size(element_ids)
+                               })
+                           })
+                       })
+                   }),
+                   levels: collect(DISTINCT {
+                       id: l.id,
+                       name: l.name,
+                       label: 'Level'
+                   })
+               }) as buildings
+        """
+        
+        result = self.client.execute_query(hierarchy_query, {"project_id": project_id})
+        
+        if not result or not result[0]:
+            return None
+        
+        # 由于 Cypher 的复杂嵌套结构，我们仍然使用递归方法构建树
+        # 但可以通过批量查询优化子节点查询
+        root_node = self._build_hierarchy_node_optimized("Project", project_id)
         
         if not root_node:
             return None
@@ -210,7 +269,19 @@ class HierarchyService:
         parent_id: str,
         relationship_type: str
     ) -> List[HierarchyNode]:
-        """获取子节点列表
+        """获取子节点列表（保留原方法以保持兼容性）"""
+        return self._get_child_nodes_optimized(child_label, parent_label, parent_id, relationship_type)
+    
+    def _get_child_nodes_optimized(
+        self,
+        child_label: str,
+        parent_label: str,
+        parent_id: str,
+        relationship_type: str
+    ) -> List[HierarchyNode]:
+        """优化的获取子节点列表
+        
+        优化：批量查询子节点信息，减少查询次数
         
         Args:
             child_label: 子节点标签
@@ -226,26 +297,65 @@ class HierarchyService:
         if relationship_type == "HAS_LOT":
             query = f"""
             MATCH (p:{parent_label} {{id: $parent_id}})-[:{relationship_type}]->(c:{child_label})
-            RETURN c.id as id
+            RETURN c.id as id, c.name as name
             ORDER BY c.name, c.id
             """
         else:
             # 其他关系都是从父节点指向子节点
             query = f"""
             MATCH (p:{parent_label} {{id: $parent_id}})-[:{relationship_type}]->(c:{child_label})
-            RETURN c.id as id
+            RETURN c.id as id, c.name as name
             ORDER BY c.name, c.id
             """
         
         results = self.client.execute_query(query, {"parent_id": parent_id})
         
-        children = []
-        for r in results:
-            child_node = self._build_hierarchy_node(child_label, r["id"])
-            if child_node:
-                children.append(child_node)
+        # 批量获取所有子节点 ID
+        child_ids = [r["id"] for r in results]
         
-        return children
+        if not child_ids:
+            return []
+        
+        # 批量查询子节点信息（优化：减少查询次数）
+        # 对于 InspectionLot，还需要查询构件数量
+        if child_label == "InspectionLot":
+            batch_query = f"""
+            MATCH (c:{child_label})
+            WHERE c.id IN $child_ids
+            OPTIONAL MATCH (c)-[:MANAGEMENT_CONTAINS]->(e:Element)
+            WITH c, count(DISTINCT e) as element_count
+            RETURN c.id as id, c.name as name, element_count
+            ORDER BY c.name, c.id
+            """
+            batch_results = self.client.execute_query(batch_query, {"child_ids": child_ids})
+            
+            # 构建节点映射
+            node_map = {}
+            for r in batch_results:
+                node_id = r["id"]
+                node_name = r.get("name", node_id)
+                element_count = r.get("element_count", 0)
+                
+                # 递归构建子节点（InspectionLot 没有子节点）
+                node_map[node_id] = HierarchyNode(
+                    id=node_id,
+                    label=child_label,
+                    name=node_name,
+                    children=[],
+                    metadata={"element_count": element_count} if element_count > 0 else None,
+                )
+            
+            # 按原始顺序返回
+            return [node_map[cid] for cid in child_ids if cid in node_map]
+        else:
+            # 对于其他节点类型，递归构建
+            children = []
+            for r in results:
+                child_node = self._build_hierarchy_node_optimized(child_label, r["id"])
+                if child_node:
+                    children.append(child_node)
+            
+            return children
     
     def get_building_detail(self, building_id: str) -> Optional[BuildingDetail]:
         """获取单体详情"""

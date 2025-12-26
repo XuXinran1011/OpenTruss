@@ -17,6 +17,12 @@ from app.models.api.elements import (
     BatchLiftResponse,
     ClassifyRequest,
     ClassifyResponse,
+    BatchElementDetailRequest,
+    BatchElementDetailResponse,
+    BatchUpdateRequest,
+    BatchUpdateResponse,
+    BatchDeleteRequest,
+    BatchDeleteResponse,
 )
 from app.utils.memgraph import get_memgraph_client, MemgraphClient
 
@@ -187,6 +193,36 @@ async def update_element(
 
 
 @router.post(
+    "/batch",
+    response_model=dict,
+    summary="批量获取构件详情",
+    description="批量获取多个构件的详细信息，包括连接关系（最多500个）"
+)
+async def batch_get_elements(
+    request: BatchElementDetailRequest,
+    service: WorkbenchService = Depends(get_workbench_service),
+) -> dict:
+    """批量获取构件详情"""
+    try:
+        result = service.batch_get_elements(request.element_ids)
+        response = BatchElementDetailResponse(**result)
+        return {
+            "status": "success",
+            "data": response.model_dump(),
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to batch get elements: {str(e)}"
+        )
+
+
+@router.post(
     "/batch-lift",
     response_model=dict,
     summary="批量设置 Z 轴参数（Lift Mode）",
@@ -240,6 +276,56 @@ async def classify_element(
         raise HTTPException(
             status_code=status_code,
             detail=error_msg,
+        )
+
+
+@router.patch(
+    "/batch",
+    response_model=dict,
+    summary="批量更新构件",
+    description="批量更新多个构件的字段（支持事务处理）"
+)
+async def batch_update_elements(
+    request: BatchUpdateRequest,
+    service: WorkbenchService = Depends(get_workbench_service),
+) -> dict:
+    """批量更新构件"""
+    try:
+        result = service.batch_update_elements(request.element_ids, request.updates)
+        response = BatchUpdateResponse(**result)
+        return {
+            "status": "success",
+            "data": response.model_dump(),
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to batch update elements: {str(e)}"
+        )
+
+
+@router.delete(
+    "/batch",
+    response_model=dict,
+    summary="批量删除构件",
+    description="批量删除多个构件及其所有关系（支持级联删除）"
+)
+async def batch_delete_elements(
+    request: BatchDeleteRequest,
+    service: WorkbenchService = Depends(get_workbench_service),
+) -> dict:
+    """批量删除构件"""
+    try:
+        result = service.batch_delete_elements(request.element_ids)
+        response = BatchDeleteResponse(**result)
+        return {
+            "status": "success",
+            "data": response.model_dump(),
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to batch delete elements: {str(e)}"
         )
 
 
