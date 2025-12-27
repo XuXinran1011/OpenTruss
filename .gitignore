@@ -90,3 +90,12 @@ run_*.ps1
 # 环境变量模板（包含敏感信息）
 .env.production
 .env.*.example
+
+# CI/CD 日志目录
+logs_*/
+
+# CI日志文档目录
+docs/ci-logs/
+
+# 临时分析文档
+docs/CI_FAILURE_ANALYSIS.md
