@@ -5,6 +5,16 @@
 import { batchGetElementDetails } from '../element-utils'
 import { getElementDetail } from '@/services/elements'
 
+// Mock console.error to suppress error logs in tests
+const originalError = console.error
+beforeAll(() => {
+  console.error = jest.fn()
+})
+
+afterAll(() => {
+  console.error = originalError
+})
+
 // Mock services
 jest.mock('@/services/elements', () => ({
   getElementDetail: jest.fn(),

@@ -261,6 +261,9 @@ describe('apiPatch', () => {
       expect.objectContaining({
         method: 'PATCH',
         body: JSON.stringify(body),
+        headers: expect.objectContaining({
+          'Content-Type': 'application/json',
+        }),
       })
     )
   })

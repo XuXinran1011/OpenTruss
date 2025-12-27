@@ -7,6 +7,7 @@ import { useLiftMode } from '../useLiftMode'
 import { batchLiftElements } from '@/services/elements'
 import { useWorkbenchStore } from '@/stores/workbench'
 import { ApiError } from '@/services/api'
+import { TestWrapper } from '@/test-utils'
 
 // Mock dependencies
 jest.mock('@/services/elements', () => ({
@@ -42,7 +43,7 @@ describe('useLiftMode', () => {
       
       mockBatchLiftElements.mockResolvedValue(mockResponse)
       
-      const { result } = renderHook(() => useLiftMode())
+      const { result } = renderHook(() => useLiftMode(), { wrapper: TestWrapper })
       
       await act(async () => {
         result.current.batchLift(3.5, 0.1)
@@ -64,7 +65,7 @@ describe('useLiftMode', () => {
       
       mockBatchLiftElements.mockResolvedValue(mockResponse)
       
-      const { result } = renderHook(() => useLiftMode())
+      const { result } = renderHook(() => useLiftMode(), { wrapper: TestWrapper })
       
       await act(async () => {
         result.current.batchLift(3.5)
@@ -82,7 +83,7 @@ describe('useLiftMode', () => {
       const mockError = new ApiError('Batch update failed', 500)
       mockBatchLiftElements.mockRejectedValue(mockError)
       
-      const { result } = renderHook(() => useLiftMode())
+      const { result } = renderHook(() => useLiftMode(), { wrapper: TestWrapper })
       
       await act(async () => {
         try {
@@ -107,7 +108,7 @@ describe('useLiftMode', () => {
       
       mockBatchLiftElements.mockReturnValue(liftPromise as any)
       
-      const { result } = renderHook(() => useLiftMode())
+      const { result } = renderHook(() => useLiftMode(), { wrapper: TestWrapper })
       
       act(() => {
         result.current.batchLift(3.5)
@@ -130,7 +131,7 @@ describe('useLiftMode', () => {
     it('应该清除错误状态', async () => {
       mockBatchLiftElements.mockRejectedValue(new ApiError('Test error', 500))
       
-      const { result } = renderHook(() => useLiftMode())
+      const { result } = renderHook(() => useLiftMode(), { wrapper: TestWrapper })
       
       await act(async () => {
         try {

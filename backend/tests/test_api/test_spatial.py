@@ -42,8 +42,8 @@ def test_space(memgraph_client):
     
     # 创建Space
     space_geometry = {
-        "type": "Polygon",
-        "coordinates": [[[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [10.0, 10.0, 0.0], [0.0, 10.0, 0.0], [0.0, 0.0, 0.0]]],
+        "type": "Polyline",
+        "coordinates": [[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [10.0, 10.0, 0.0], [0.0, 10.0, 0.0], [0.0, 0.0, 0.0]],
         "closed": True
     }
     

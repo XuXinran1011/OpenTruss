@@ -19,7 +19,7 @@ from app.models.api.hangers import (
     IntegratedHangerInfo,
 )
 from app.utils.memgraph import get_memgraph_client, MemgraphClient
-from app.models.gb50300.relationships import SUPPORTS, USES_INTEGRATED_HANGER
+# 关系类型在查询中直接使用字符串字面量，不需要导入
 
 logger = logging.getLogger(__name__)
 
@@ -158,8 +158,8 @@ async def get_element_hangers(
     """查询元素的支吊架"""
     try:
         # 查询单独支吊架
-        hanger_query = f"""
-        MATCH (hanger:Element)-[:{SUPPORTS}]->(e:Element {{id: $element_id}})
+        hanger_query = """
+        MATCH (hanger:Element)-[:SUPPORTS]->(e:Element {id: $element_id})
         WHERE hanger.speckle_type = 'Hanger'
         RETURN hanger.id as id,
                hanger.geometry as geometry,
@@ -185,8 +185,8 @@ async def get_element_hangers(
             ))
         
         # 查询综合支吊架
-        integrated_query = f"""
-        MATCH (e:Element {{id: $element_id}})-[:USES_INTEGRATED_HANGER]->(hanger:Element)
+        integrated_query = """
+        MATCH (e:Element {id: $element_id})-[:USES_INTEGRATED_HANGER]->(hanger:Element)
         WHERE hanger.speckle_type = 'IntegratedHanger'
         RETURN hanger.id as id,
                hanger.geometry as geometry,

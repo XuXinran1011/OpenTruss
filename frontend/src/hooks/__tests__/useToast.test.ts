@@ -2,20 +2,17 @@
  * useToast Hook 测试
  */
 
-import { renderHook, act, jest } from '@testing-library/react'
+import { renderHook, act } from '@testing-library/react'
 import { useToast } from '../useToast'
-
-// 使用fake timers来测试自动移除
-jest.useFakeTimers()
 
 describe('useToast', () => {
   beforeEach(() => {
-    jest.clearAllTimers()
+    jest.useFakeTimers()
   })
 
   afterEach(() => {
+    jest.runOnlyPendingTimers()
     jest.useRealTimers()
-    jest.useFakeTimers()
   })
 
   describe('showToast', () => {

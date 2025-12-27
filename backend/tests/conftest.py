@@ -7,7 +7,13 @@ import pytest
 from typing import Generator, Optional
 import os
 import sys
+import warnings
 from pathlib import Path
+
+# 过滤警告以减少测试输出噪音
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=UserWarning, module="ifcopenshell")
 
 # 添加项目根目录到路径
 project_root = Path(__file__).parent.parent.parent

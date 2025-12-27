@@ -10,6 +10,10 @@ import { ToastItem } from '@/components/ui/Toast';
 export function useToast() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  }, []);
+
   const showToast = useCallback((
     message: string,
     type: ToastItem['type'] = 'info',
@@ -33,11 +37,7 @@ export function useToast() {
     }
 
     return id;
-  }, []);
-
-  const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  }, []);
+  }, [removeToast]);
 
   const clearAll = useCallback(() => {
     setToasts([]);

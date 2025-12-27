@@ -36,8 +36,9 @@ class TestGetRoomsByLevel:
                 "name": "Room 101",
                 "speckle_type": "Room",
                 "geometry": {
-                    "type": "Polygon",
-                    "coordinates": [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]]
+                    "type": "Polyline",
+                    "coordinates": [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]],
+                    "closed": True
                 }
             },
             {
@@ -45,8 +46,9 @@ class TestGetRoomsByLevel:
                 "name": "Room 102",
                 "speckle_type": "Room",
                 "geometry": {
-                    "type": "Polygon",
-                    "coordinates": [[[10, 0], [20, 0], [20, 10], [10, 10], [10, 0]]]
+                    "type": "Polyline",
+                    "coordinates": [[10, 0], [20, 0], [20, 10], [10, 10], [10, 0]],
+                    "closed": True
                 }
             }
         ]
@@ -91,8 +93,9 @@ class TestGetSpacesByLevel:
                 "name": "Space 101",
                 "speckle_type": "Space",
                 "geometry": {
-                    "type": "Polygon",
-                    "coordinates": [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]]
+                    "type": "Polyline",
+                    "coordinates": [[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]],
+                    "closed": True
                 }
             }
         ]
@@ -179,11 +182,13 @@ class TestSetSpaceMepRestrictions:
         forbid_horizontal_mep = True
         forbid_vertical_mep = False
         
-        # Mock 检查空间存在和更新操作
-        spatial_service.client.execute_query.side_effect = [
-            [{"id": space_id}],  # 第一次查询检查空间存在
-            [{"id": space_id}]   # 第二次查询获取更新后的数据
-        ]
+        # Mock 更新操作（set_space_mep_restrictions执行一次查询）
+        spatial_service.client.execute_query.return_value = [{
+            "id": space_id,
+            "forbid_horizontal_mep": forbid_horizontal_mep,
+            "forbid_vertical_mep": forbid_vertical_mep,
+            "updated_at": "2024-01-01T00:00:00"
+        }]
         
         result = spatial_service.set_space_mep_restrictions(
             space_id=space_id,
@@ -285,12 +290,11 @@ class TestGetSpaceIntegratedHanger:
     def test_get_space_integrated_hanger_success(self, spatial_service):
         """测试成功获取空间综合支吊架配置"""
         space_id = "space_1"
-        spatial_service.client.execute_query.return_value = [
-            {
-                "id": space_id,
-                "use_integrated_hanger": True
-            }
-        ]
+        # Mock 查询操作（get_space_integrated_hanger执行一次查询）
+        spatial_service.client.execute_query.return_value = [{
+            "id": space_id,
+            "use_integrated_hanger": True
+        }]
         
         result = spatial_service.get_space_integrated_hanger(space_id)
         
