@@ -22,7 +22,7 @@ const SHORTCUTS: Shortcut[] = [
 ];
 
 interface KeyboardShortcutsPanelProps {
-  mode?: 'trace' | 'lift' | 'classify';
+  mode?: 'trace' | 'lift' | 'classify' | 'all';
   className?: string;
 }
 
