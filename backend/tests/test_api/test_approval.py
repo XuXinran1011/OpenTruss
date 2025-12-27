@@ -367,8 +367,8 @@ def test_approve_nonexistent_lot(approver_token):
         headers={"Authorization": f"Bearer {approver_token}"}
     )
     
-    # API 对 ValueError 返回 400 Bad Request，而不是 404
-    assert response.status_code == 400
+    # API 对 NotFoundError 返回 404 Not Found
+    assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
 
 

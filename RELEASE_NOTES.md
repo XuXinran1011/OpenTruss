@@ -47,6 +47,12 @@ OpenTruss v1.0.0 is the first stable release of the Generative BIM Middleware pl
 - **Topology Validation**: Graph completeness and connectivity checks
 - **Spatial Validation**: 2.5D bounding box collision detection
 
+### Hanger Placement
+- **Automated Generation**: Intelligent hanger placement for MEP elements
+- **Rule-Based Adjustment**: Joint detection and mandatory hanger placement
+- **Integrated Hangers**: Support for shared hangers across multiple elements
+- **Spatial Grouping**: Smart grouping based on proximity and alignment
+
 ## System Requirements
 
 ### Backend
@@ -69,8 +75,8 @@ OpenTruss v1.0.0 is the first stable release of the Generative BIM Middleware pl
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/opentruss.git
-cd opentruss
+git clone https://github.com/XuXinran1011/OpenTruss.git
+cd OpenTruss
 
 # Using Makefile (recommended)
 make setup
@@ -82,15 +88,15 @@ docker-compose up -d
 
 ### Detailed Installation
 
-See [DEVELOPMENT.md](docs/DEVELOPMENT.md) for detailed installation instructions.
+See [Development Guide](docs/development/DEVELOPMENT.md) for detailed installation instructions.
 
 ## Documentation
 
-- [Product Requirements Document](docs/PRD.md)
+- [Product Requirements Document](docs/references/PRD.md)
 - [Architecture Documentation](docs/ARCHITECTURE.md)
-- [API Documentation](docs/API.md)
-- [User Manual](docs/USER_MANUAL.md)
-- [Deployment Guide](docs/DEPLOYMENT.md)
+- [API Documentation](docs/api/index.md)
+- [User Manual](docs/guides/USER_MANUAL.md)
+- [Deployment Guide](docs/deployment/DEPLOYMENT.md)
 
 ## Breaking Changes
 
@@ -104,10 +110,10 @@ This is the initial release, so there are no breaking changes from previous vers
 - CORS configuration for production environments
 
 **Important**: Before deploying to production, ensure you:
-- Generate strong JWT secrets
-- Configure appropriate CORS origins
+- Generate strong JWT secrets (use `openssl rand -hex 32`)
+- Configure appropriate CORS origins (NOT `*`)
 - Use HTTPS in production
-- Review security best practices in [DEPLOYMENT.md](docs/DEPLOYMENT.md)
+- Review security best practices in [Deployment Guide](docs/deployment/DEPLOYMENT.md) and [Security Checklist](SECURITY_CHECKLIST.md)
 
 ## Performance
 
@@ -129,7 +135,7 @@ This is the initial release. Future upgrade guides will be provided for subseque
 ## Support
 
 - **Documentation**: See [docs/](docs/) directory
-- **Issues**: Report issues on [GitHub Issues](https://github.com/your-org/opentruss/issues)
+- **Issues**: Report issues on [GitHub Issues](https://github.com/XuXinran1011/OpenTruss/issues)
 - **Contributions**: See [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Credits
@@ -146,4 +152,3 @@ See [LICENSE](LICENSE) for license information.
 ---
 
 **Full Changelog**: See [CHANGELOG.md](CHANGELOG.md)
-

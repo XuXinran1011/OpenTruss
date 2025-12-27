@@ -7,22 +7,33 @@ import pytest
 from unittest.mock import Mock, MagicMock, patch
 from app.services.coordination import CoordinationService
 from app.models.speckle.mep import Pipe, Duct, CableTray
-from app.models.speckle.base import Geometry, Point, LineString
+from app.models.speckle.base import Geometry, Point
 
 
 @pytest.fixture
 def coordination_service():
     """创建 CoordinationService 实例"""
-    # Mock MemgraphClient 和 SpatialValidator
+    # Mock MemgraphClient、SpatialValidator 和 get_mep_routing_config
     with patch('app.services.coordination.MemgraphClient') as mock_client_class, \
-         patch('app.services.coordination.SpatialValidator') as mock_validator_class:
+         patch('app.services.coordination.SpatialValidator') as mock_validator_class, \
+         patch('app.services.coordination.get_mep_routing_config') as mock_get_config:
         mock_client = Mock()
         mock_validator = Mock()
         mock_client_class.return_value = mock_client
         mock_validator_class.return_value = mock_validator
         
+        # Mock config loader with _config property
+        mock_config_loader = Mock()
+        mock_config_loader._config = {
+            "vertical_pipe_detection": {"z_change_threshold": 1.0},
+            "system_priority": {"default_priority_levels": []}
+        }
+        mock_get_config.return_value = mock_config_loader
+        
         service = CoordinationService(client=mock_client)
         service.collision_validator = mock_validator
+        # Ensure execute_query returns lists
+        mock_client.execute_query.return_value = []
         return service
 
 
@@ -134,8 +145,11 @@ class TestGetSystemPriority:
         """测试管道优先级"""
         element_id = "pipe_1"
         coordination_service.client.execute_query.return_value = [
-            {"speckle_type": "Pipe"}
+            {"speckle_type": "Pipe", "system_type": None}
         ]
+        coordination_service.config_loader._config = {
+            "system_priority": {"default_priority_levels": []}
+        }
         
         priority = coordination_service.get_system_priority(element_id)
         
@@ -146,8 +160,11 @@ class TestGetSystemPriority:
         """测试风管优先级"""
         element_id = "duct_1"
         coordination_service.client.execute_query.return_value = [
-            {"speckle_type": "Duct"}
+            {"speckle_type": "Duct", "system_type": None}
         ]
+        coordination_service.config_loader._config = {
+            "system_priority": {"default_priority_levels": []}
+        }
         
         priority = coordination_service.get_system_priority(element_id)
         
@@ -158,8 +175,11 @@ class TestGetSystemPriority:
         """测试桥架优先级"""
         element_id = "cable_tray_1"
         coordination_service.client.execute_query.return_value = [
-            {"speckle_type": "CableTray"}
+            {"speckle_type": "CableTray", "system_type": None}
         ]
+        coordination_service.config_loader._config = {
+            "system_priority": {"default_priority_levels": []}
+        }
         
         priority = coordination_service.get_system_priority(element_id)
         

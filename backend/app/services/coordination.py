@@ -41,10 +41,11 @@ class CoordinationService:
         """
         self.client = client or MemgraphClient()
         self.collision_validator = SpatialValidator(self.client)
-        self.config = get_mep_routing_config()
+        self.config_loader = get_mep_routing_config()
+        config_data = self.config_loader._config or {}
         
         # 从配置中获取竖向管线判定阈值
-        vertical_pipe_config = self.config.get("vertical_pipe_detection", {})
+        vertical_pipe_config = config_data.get("vertical_pipe_detection", {})
         self.z_change_threshold = vertical_pipe_config.get("z_change_threshold", 1.0)  # 默认1米
     
     def detect_collisions(
@@ -214,7 +215,8 @@ class CoordinationService:
         element_type = row.get("speckle_type")
         
         # 从配置中获取优先级
-        priority_config = self.config.get("system_priority", {}).get("default_priority_levels", [])
+        config_data = self.config_loader._config or {}
+        priority_config = config_data.get("system_priority", {}).get("default_priority_levels", [])
         
         for priority_level in priority_config:
             level = priority_level.get("level")
