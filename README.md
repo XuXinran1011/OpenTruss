@@ -156,10 +156,6 @@ make dev     # 启动开发环境
 - [数据库 Schema](docs/SCHEMA.md) - Memgraph 数据模型
 - [UI/UX 设计文档](docs/UI_DESIGN.md) - 界面设计和交互规范
 
-### Speckle 集成文档
-
-- [Speckle 转换指南](README_SPECKLE_CONVERSION.md) - Speckle 数据转换说明
-- [Speckle 本地设置](README_SPECKLE_LOCAL_SETUP.md) - 本地开发环境配置
 
 ### 开发文档
 

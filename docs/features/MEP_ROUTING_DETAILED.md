@@ -279,6 +279,6 @@ MEP专业负责人完成路由规划后，可以点击"确认结束路由规划"
 - [MEP_COORDINATION.md](./MEP_COORDINATION.md) - 管线综合排布详细规格
 - [MEP_SYSTEM_PRIORITY.md](./MEP_SYSTEM_PRIORITY.md) - MEP系统优先级配置
 - [MEP_PENETRATION.md](./MEP_PENETRATION.md) - 穿墙/穿楼板节点生成规则
-- [API.md](./API.md) - API接口文档
-- [RULE_ENGINE.md](./RULE_ENGINE.md) - 规则引擎文档
+- [API 文档](../api/index.md) - API接口文档
+- [规则引擎文档](../rules/RULE_ENGINE.md) - 规则引擎文档
 

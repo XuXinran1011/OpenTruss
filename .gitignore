@@ -53,3 +53,21 @@ out/
 .DS_Store
 Thumbs.db
 
+# TypeScript
+*.tsbuildinfo
+
+# 测试结果和报告
+test_results.txt
+**/test_results.txt
+backend/tests/performance/reports/
+tests/performance/reports/
+
+# IDE 配置
+.claude/
+.cursor/
+
+# 误放的目录
+frontend/backend/
+
+# 异常文件
+backend/=2.0.0

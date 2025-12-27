@@ -217,7 +217,7 @@ CI 工作流会自动上传代码覆盖率到 Codecov（如果配置了 Codecov 
 
 ## 相关文档
 
-- [测试策略文档](./TESTING.md)
-- [E2E 测试指南](./E2E_TESTING.md)
-- [性能测试指南](./PERFORMANCE_TESTING.md)
+- [测试文档](testing/README.md) - 测试策略、E2E测试和性能测试完整指南
+- [E2E 测试指南](testing/E2E_TESTING.md)
+- [性能测试指南](testing/PERFORMANCE_TESTING.md)
 

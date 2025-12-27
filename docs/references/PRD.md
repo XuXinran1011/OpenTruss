@@ -134,7 +134,7 @@ class ElementNode(BaseModel):
 
 6. Roadmap (实施路线图)
 
-**注意**：本文档中的 Phase 编号指 **OpenTruss 项目 Phase**（项目整体开发阶段）。规则引擎功能的增量开发阶段使用 **"规则引擎 Phase 1-4"** 编号，详见 [规则引擎架构文档](RULE_ENGINE.md)。
+**注意**：本文档中的 Phase 编号指 **OpenTruss 项目 Phase**（项目整体开发阶段）。规则引擎功能的增量开发阶段使用 **"规则引擎 Phase 1-4"** 编号，详见 [规则引擎架构文档](../rules/RULE_ENGINE.md)。
 
 **OpenTruss Phase 1**: Foundation & Hierarchy (基础架构)
 [x] 搭建 Memgraph/FastAPI。

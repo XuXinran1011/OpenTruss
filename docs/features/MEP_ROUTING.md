@@ -376,7 +376,7 @@ pytest backend/tests/test_integration/test_routing_api.py
 - [MEP_COORDINATION.md](./MEP_COORDINATION.md) - 管线综合排布规格
 - [MEP_SYSTEM_PRIORITY.md](./MEP_SYSTEM_PRIORITY.md) - MEP系统优先级配置
 - [MEP_PENETRATION.md](./MEP_PENETRATION.md) - 穿墙/穿楼板节点生成规则
-- [RULE_ENGINE.md](./RULE_ENGINE.md) - 规则引擎文档（包含Brick Schema语义验证）
-- [API.md](./API.md) - API 文档
-- [ARCHITECTURE.md](./ARCHITECTURE.md) - 架构文档
+- [规则引擎文档](../rules/RULE_ENGINE.md) - 规则引擎文档（包含Brick Schema语义验证）
+- [API 文档](../api/index.md) - API 文档
+- [架构文档](../ARCHITECTURE.md) - 架构文档
 

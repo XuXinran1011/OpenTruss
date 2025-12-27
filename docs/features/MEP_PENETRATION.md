@@ -257,6 +257,6 @@ class PenetrationNode(BaseModel):
 
 - [MEP_ROUTING_DETAILED.md](./MEP_ROUTING_DETAILED.md) - MEP路由规划详细规格
 - [MEP_COORDINATION.md](./MEP_COORDINATION.md) - 管线综合排布规格
-- [API.md](./API.md) - API接口文档（节点生成API）
-- [RULE_ENGINE.md](./RULE_ENGINE.md) - 规则引擎文档
+- [API 文档](../api/index.md) - API接口文档（节点生成API）
+- [规则引擎文档](../rules/RULE_ENGINE.md) - 规则引擎文档
 

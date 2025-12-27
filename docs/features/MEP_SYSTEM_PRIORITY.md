@@ -198,6 +198,6 @@ MEP专业负责人可以按以下维度调整优先级划分：
 
 - [MEP_ROUTING_DETAILED.md](./MEP_ROUTING_DETAILED.md) - MEP路由规划详细规格
 - [MEP_COORDINATION.md](./MEP_COORDINATION.md) - 管线综合排布规格
-- [API.md](./API.md) - API接口文档（优先级配置API）
-- [RULE_ENGINE.md](./RULE_ENGINE.md) - 规则引擎文档
+- [API 文档](../api/index.md) - API接口文档（优先级配置API）
+- [规则引擎文档](../rules/RULE_ENGINE.md) - 规则引擎文档
 

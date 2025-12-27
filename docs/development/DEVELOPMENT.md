@@ -144,6 +144,14 @@ npm install
 
 Speckle BuiltElements 的 Pydantic 模型已经预生成在 `backend/app/models/speckle/` 目录中。
 
+**模型结构**：
+- `base.py` - 基础类和通用类型（Geometry, SpeckleBuiltElementBase）
+- `architectural.py` - 建筑元素（Wall, Floor, Ceiling, Roof, Column）
+- `structural.py` - 结构元素（Beam, Brace, Structure, Rebar）
+- `mep.py` - MEP 元素（Duct, Pipe, CableTray, Conduit, Wire, Hanger）
+- `spatial.py` - 空间元素（Level, Room, Space, Zone, Area）
+- `other.py` - 其他元素（Opening, Topography, GridLine等）
+
 如果 Speckle 更新了 BuiltElements 定义，可以重新生成：
 
 ```bash
@@ -152,7 +160,16 @@ python scripts/fetch_speckle_built_elements.py
 
 # 2. 转换为 Pydantic 模型
 python scripts/convert_speckle_to_pydantic.py
+
+# 3. 验证并生成 TypeScript（可选）
+python scripts/verify_openapi_schema.py
 ```
+
+**注意事项**：
+- 转换脚本会覆盖现有的模型文件，建议使用 Git 版本控制
+- 自动生成的模型可能需要手动调整（字段描述、业务逻辑验证等）
+- 类型映射规则：`ICurve` → `Geometry`，`Level` 对象 → `level_id` 字符串
+- API 同时支持 `baseLine`/`outline` 和 `geometry` 两种命名方式（通过 Pydantic alias）
 
 ### 4.2 TypeScript API 客户端生成
 
@@ -401,7 +418,7 @@ out/
 
 ## 9. 规则引擎开发指南
 
-规则引擎是 OpenTruss 的核心校验组件，详细架构设计请参考 [规则引擎架构文档](RULE_ENGINE.md)。本节介绍规则引擎的开发环境配置、开发流程和测试指南。
+规则引擎是 OpenTruss 的核心校验组件，详细架构设计请参考 [规则引擎架构文档](../rules/RULE_ENGINE.md)。本节介绍规则引擎的开发环境配置、开发流程和测试指南。
 
 ### 9.1 开发环境配置
 
@@ -599,7 +616,7 @@ npm install rbush
 
 **步骤 2：实现空间索引**
 
-创建 `frontend/src/lib/rules/SpatialValidator.ts` 和 `SpatialIndex.ts`（参考 [RULE_ENGINE.md](RULE_ENGINE.md) 的完整示例）
+创建 `frontend/src/lib/rules/SpatialValidator.ts` 和 `SpatialIndex.ts`（参考 [RULE_ENGINE.md](../rules/RULE_ENGINE.md) 的完整示例）
 
 #### 9.2.4 规则引擎 Phase 4: 拓扑校验开发
 
@@ -817,6 +834,6 @@ test('semantic validation should complete within 16ms', () => {
 ## 11. 下一步
 
 - 阅读 [代码规范文档](CODING_STANDARDS.md)
-- 查看 [API 设计文档](API.md)
-- 参考 [测试策略文档](TESTING.md)
-- 详细了解 [规则引擎架构文档](RULE_ENGINE.md)
+- 查看 [API 设计文档](../api/index.md)
+- 参考 [测试文档](../testing/README.md)
+- 详细了解 [规则引擎架构文档](../rules/RULE_ENGINE.md)

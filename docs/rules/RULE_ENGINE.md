@@ -1399,7 +1399,7 @@ result = validator.validate_mep_connection(
 )
 ```
 
-详见 [MEP_ROUTING.md](./MEP_ROUTING.md)。
+详见 [MEP_ROUTING.md](../features/MEP_ROUTING.md)。
 
 **资源地址**：
 - [RealEstateCore GitHub](https://github.com/RealEstateCore/rec)
@@ -1422,7 +1422,7 @@ result = validator.validate_mep_connection(
 - 竖向/水平管线判定规则
 - 原始路由约束规则
 
-详细说明参见本文档的 "MEP路由规划规则" 部分和 [MEP_ROUTING_DETAILED.md](./MEP_ROUTING_DETAILED.md)。
+详细说明参见本文档的 "MEP路由规划规则" 部分和 [MEP_ROUTING_DETAILED.md](../features/MEP_ROUTING_DETAILED.md)。
 
 ### 5.2 构造约束 (Constructability Constraints)
 

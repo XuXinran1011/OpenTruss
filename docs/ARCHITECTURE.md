@@ -187,7 +187,7 @@ def ingest_elements(elements: List[SpeckleObject]) -> IngestResult:
 
 #### 3.3.3 规则引擎 (Rule Engine)
 
-规则引擎是 OpenTruss 的核心校验组件，采用**分层防御策略**，通过前后端协同工作，确保数据质量。详细设计参见 [规则引擎架构文档](RULE_ENGINE.md)。
+规则引擎是 OpenTruss 的核心校验组件，采用**分层防御策略**，通过前后端协同工作，确保数据质量。详细设计参见 [规则引擎架构文档](rules/RULE_ENGINE.md)。
 
 **架构概述**：
 
@@ -396,7 +396,7 @@ graph TB
 - **约束逻辑**：原始路由约束仅针对Room。Element的`original_route_room_ids`字段存储Room ID列表（不是Space ID），用于验证Room约束
 - **设计决策**：区分Room和Space约束的目的是允许系统在非房间空间（走廊、大厅等）中优化路由，提高路由规划的灵活性
 
-详细说明参见 [MEP_ROUTING_DETAILED.md](./MEP_ROUTING_DETAILED.md#4-原始路由约束)。
+详细说明参见 [MEP_ROUTING_DETAILED.md](features/MEP_ROUTING_DETAILED.md#4-原始路由约束)。
 
 #### 3.3.7 管线综合排布服务 (Coordination Service)
 
@@ -625,7 +625,7 @@ sequenceDiagram
 
 ### 4.5 MEP路由规划和管线综合排布流程
 
-MEP路由规划和管线综合排布是两阶段工作流，详细说明参见 [MEP_ROUTING_DETAILED.md](./MEP_ROUTING_DETAILED.md) 和 [MEP_COORDINATION.md](./MEP_COORDINATION.md)。
+MEP路由规划和管线综合排布是两阶段工作流，详细说明参见 [MEP_ROUTING_DETAILED.md](features/MEP_ROUTING_DETAILED.md) 和 [MEP_COORDINATION.md](features/MEP_COORDINATION.md)。
 
 #### 4.5.1 路由规划流程（2D Trace Mode）
 

@@ -234,6 +234,6 @@
 - [MEP_ROUTING_DETAILED.md](./MEP_ROUTING_DETAILED.md) - MEP路由规划详细规格
 - [MEP_SYSTEM_PRIORITY.md](./MEP_SYSTEM_PRIORITY.md) - MEP系统优先级配置
 - [MEP_PENETRATION.md](./MEP_PENETRATION.md) - 穿墙/穿楼板节点生成规则
-- [API.md](./API.md) - API接口文档
-- [RULE_ENGINE.md](./RULE_ENGINE.md) - 规则引擎文档
+- [API 文档](../api/index.md) - API接口文档
+- [规则引擎文档](../rules/RULE_ENGINE.md) - 规则引擎文档
 
