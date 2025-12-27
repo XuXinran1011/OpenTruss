@@ -65,6 +65,7 @@ tests/performance/reports/
 # IDE 配置
 .claude/
 .cursor/
+docs/reports/
 
 # 误放的目录
 frontend/backend/
