@@ -4,8 +4,8 @@
 
 import React from 'react'
 import { render, screen } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { LotManagementPanel } from '../LotManagementPanel'
+import { TestWrapper } from '@/test-utils'
 
 // Mock hooks and stores
 jest.mock('@/hooks/useLotStrategy', () => ({
@@ -27,25 +27,6 @@ jest.mock('@/lib/utils', () => ({
 const { useItemDetailForLots, useLotElements, useUpdateLotStatus, useRemoveElementsFromLot, useAssignElementsToLot } = require('@/hooks/useLotStrategy')
 const { useHierarchyStore } = require('@/stores/hierarchy')
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        retry: false,
-      },
-    },
-  })
-  
-  const Wrapper = ({ children }: { children: React.ReactNode }) => {
-    return (
-      <QueryClientProvider client={queryClient}>
-        {children}
-      </QueryClientProvider>
-    )
-  }
-  
-  return Wrapper
-}
 
 describe('LotManagementPanel', () => {
   beforeEach(() => {
@@ -100,7 +81,7 @@ describe('LotManagementPanel', () => {
       isPending: false,
     })
 
-    render(<LotManagementPanel itemId={null} />, { wrapper: createWrapper() })
+    render(<LotManagementPanel itemId={null} />, { wrapper: TestWrapper })
 
     expect(screen.getByText('请先选择一个分项（Item）')).toBeInTheDocument()
   })

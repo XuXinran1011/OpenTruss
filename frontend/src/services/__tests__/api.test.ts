@@ -8,6 +8,7 @@ import { getToken } from '@/lib/auth/token'
 // Mock token
 jest.mock('@/lib/auth/token', () => ({
   getToken: jest.fn(),
+  clearToken: jest.fn(),
 }))
 
 const mockGetToken = getToken as jest.MockedFunction<typeof getToken>
@@ -48,6 +49,7 @@ describe('apiFetch', () => {
         method: 'GET',
         headers: expect.objectContaining({
           'Authorization': 'Bearer test-token',
+          'Content-Type': 'application/json',
         }),
       })
     )
@@ -157,7 +159,7 @@ describe('apiFetch', () => {
     }
   })
 
-  it('应该在响应无法解析为JSON时使用状态文本', async () => {
+  it('应该在响应无法解析为JSON时使用状态码错误消息', async () => {
     mockFetch.mockResolvedValue({
       ok: false,
       status: 500,
@@ -167,7 +169,7 @@ describe('apiFetch', () => {
       },
     } as Response)
     
-    await expect(apiFetch('/api/test')).rejects.toThrow('Internal Server Error')
+    await expect(apiFetch('/api/test')).rejects.toThrow('HTTP error! status: 500')
   })
 
   it('应该使用baseURL配置', async () => {

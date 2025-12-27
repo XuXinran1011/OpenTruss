@@ -7,6 +7,7 @@ import { useTraceMode } from '../useTraceMode'
 import { updateElementTopology } from '@/services/elements'
 import { useWorkbenchStore } from '@/stores/workbench'
 import { ApiError } from '@/services/api'
+import { TestWrapper } from '../../test-utils'
 
 // Mock dependencies
 jest.mock('@/services/elements', () => ({
@@ -42,7 +43,9 @@ describe('useTraceMode', () => {
       
       mockUpdateElementTopology.mockResolvedValue(mockResponse)
       
-      const { result } = renderHook(() => useTraceMode())
+      const { result } = renderHook(() => useTraceMode(), {
+        wrapper: TestWrapper,
+      })
       
       act(() => {
         result.current.updateTopology('element-1', {
@@ -70,7 +73,9 @@ describe('useTraceMode', () => {
       const mockError = new ApiError('Update failed', 500)
       mockUpdateElementTopology.mockRejectedValue(mockError)
       
-      const { result } = renderHook(() => useTraceMode())
+      const { result } = renderHook(() => useTraceMode(), {
+        wrapper: TestWrapper,
+      })
       
       await act(async () => {
         try {
@@ -101,7 +106,9 @@ describe('useTraceMode', () => {
       
       mockUpdateElementTopology.mockReturnValue(updatePromise as any)
       
-      const { result } = renderHook(() => useTraceMode())
+      const { result } = renderHook(() => useTraceMode(), {
+        wrapper: TestWrapper,
+      })
       
       act(() => {
         result.current.updateTopology('element-1', {
@@ -129,7 +136,9 @@ describe('useTraceMode', () => {
     it('应该清除错误状态', async () => {
       mockUpdateElementTopology.mockRejectedValue(new ApiError('Test error', 500))
       
-      const { result } = renderHook(() => useTraceMode())
+      const { result } = renderHook(() => useTraceMode(), {
+        wrapper: TestWrapper,
+      })
       
       await act(async () => {
         try {

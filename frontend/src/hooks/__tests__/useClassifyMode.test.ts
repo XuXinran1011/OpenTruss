@@ -7,6 +7,7 @@ import { useClassifyMode } from '../useClassifyMode'
 import { classifyElement } from '@/services/elements'
 import { useWorkbenchStore } from '@/stores/workbench'
 import { ApiError } from '@/services/api'
+import { TestWrapper } from '../../test-utils'
 
 // Mock dependencies
 jest.mock('@/services/elements', () => ({
@@ -42,7 +43,9 @@ describe('useClassifyMode', () => {
       
       mockClassifyElement.mockResolvedValue(mockResponse)
       
-      const { result } = renderHook(() => useClassifyMode())
+      const { result } = renderHook(() => useClassifyMode(), {
+        wrapper: TestWrapper,
+      })
       
       act(() => {
         result.current.classify('item-1', ['element-1'])
@@ -64,7 +67,9 @@ describe('useClassifyMode', () => {
       const mockError = new ApiError('Classify failed', 404)
       mockClassifyElement.mockRejectedValue(mockError)
       
-      const { result } = renderHook(() => useClassifyMode())
+      const { result } = renderHook(() => useClassifyMode(), {
+        wrapper: TestWrapper,
+      })
       
       act(() => {
         result.current.classify('item-1', ['element-1'])
@@ -86,7 +91,9 @@ describe('useClassifyMode', () => {
       
       mockClassifyElement.mockReturnValue(classifyPromise as any)
       
-      const { result } = renderHook(() => useClassifyMode())
+      const { result } = renderHook(() => useClassifyMode(), {
+        wrapper: TestWrapper,
+      })
       
       act(() => {
         result.current.classify('item-1', ['element-1'])
@@ -110,7 +117,9 @@ describe('useClassifyMode', () => {
         .mockRejectedValueOnce(new ApiError('Failed', 404))
         .mockResolvedValueOnce({ element_id: 'element-3', item_id: 'item-1' })
       
-      const { result } = renderHook(() => useClassifyMode())
+      const { result } = renderHook(() => useClassifyMode(), {
+        wrapper: TestWrapper,
+      })
       
       act(() => {
         result.current.classify('item-1', ['element-1', 'element-2', 'element-3'])
@@ -127,7 +136,9 @@ describe('useClassifyMode', () => {
     it('应该清除错误状态', async () => {
       mockClassifyElement.mockRejectedValue(new ApiError('Test error', 500))
       
-      const { result } = renderHook(() => useClassifyMode())
+      const { result } = renderHook(() => useClassifyMode(), {
+        wrapper: TestWrapper,
+      })
       
       await act(async () => {
         try {
@@ -153,7 +164,9 @@ describe('useClassifyMode', () => {
     it('应该清除错误并重置计数', async () => {
       mockClassifyElement.mockResolvedValue({ element_id: 'element-1', item_id: 'item-1' })
       
-      const { result } = renderHook(() => useClassifyMode())
+      const { result } = renderHook(() => useClassifyMode(), {
+        wrapper: TestWrapper,
+      })
       
       act(() => {
         result.current.classify('item-1', ['element-1'])
