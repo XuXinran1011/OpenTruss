@@ -13,6 +13,19 @@ export interface MEPRoutingConstraints {
   };
 }
 
+// API 原始响应格式（path_points 是 number[][]）
+interface RoutingResponseRaw {
+  path_points: number[][];
+  constraints: {
+    bend_radius?: number;
+    min_width?: number;
+    pattern?: string;
+  };
+  warnings: string[];
+  errors: string[];
+}
+
+// 转换后的响应格式（path_points 是 { x: number; y: number }[]）
 export interface RoutingResponse {
   path_points: { x: number; y: number }[];
   constraints: {
@@ -48,7 +61,7 @@ export async function calculateMEPRoute(
   validateRoomConstraints: boolean = true,
   validateSlope: boolean = true
 ): Promise<RoutingResponse> {
-  const response = await apiPost<{ status: string; data: RoutingResponse }>(
+  const response = await apiPost<{ status: string; data: RoutingResponseRaw }>(
     '/routing/calculate',
     {
       start: [start.x, start.y],
@@ -70,8 +83,8 @@ export async function calculateMEPRoute(
     throw new Error('路径计算失败');
   }
 
-  // 转换路径点格式
-  const pathPoints = response.data.path_points.map((pt) => ({
+  // 转换路径点格式：从 number[][] 转换为 { x: number; y: number }[]
+  const pathPoints = response.data.path_points.map((pt: number[]) => ({
     x: pt[0],
     y: pt[1],
   }));
