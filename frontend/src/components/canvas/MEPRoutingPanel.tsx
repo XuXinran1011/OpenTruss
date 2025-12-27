@@ -7,6 +7,7 @@ import { useMEPRouting } from '@/hooks/useMEPRouting';
 import { ElementDetail } from '@/services/elements';
 import { completeRoutingPlanning } from '@/services/routing';
 import { useToastContext } from '@/providers/ToastProvider';
+import { CableTrayCapacityIndicator } from './CableTrayCapacityIndicator';
 
 interface MEPRoutingPanelProps {
   sourceElement: ElementDetail | null;
@@ -279,8 +280,7 @@ export function MEPRoutingPanel({
         {/* 桥架容量指示器 */}
         {elementType === 'CableTray' && containerTrayId && (
           <div className="border border-zinc-200 rounded-md p-3">
-            {/* TODO: Implement CableTrayCapacityIndicator component */}
-            <div className="text-sm text-zinc-600">Cable tray capacity indicator (to be implemented)</div>
+            <CableTrayCapacityIndicator trayId={containerTrayId} />
           </div>
         )}
 

@@ -168,7 +168,7 @@ function ElementMesh({
       type: 'line' as const,
       points: points3d
     };
-  }, [points3d, element, height]);
+  }, [points3d, element]);
   
   if (!geometry) return null;
   
@@ -179,12 +179,6 @@ function ElementMesh({
       {geometry.type === 'box' && (
         <mesh position={geometry.position} rotation={geometry.rotation}>
           <boxGeometry args={[geometry.width, geometry.height, geometry.depth]} />
-          <meshStandardMaterial color={color} opacity={0.7} transparent />
-        </mesh>
-      )}
-      {geometry.type === 'cylinder' && (
-        <mesh position={geometry.position} rotation={geometry.rotation}>
-          <cylinderGeometry args={[geometry.radius, geometry.radius, geometry.height, 32]} />
           <meshStandardMaterial color={color} opacity={0.7} transparent />
         </mesh>
       )}
