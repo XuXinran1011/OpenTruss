@@ -3,6 +3,7 @@
 import pytest
 from app.services.workbench import WorkbenchService
 from app.services.ingestion import IngestionService
+from app.core.exceptions import NotFoundError
 from app.utils.memgraph import MemgraphClient
 from app.services.schema import initialize_schema
 from app.models.speckle.architectural import Wall
@@ -226,7 +227,7 @@ def test_update_element_not_found(workbench_service):
     """测试更新不存在的构件（应该失败）"""
     request = ElementUpdateRequest(height=3.0)
     
-    with pytest.raises(ValueError, match="Element not found"):
+    with pytest.raises(NotFoundError, match="Element not found"):
         workbench_service.update_element("nonexistent_element", request)
 
 
@@ -324,7 +325,7 @@ def test_classify_element_not_found(workbench_service):
     """测试归类不存在的构件（应该失败）"""
     request = ClassifyRequest(item_id="item_test_001")
     
-    with pytest.raises(ValueError, match="Element not found"):
+    with pytest.raises(NotFoundError, match="Element not found"):
         workbench_service.classify_element("nonexistent_element", request)
 
 
@@ -332,6 +333,6 @@ def test_classify_element_item_not_found(workbench_service, test_element):
     """测试归类到不存在的 Item（应该失败）"""
     request = ClassifyRequest(item_id="item_nonexistent")
     
-    with pytest.raises(ValueError, match="Item not found"):
+    with pytest.raises(NotFoundError, match="Item not found"):
         workbench_service.classify_element(test_element, request)
 

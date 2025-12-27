@@ -4,7 +4,7 @@ import pytest
 from datetime import datetime
 from app.services.approval import ApprovalService
 from app.services.approval import ApprovalRole
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, ConflictError
 from app.utils.memgraph import MemgraphClient
 from app.models.gb50300.nodes import InspectionLotNode, ApprovalHistoryNode
 from app.models.gb50300.relationships import HAS_APPROVAL_HISTORY
@@ -224,7 +224,7 @@ def test_permission_validation_can_reject(approval_service, sample_lot_id):
 
 def test_approve_nonexistent_lot(approval_service):
     """测试审批不存在的检验批"""
-    with pytest.raises(ValueError, match="InspectionLot.*not found"):
+    with pytest.raises(NotFoundError, match="InspectionLot.*not found"):
         approval_service.approve_lot(
             lot_id="nonexistent_lot",
             approver_id="approver_001"
@@ -247,7 +247,7 @@ def test_approve_invalid_status(approval_service, memgraph_client):
     memgraph_client.create_node("InspectionLot", lot_node.model_dump(exclude_none=True))
     
     try:
-        with pytest.raises(ValueError, match="Cannot approve"):
+        with pytest.raises(ConflictError, match="Cannot approve"):
             approval_service.approve_lot(
                 lot_id=lot_id,
                 approver_id="approver_001"

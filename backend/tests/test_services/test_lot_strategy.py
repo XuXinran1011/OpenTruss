@@ -4,6 +4,7 @@ import pytest
 from app.services.lot_strategy import LotStrategyService, RuleType
 from app.services.ingestion import IngestionService
 from app.services.hierarchy import HierarchyService
+from app.core.exceptions import NotFoundError
 from app.utils.memgraph import MemgraphClient
 from app.services.schema import initialize_schema
 from app.models.speckle.architectural import Wall
@@ -82,7 +83,7 @@ def test_elements_with_levels(ingestion_service, memgraph_client):
 
 def test_create_lots_by_rule_item_not_found(lot_strategy_service):
     """测试创建检验批时Item不存在的情况"""
-    with pytest.raises(ValueError, match="Item not found"):
+    with pytest.raises(NotFoundError, match="Item not found"):
         lot_strategy_service.create_lots_by_rule("nonexistent_item", RuleType.BY_LEVEL)
 
 

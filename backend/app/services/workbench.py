@@ -670,7 +670,7 @@ class WorkbenchService:
                 )
                 self.update_element(element_id, update_request)
                 updated_ids.append(element_id)
-            except ValueError as e:
+            except (ValueError, NotFoundError) as e:
                 logger.warning(f"Failed to update element {element_id}: {e}")
                 # 继续处理其他构件，不中断批量操作
         
