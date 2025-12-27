@@ -41,7 +41,7 @@ def get_lot_strategy_service(
 
 def get_hierarchy_service(
     client: MemgraphClient = Depends(get_memgraph_client)
-):
+) -> HierarchyService:
     """获取 HierarchyService 实例（依赖注入）"""
     from app.services.hierarchy import HierarchyService
     return HierarchyService(client=client)

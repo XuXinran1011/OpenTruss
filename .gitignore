@@ -99,3 +99,6 @@ docs/ci-logs/
 
 # 临时分析文档
 docs/CI_FAILURE_ANALYSIS.md
+
+# 代码审查报告
+CODE_REVIEW_REPORT.md

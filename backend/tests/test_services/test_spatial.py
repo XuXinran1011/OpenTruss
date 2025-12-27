@@ -6,7 +6,7 @@
 import pytest
 from unittest.mock import Mock, MagicMock, patch
 from app.services.spatial import SpatialService
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, SpatialServiceError
 from app.models.speckle.spatial import Room, Space
 from app.models.speckle.base import Geometry, Point
 
@@ -306,3 +306,191 @@ class TestGetSpaceIntegratedHanger:
             spatial_service.get_space_integrated_hanger(space_id)
         
         assert "not found" in exc_info.value.message.lower()
+
+
+class TestGetOriginalRouteRooms:
+    """测试 get_original_route_rooms 方法"""
+    
+    def test_get_original_route_rooms_success(self, spatial_service):
+        """测试成功获取原始路由Room ID列表"""
+        element_id = "element_1"
+        spatial_service.client.execute_query.return_value = [
+            {"original_route_room_ids": ["room_1", "room_2", "room_3"]}
+        ]
+        
+        room_ids = spatial_service.get_original_route_rooms(element_id)
+        
+        assert len(room_ids) == 3
+        assert room_ids == ["room_1", "room_2", "room_3"]
+        spatial_service.client.execute_query.assert_called_once()
+    
+    def test_get_original_route_rooms_empty(self, spatial_service):
+        """测试元素没有原始路由Room的情况"""
+        element_id = "element_1"
+        spatial_service.client.execute_query.return_value = [
+            {"original_route_room_ids": None}
+        ]
+        
+        room_ids = spatial_service.get_original_route_rooms(element_id)
+        
+        assert len(room_ids) == 0
+    
+    def test_get_original_route_rooms_json_string(self, spatial_service):
+        """测试原始路由Room ID为JSON字符串的情况"""
+        import json
+        element_id = "element_1"
+        spatial_service.client.execute_query.return_value = [
+            {"original_route_room_ids": '["room_1", "room_2"]'}
+        ]
+        
+        room_ids = spatial_service.get_original_route_rooms(element_id)
+        
+        assert len(room_ids) == 2
+        assert room_ids == ["room_1", "room_2"]
+    
+    def test_get_original_route_rooms_comma_separated(self, spatial_service):
+        """测试原始路由Room ID为逗号分隔字符串的情况"""
+        element_id = "element_1"
+        spatial_service.client.execute_query.return_value = [
+            {"original_route_room_ids": "room_1, room_2, room_3"}
+        ]
+        
+        room_ids = spatial_service.get_original_route_rooms(element_id)
+        
+        assert len(room_ids) == 3
+        assert room_ids == ["room_1", "room_2", "room_3"]
+
+
+class TestValidatePathThroughRoomsAndSpaces:
+    """测试 validate_path_through_rooms_and_spaces 方法"""
+    
+    def test_validate_path_through_rooms_and_spaces_valid(self, spatial_service):
+        """测试路径通过验证的情况"""
+        path_points = [(0.0, 0.0), (10.0, 10.0), (20.0, 20.0)]
+        original_route_room_ids = ["room_1", "room_2"]
+        level_id = "level_1"
+        
+        # Mock get_spaces_by_level 返回一个通过验证的Space
+        mock_space = Mock()
+        mock_space.id = "space_1"
+        mock_space.name = "Space 1"
+        mock_space.room_id = "room_1"  # 在原始路由Room列表中
+        mock_space.geometry = Mock()
+        mock_space.geometry.coordinates = [[0.0, 0.0], [30.0, 0.0], [30.0, 30.0], [0.0, 30.0], [0.0, 0.0]]
+        mock_space.forbid_horizontal_mep = False
+        
+        spatial_service.get_spaces_by_level = Mock(return_value=[mock_space])
+        spatial_service._path_intersects_space = Mock(return_value=True)
+        
+        result = spatial_service.validate_path_through_rooms_and_spaces(
+            path_points=path_points,
+            original_route_room_ids=original_route_room_ids,
+            level_id=level_id,
+            forbid_horizontal=False
+        )
+        
+        assert result["valid"] is True
+        assert len(result["errors"]) == 0
+        assert "space_1" in result["passed_spaces"]
+    
+    def test_validate_path_through_rooms_and_spaces_invalid_room(self, spatial_service):
+        """测试路径违反Room约束的情况"""
+        path_points = [(0.0, 0.0), (10.0, 10.0)]
+        original_route_room_ids = ["room_1"]
+        level_id = "level_1"
+        
+        # Mock get_spaces_by_level 返回一个违反Room约束的Space
+        mock_space = Mock()
+        mock_space.id = "space_1"
+        mock_space.name = "Space 1"
+        mock_space.room_id = "room_2"  # 不在原始路由Room列表中
+        mock_space.geometry = Mock()
+        mock_space.geometry.coordinates = [[0.0, 0.0], [30.0, 0.0], [30.0, 30.0], [0.0, 30.0], [0.0, 0.0]]
+        mock_space.forbid_horizontal_mep = False
+        
+        spatial_service.get_spaces_by_level = Mock(return_value=[mock_space])
+        spatial_service._path_intersects_space = Mock(return_value=True)
+        
+        result = spatial_service.validate_path_through_rooms_and_spaces(
+            path_points=path_points,
+            original_route_room_ids=original_route_room_ids,
+            level_id=level_id,
+            forbid_horizontal=False
+        )
+        
+        assert result["valid"] is False
+        assert len(result["errors"]) > 0
+        assert "space_1" in result["blocked_spaces"]
+        assert "room_2" in result["violated_rooms"]
+    
+    def test_validate_path_through_rooms_and_spaces_forbidden_horizontal(self, spatial_service):
+        """测试路径穿过禁止水平MEP的空间的情况"""
+        path_points = [(0.0, 0.0), (10.0, 10.0)]
+        original_route_room_ids = ["room_1"]
+        level_id = "level_1"
+        
+        # Mock get_spaces_by_level 返回一个禁止水平MEP的Space
+        mock_space = Mock()
+        mock_space.id = "space_1"
+        mock_space.name = "Space 1"
+        mock_space.room_id = "room_1"
+        mock_space.geometry = Mock()
+        mock_space.geometry.coordinates = [[0.0, 0.0], [30.0, 0.0], [30.0, 30.0], [0.0, 30.0], [0.0, 0.0]]
+        mock_space.forbid_horizontal_mep = True
+        
+        spatial_service.get_spaces_by_level = Mock(return_value=[mock_space])
+        spatial_service._path_intersects_space = Mock(return_value=True)
+        
+        result = spatial_service.validate_path_through_rooms_and_spaces(
+            path_points=path_points,
+            original_route_room_ids=original_route_room_ids,
+            level_id=level_id,
+            forbid_horizontal=True
+        )
+        
+        assert result["valid"] is False
+        assert len(result["errors"]) > 0
+        assert "space_1" in result["blocked_spaces"]
+    
+    def test_validate_path_through_rooms_and_spaces_insufficient_points(self, spatial_service):
+        """测试路径点不足的情况"""
+        path_points = [(0.0, 0.0)]  # 只有1个点，不足2个
+        original_route_room_ids = ["room_1"]
+        level_id = "level_1"
+        
+        result = spatial_service.validate_path_through_rooms_and_spaces(
+            path_points=path_points,
+            original_route_room_ids=original_route_room_ids,
+            level_id=level_id
+        )
+        
+        assert result["valid"] is True  # 路径点不足时跳过验证，返回valid=True
+        assert len(result["warnings"]) > 0
+
+
+class TestGetObstacles:
+    """测试 get_obstacles 方法的边界情况"""
+    
+    def test_get_obstacles_invalid_level_id(self, spatial_service):
+        """测试无效的level_id"""
+        with pytest.raises(SpatialServiceError, match="level_id.*不能为空"):
+            spatial_service.get_obstacles(level_id="")
+    
+    def test_get_obstacles_invalid_bbox_format(self, spatial_service):
+        """测试无效的bbox格式"""
+        level_id = "level_1"
+        invalid_bbox = [0.0, 0.0, 10.0]  # 只有3个值，应该是4个
+        
+        with pytest.raises(SpatialServiceError, match="bbox.*必须包含4个值"):
+            spatial_service.get_obstacles(level_id=level_id, bbox=invalid_bbox)
+    
+    def test_get_obstacles_invalid_bbox_range(self, spatial_service):
+        """测试无效的bbox范围（min_x >= max_x 或 min_y >= max_y）"""
+        level_id = "level_1"
+        invalid_bbox = [10.0, 0.0, 0.0, 10.0]  # min_x >= max_x
+        
+        # Mock client.execute_query 以避免实际数据库查询
+        spatial_service.client.execute_query = Mock(return_value=[])
+        
+        with pytest.raises(SpatialServiceError, match="bbox.*范围无效"):
+            spatial_service.get_obstacles(level_id=level_id, bbox=invalid_bbox)
