@@ -200,7 +200,7 @@ function ElementMesh({
               count={geometry.points.length}
               array={new Float32Array(geometry.points.flatMap(p => [p.x, p.y, p.z]))}
               itemSize={3}
-              usage="static"
+              usage={1}  // StaticDrawUsage
             />
           </bufferGeometry>
           <lineBasicMaterial color={color} />
