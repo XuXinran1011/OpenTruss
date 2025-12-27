@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { QueryProvider } from '@/providers/QueryProvider';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
 export const metadata: Metadata = {
   title: 'OpenTruss - HITL Workbench',
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body className="font-sans">
-        <QueryProvider>{children}</QueryProvider>
+        <ErrorBoundary>
+          <QueryProvider>{children}</QueryProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

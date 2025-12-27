@@ -26,7 +26,7 @@ from app.models.gb50300.nodes import (
     ItemNode, InspectionLotNode, LevelNode
 )
 from app.models.gb50300.element import ElementNode
-from app.models.speckle.base import Geometry2D
+from app.models.speckle.base import Geometry
 
 
 @pytest.fixture(scope="module")
@@ -148,9 +148,9 @@ def test_export_workflow_complete(sample_project_for_export, setup_integration_d
     
     # 1. 创建测试构件（模拟数据摄入）
     element_id = "integration_export_element_001"
-    geometry_2d = Geometry2D(
+    geometry = Geometry(
         type="Polyline",
-        coordinates=[[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0], [0.0, 0.0]],
+        coordinates=[[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [10.0, 10.0, 0.0], [0.0, 10.0, 0.0], [0.0, 0.0, 0.0]],
         closed=True
     )
     
@@ -158,7 +158,7 @@ def test_export_workflow_complete(sample_project_for_export, setup_integration_d
         id=element_id,
         speckle_id="speckle_integration_001",
         speckle_type="Wall",
-        geometry_2d=geometry_2d,
+        geometry=geometry,
         height=3.0,
         base_offset=0.0,
         level_id=level_id,
@@ -249,9 +249,9 @@ def test_export_ifc_geometry_validation(sample_project_for_export, setup_integra
         {
             "id": "integration_export_element_002",
             "speckle_type": "Wall",
-            "geometry": Geometry2D(
+            "geometry": Geometry(
                 type="Polyline",
-                coordinates=[[0.0, 0.0], [5.0, 0.0], [5.0, 5.0], [0.0, 5.0], [0.0, 0.0]],
+                coordinates=[[0.0, 0.0, 0.0], [5.0, 0.0, 0.0], [5.0, 5.0, 0.0], [0.0, 5.0, 0.0], [0.0, 0.0, 0.0]],
                 closed=True
             ),
             "height": 3.0,
@@ -260,9 +260,9 @@ def test_export_ifc_geometry_validation(sample_project_for_export, setup_integra
         {
             "id": "integration_export_element_003",
             "speckle_type": "Column",
-            "geometry": Geometry2D(
+            "geometry": Geometry(
                 type="Line",
-                coordinates=[[10.0, 10.0], [10.0, 13.0]],
+                coordinates=[[10.0, 10.0, 0.0], [10.0, 13.0, 0.0]],
                 closed=False
             ),
             "height": 3.0,
@@ -279,7 +279,7 @@ def test_export_ifc_geometry_validation(sample_project_for_export, setup_integra
                 id=elem_data["id"],
                 speckle_id=f"speckle_{elem_data['id']}",
                 speckle_type=elem_data["speckle_type"],
-                geometry_2d=elem_data["geometry"],
+                geometry=elem_data["geometry"],
                 height=elem_data["height"],
                 base_offset=elem_data["base_offset"],
                 level_id=level_id,

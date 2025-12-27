@@ -9,15 +9,16 @@
 
 from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel, Field, ConfigDict
-from .base import SpeckleBuiltElementBase, Geometry2D
+from .base import SpeckleBuiltElementBase, Geometry
 
 
 class Beam(SpeckleBuiltElementBase):
     """Speckle Beam element
     
-    梁元素，从 Speckle ICurve baseLine 转换为 Geometry2D（梁中心线）
+    梁元素，从 Speckle ICurve baseLine 转换为 Geometry（3D 原生，梁中心线）
+    height 表示横截面深度，而非空间高程
     """
-    geometry_2d: Geometry2D = Field(..., alias='baseLine', description='2D geometry (converted from ICurve baseLine, beam centerline)')
+    geometry: Geometry = Field(..., alias='baseLine', description='3D geometry (converted from ICurve baseLine, beam centerline, coordinates: [[x, y, z], ...])')
     
     model_config = ConfigDict(populate_by_name=True)
 
@@ -25,9 +26,9 @@ class Beam(SpeckleBuiltElementBase):
 class Brace(SpeckleBuiltElementBase):
     """Speckle Brace element
     
-    支撑元素（斜撑），从 Speckle ICurve baseLine 转换为 Geometry2D
+    支撑元素（斜撑），从 Speckle ICurve baseLine 转换为 Geometry（3D 原生）
     """
-    geometry_2d: Geometry2D = Field(..., alias='baseLine', description='2D geometry (converted from ICurve baseLine, brace centerline)')
+    geometry: Geometry = Field(..., alias='baseLine', description='3D geometry (converted from ICurve baseLine, brace centerline, coordinates: [[x, y, z], ...])')
     
     model_config = ConfigDict(populate_by_name=True)
 
@@ -37,7 +38,7 @@ class Structure(SpeckleBuiltElementBase):
     
     结构元素（通用结构构件）
     """
-    geometry_2d: Optional[Geometry2D] = Field(None, description='2D geometry')
+    geometry: Optional[Geometry] = Field(None, description='3D geometry (coordinates: [[x, y, z], ...])')
     
     model_config = ConfigDict(populate_by_name=True)
 
@@ -47,7 +48,7 @@ class Rebar(SpeckleBuiltElementBase):
     
     钢筋元素
     """
-    geometry_2d: Optional[Geometry2D] = Field(None, description='2D geometry (rebar shape)')
+    geometry: Optional[Geometry] = Field(None, description='3D geometry (rebar shape, coordinates: [[x, y, z], ...])')
     
     model_config = ConfigDict(populate_by_name=True)
 

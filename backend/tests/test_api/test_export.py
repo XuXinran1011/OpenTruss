@@ -21,7 +21,7 @@ from app.models.gb50300.nodes import (
     ItemNode, InspectionLotNode, LevelNode
 )
 from app.models.gb50300.element import ElementNode
-from app.models.speckle.base import Geometry2D
+from app.models.speckle.base import Geometry
 
 client = TestClient(app)
 
@@ -124,9 +124,9 @@ def sample_project_structure(memgraph_client):
     
     # 创建测试构件
     element_id = "test_element_api_export_001"
-    geometry_2d = Geometry2D(
+    geometry = Geometry(
         type="Polyline",
-        coordinates=[[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0], [0.0, 0.0]],
+        coordinates=[[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [10.0, 10.0, 0.0], [0.0, 10.0, 0.0], [0.0, 0.0, 0.0]],
         closed=True
     )
     
@@ -134,7 +134,7 @@ def sample_project_structure(memgraph_client):
         id=element_id,
         speckle_id="speckle_001",
         speckle_type="Wall",
-        geometry_2d=geometry_2d,
+        geometry=geometry,
         height=3.0,
         base_offset=0.0,
         level_id=level_id,
@@ -244,3 +244,168 @@ def test_export_ifc_nonexistent_lot():
     
     assert response.status_code == 400  # API 对 ValueError 返回 400，而不是 404
 
+
+@pytest.mark.skipif(not IFC_AVAILABLE, reason="ifcopenshell not available")
+def test_export_ifc_not_approved_status(memgraph_client):
+    """测试导出非 APPROVED 状态的检验批"""
+    lot_id = "test_lot_not_approved"
+    item_id = "test_item_export"
+    
+    # 创建检验批，状态为 SUBMITTED（不能导出）
+    lot_node = InspectionLotNode(
+        id=lot_id,
+        name="测试检验批",
+        status="SUBMITTED",  # 不是 APPROVED 状态
+        item_id=item_id,
+        spatial_scope="test_scope",
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    
+    memgraph_client.create_node("InspectionLot", lot_node.model_dump(exclude_none=True))
+    
+    try:
+        response = client.get(f"/api/v1/export/ifc?inspection_lot_id={lot_id}")
+        
+        assert response.status_code == 400
+        assert "must be approved" in response.json()["detail"].lower() or "status is" in response.json()["detail"].lower()
+    finally:
+        memgraph_client.execute_write(
+            "MATCH (lot:InspectionLot {id: $lot_id}) DETACH DELETE lot",
+            {"lot_id": lot_id}
+        )
+
+
+@pytest.mark.skipif(not IFC_AVAILABLE, reason="ifcopenshell not available")
+@pytest.mark.timeout(60)
+def test_export_ifc_batch_endpoint(sample_project_structure, memgraph_client):
+    """测试批量导出端点 POST /api/v1/export/ifc/batch"""
+    lot_id_1 = sample_project_structure["lot_id"]
+    
+    # 创建第二个检验批
+    item_id = "test_item_001"  # 使用同一个 item_id
+    lot_id_2 = "test_lot_batch_export_002"
+    
+    lot_node_2 = InspectionLotNode(
+        id=lot_id_2,
+        name="测试检验批2",
+        status="APPROVED",
+        item_id=item_id,
+        spatial_scope="test_scope_2",
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    memgraph_client.create_node("InspectionLot", lot_node_2.model_dump(exclude_none=True))
+    
+    # 创建第二个检验批的元素（简化版，只创建基本元素）
+    element_id_2 = "test_element_batch_002"
+    geometry = Geometry(
+        type="Polyline",
+        coordinates=[[0.0, 0.0, 0.0], [5.0, 0.0, 0.0], [5.0, 5.0, 0.0], [0.0, 5.0, 0.0], [0.0, 0.0, 0.0]],
+        closed=True
+    )
+    
+    element_2 = ElementNode(
+        id=element_id_2,
+        speckle_id="speckle_002",
+        speckle_type="Column",
+        geometry=geometry,
+        height=3.0,
+        base_offset=0.0,
+        level_id="test_level_001",
+        inspection_lot_id=lot_id_2,
+        status="Verified",
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    
+    memgraph_client.create_node("Element", element_2.to_cypher_properties())
+    memgraph_client.create_relationship("InspectionLot", lot_id_2, "Element", element_id_2, "MANAGEMENT_CONTAINS")
+    
+    try:
+        response = client.post(
+            "/api/v1/export/ifc/batch",
+            json={"lot_ids": [lot_id_1, lot_id_2]}
+        )
+        
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/octet-stream"
+        assert "batch" in response.headers["content-disposition"].lower()
+        
+        # 验证 IFC 文件内容
+        ifc_bytes = response.content
+        assert len(ifc_bytes) > 0
+    finally:
+        # 清理第二个检验批
+        memgraph_client.execute_write(
+            "MATCH (lot:InspectionLot {id: $lot_id}) DETACH DELETE lot",
+            {"lot_id": lot_id_2}
+        )
+
+
+@pytest.mark.skipif(not IFC_AVAILABLE, reason="ifcopenshell not available")
+def test_export_ifc_batch_empty_list():
+    """测试批量导出空列表"""
+    response = client.post(
+        "/api/v1/export/ifc/batch",
+        json={"lot_ids": []}
+    )
+    
+    assert response.status_code == 422  # Validation error (empty list)
+
+
+@pytest.mark.skipif(not IFC_AVAILABLE, reason="ifcopenshell not available")
+def test_export_ifc_batch_nonexistent_lots():
+    """测试批量导出不存在的检验批"""
+    response = client.post(
+        "/api/v1/export/ifc/batch",
+        json={"lot_ids": ["nonexistent_lot_1", "nonexistent_lot_2"]}
+    )
+    
+    assert response.status_code == 400
+    assert "not found" in response.json()["detail"].lower()
+
+
+@pytest.mark.skipif(not IFC_AVAILABLE, reason="ifcopenshell not available")
+def test_export_ifc_batch_mixed_status(memgraph_client):
+    """测试批量导出包含非 APPROVED 状态的检验批"""
+    lot_id_1 = "test_lot_mixed_1"
+    lot_id_2 = "test_lot_mixed_2"
+    item_id = "test_item_mixed"
+    
+    # 创建两个检验批，一个 APPROVED，一个 SUBMITTED
+    lot_node_1 = InspectionLotNode(
+        id=lot_id_1,
+        name="测试检验批1",
+        status="APPROVED",
+        item_id=item_id,
+        spatial_scope="test_scope_1",
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    lot_node_2 = InspectionLotNode(
+        id=lot_id_2,
+        name="测试检验批2",
+        status="SUBMITTED",  # 不是 APPROVED
+        item_id=item_id,
+        spatial_scope="test_scope_2",
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    
+    memgraph_client.create_node("InspectionLot", lot_node_1.model_dump(exclude_none=True))
+    memgraph_client.create_node("InspectionLot", lot_node_2.model_dump(exclude_none=True))
+    
+    try:
+        response = client.post(
+            "/api/v1/export/ifc/batch",
+            json={"lot_ids": [lot_id_1, lot_id_2]}
+        )
+        
+        assert response.status_code == 400
+        assert "must be approved" in response.json()["detail"].lower() or "status is" in response.json()["detail"].lower()
+    finally:
+        memgraph_client.execute_write(
+            "MATCH (lot:InspectionLot) WHERE lot.id IN $lot_ids DETACH DELETE lot",
+            {"lot_ids": [lot_id_1, lot_id_2]}
+        )

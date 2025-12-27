@@ -6,7 +6,7 @@ import { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { d3, type ZoomTransform, type Selection } from '@/lib/d3-wrapper';
 import { getElements, ElementListItem, ElementDetail, getElementDetail, batchGetElementDetails } from '@/services/elements';
-import { WorkbenchMode, Geometry2D } from '@/types';
+import { WorkbenchMode, Geometry } from '@/types';
 import { useCanvasStore } from '@/stores/canvas';
 import { useWorkbenchStore } from '@/stores/workbench';
 import { findNearestSnapPoint, getGeometryEndpoints, getGeometryMidpoints, getGeometryIntersections, createRectangle, rectangleIntersectsGeometryPrecise, getGeometryBoundingBox, type SnapPointElement, type Rectangle } from '@/utils/topology';
@@ -20,7 +20,8 @@ interface CanvasRendererProps {
   viewTransform: { x: number; y: number; scale: number };
   selectedElementIds: string[];
   mode: WorkbenchMode;
-  routingPath?: { x: number; y: number }[] | null; // MEP路径规划路径点
+  routingPath?: { x: number; y: number }[] | null; // MEP路径规划路径点（已确认，实线）
+  previewPath?: { x: number; y: number }[] | null; // MEP路径规划预览路径点（虚线）
   collidingElementIds?: string[]; // 碰撞的构件ID列表（用于视觉反馈）
   onElementDragStart?: (elementIds: string[]) => void;
   onElementClick?: (elementId: string, event: MouseEvent) => void;
@@ -38,6 +39,7 @@ export function CanvasRenderer({
   selectedElementIds,
   mode,
   routingPath,
+  previewPath,
   collidingElementIds = [],
   onElementDragStart,
   onElementClick,
@@ -187,10 +189,10 @@ export function CanvasRenderer({
       const elementsToIndex = elementsData.items
         .map((element) => {
           const detail = elementDetailsMap.get(element.id);
-          if (detail?.geometry_2d?.coordinates) {
+          if (detail?.geometry?.coordinates) {
             return {
               id: element.id,
-              coordinates: detail.geometry_2d.coordinates,
+              coordinates: detail.geometry.coordinates,
             };
           }
           return null;
@@ -229,7 +231,7 @@ export function CanvasRenderer({
     // 过滤出候选元素，并进行精确检测
     return elementsData.items.filter((element) => {
       const detail = elementDetailsMap.get(element.id);
-      if (!detail?.geometry_2d?.coordinates) {
+      if (!detail?.geometry?.coordinates) {
         // 如果没有几何数据，默认显示（占位渲染）
         return true;
       }
@@ -240,7 +242,7 @@ export function CanvasRenderer({
       }
       
       // 进行精确检测（带缓冲区）
-      return isGeometryInViewport(detail.geometry_2d.coordinates, viewportBounds, bufferSize);
+      return isGeometryInViewport(detail.geometry.coordinates, viewportBounds, bufferSize);
     });
   }, [elementsData, elementDetailsMap, viewportBounds, viewTransform.scale, spatialIndex]);
 
@@ -373,8 +375,8 @@ export function CanvasRenderer({
           if (elementsData?.items && elementDetailsMap) {
             elementsData.items.forEach((element) => {
               const detail = elementDetailsMap.get(element.id);
-              if (detail?.geometry_2d?.coordinates) {
-                if (rectangleIntersectsGeometryPrecise(rect, detail.geometry_2d.coordinates)) {
+              if (detail?.geometry?.coordinates) {
+                if (rectangleIntersectsGeometryPrecise(rect, detail.geometry.coordinates)) {
                   selectedIds.push(element.id);
                 }
               }
@@ -429,7 +431,7 @@ export function CanvasRenderer({
         const elementDetail = elementDetailsMap.get(element.id);
         const isSelected = selectedElementIds.includes(element.id);
         const isColliding = collidingElementIds.includes(element.id);
-        if (elementDetail?.geometry_2d) {
+        if (elementDetail?.geometry) {
           // 使用实际几何数据渲染
           renderElement(
             g,
@@ -458,7 +460,80 @@ export function CanvasRenderer({
         }
       });
       
-      // 渲染MEP路径规划路径（如果存在）
+      // 渲染MEP路径规划预览路径（虚线，如果存在）
+      if (previewPath && previewPath.length >= 2) {
+        const previewGroup = g.append('g').attr('class', 'routing-preview-group');
+        
+        // 创建路径数据（转换为屏幕坐标）
+        const previewData = previewPath.map((pt) => [
+          pt.x * viewTransform.scale + viewTransform.x,
+          pt.y * viewTransform.scale + viewTransform.y,
+        ] as [number, number]);
+        
+        // 使用D3的line生成器创建路径
+        const lineGenerator = d3.line()
+          .x((d: [number, number]) => d[0])
+          .y((d: [number, number]) => d[1]);
+        
+        // 渲染预览路径线（虚线）
+        previewGroup
+          .append('path')
+          .attr('d', lineGenerator(previewData))
+          .attr('fill', 'none')
+          .attr('stroke', '#3B82F6') // blue-500
+          .attr('stroke-width', 2)
+          .attr('stroke-dasharray', '5,5') // 虚线样式
+          .attr('opacity', 0.7) // 半透明
+          .attr('pointer-events', 'none');
+        
+        // 渲染预览路径点（小圆点）
+        previewGroup
+          .selectAll('circle.routing-preview-point')
+          .data(previewData)
+          .enter()
+          .append('circle')
+          .attr('class', 'routing-preview-point')
+          .attr('cx', (d: [number, number]) => d[0])
+          .attr('cy', (d: [number, number]) => d[1])
+          .attr('r', 3)
+          .attr('fill', '#3B82F6') // blue-500
+          .attr('stroke', '#FFFFFF')
+          .attr('stroke-width', 1)
+          .attr('opacity', 0.7) // 半透明
+          .attr('pointer-events', 'none');
+        
+        // 标记起点和终点
+        if (previewData.length > 0) {
+          // 起点（绿色）
+          previewGroup
+            .append('circle')
+            .attr('class', 'routing-preview-start-point')
+            .attr('cx', previewData[0][0])
+            .attr('cy', previewData[0][1])
+            .attr('r', 5)
+            .attr('fill', '#10B981') // green-500
+            .attr('stroke', '#FFFFFF')
+            .attr('stroke-width', 2)
+            .attr('opacity', 0.7) // 半透明
+            .attr('pointer-events', 'none');
+          
+          // 终点（红色）
+          const lastPoint = previewData[previewData.length - 1];
+          previewGroup
+            .append('circle')
+            .attr('class', 'routing-preview-end-point')
+            .attr('cx', lastPoint[0])
+            .attr('cy', lastPoint[1])
+            .attr('r', 5)
+            .attr('fill', '#EF4444') // red-500
+            .attr('stroke', '#FFFFFF')
+            .attr('stroke-width', 2)
+            .attr('opacity', 0.7) // 半透明
+            .attr('pointer-events', 'none');
+        }
+      }
+      
+      // 渲染MEP路径规划已确认路径（实线，如果存在）
       if (routingPath && routingPath.length >= 2) {
         const pathGroup = g.append('g').attr('class', 'routing-path-group');
         
@@ -473,14 +548,14 @@ export function CanvasRenderer({
           .x((d: [number, number]) => d[0])
           .y((d: [number, number]) => d[1]);
         
-        // 渲染路径线
+        // 渲染已确认路径线（实线）
         pathGroup
           .append('path')
           .attr('d', lineGenerator(pathData))
           .attr('fill', 'none')
           .attr('stroke', '#3B82F6') // blue-500
           .attr('stroke-width', 2)
-          .attr('stroke-dasharray', '5,5')
+          // 不设置stroke-dasharray，使用实线
           .attr('pointer-events', 'none');
         
         // 渲染路径点（小圆点）
@@ -581,7 +656,7 @@ export function CanvasRenderer({
           .attr('pointer-events', 'none');
       }
     }
-  }, [svgRef, viewportFilteredElements, elementDetailsMap, width, height, viewTransform, selectedElementIds, mode, liftMode, setViewTransform, onElementDragStart, onElementClick, onElementDrag, onElementDragEnd, snapLine, selectionBox, isSelecting, elementsData, onSelectionChange, onSelectionAdd, onSelectionClear, SNAP_DISTANCE, routingPath]);
+  }, [svgRef, viewportFilteredElements, elementDetailsMap, width, height, viewTransform, selectedElementIds, mode, liftMode, setViewTransform, onElementDragStart, onElementClick, onElementDrag, onElementDragEnd, snapLine, selectionBox, isSelecting, elementsData, onSelectionChange, onSelectionAdd, onSelectionClear, SNAP_DISTANCE, routingPath, previewPath]);
 
   return (
     <svg
@@ -616,8 +691,8 @@ function renderElement(
   isDraggingElementRef?: React.MutableRefObject<boolean>,
   setDragPosition?: (position: { x: number; y: number } | null) => void
 ) {
-  const { geometry_2d } = element;
-  if (!geometry_2d || !geometry_2d.coordinates || geometry_2d.coordinates.length < 2) {
+  const { geometry } = element;
+  if (!geometry || !geometry.coordinates || geometry.coordinates.length < 2) {
     return;
   }
 
@@ -637,7 +712,8 @@ function renderElement(
     mode === 'lift' && liftMode.showZMissing && !element.height ? '4,4' : undefined;
 
   // 创建路径数据（使用本地副本以便拖拽时修改）
-  let coordinates = geometry_2d.coordinates.map((coord) => [coord[0] || 0, coord[1] || 0] as [number, number]);
+  // 提取 X, Y 坐标用于 2D 渲染（忽略 Z 坐标，但保持 3D 原生数据）
+  let coordinates = geometry.coordinates.map((coord) => [coord[0] || 0, coord[1] || 0] as [number, number]);
   const originalCoordinates = [...coordinates];
 
   // 创建元素组
@@ -667,8 +743,8 @@ function renderElement(
         allElements.forEach((el) => {
           if (el.id !== element.id) {
             const detail = elementDetailsMap.get(el.id);
-            if (detail?.geometry_2d?.coordinates) {
-              const endpoints = getGeometryEndpoints(detail.geometry_2d.coordinates);
+            if (detail?.geometry?.coordinates) {
+              const endpoints = getGeometryEndpoints(detail.geometry.coordinates);
               endpoints.forEach(endpoint => {
                 snapPoints.push({
                   x: endpoint.x,
@@ -697,8 +773,8 @@ function renderElement(
         allElements.forEach((el) => {
           if (el.id !== element.id) {
             const detail = elementDetailsMap.get(el.id);
-            if (detail?.geometry_2d?.coordinates && detail.geometry_2d.coordinates.length >= 2) {
-              const elementMidpoints = getGeometryMidpoints(detail.geometry_2d.coordinates);
+            if (detail?.geometry?.coordinates && detail.geometry.coordinates.length >= 2) {
+              const elementMidpoints = getGeometryMidpoints(detail.geometry.coordinates);
               midpoints.push(...elementMidpoints);
             }
           }
@@ -714,7 +790,7 @@ function renderElement(
           .slice(0, 20) // 限制最多20个其他几何，避免性能问题
           .map(el => {
             const detail = elementDetailsMap.get(el.id);
-            return detail?.geometry_2d?.coordinates ? { coordinates: detail.geometry_2d.coordinates } : null;
+            return detail?.geometry?.coordinates ? { coordinates: detail.geometry.coordinates } : null;
           })
           .filter((g): g is { coordinates: number[][] } => g !== null);
         
@@ -791,7 +867,7 @@ function renderElement(
         }
 
         // 更新渲染（直接更新，D3 会优化渲染）
-        updateElementVisual(elementGroup, adjustedCoordinates, geometry_2d.type, geometry_2d.closed, color, strokeWidth, strokeDasharray);
+        updateElementVisual(elementGroup, adjustedCoordinates, geometry.type, geometry.closed, color, strokeWidth, strokeDasharray);
 
         // 通知拖拽事件（可选，用于实时反馈）
         // 注意：为了性能，这里不频繁调用，只在必要时调用
@@ -807,7 +883,7 @@ function renderElement(
         
         // 通知拖拽结束事件（传递原始几何类型信息）
         if (onElementDragEnd) {
-          onElementDragEnd(element.id, coordinates, geometry_2d.type, geometry_2d.closed);
+          onElementDragEnd(element.id, coordinates, geometry.type, geometry.closed);
         }
         
         // 重置坐标（实际更新应该在 onElementDragEnd 中处理）
@@ -865,7 +941,7 @@ function renderElement(
   }
 
   // 初始渲染
-  updateElementVisual(elementGroup, coordinates, geometry_2d.type, geometry_2d.closed, color, strokeWidth, strokeDasharray);
+  updateElementVisual(elementGroup, coordinates, geometry.type, geometry.closed, color, strokeWidth, strokeDasharray);
 
   // 添加标题
   elementGroup.append('title').text(`${element.id} (${element.speckle_type})`);

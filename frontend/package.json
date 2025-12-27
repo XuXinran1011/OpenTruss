@@ -18,13 +18,17 @@
     "generate-api": "openapi-typescript-codegen --input ../../temp/openapi.json --output ./src/lib/api --useOptions --useUnionTypes"
   },
   "dependencies": {
+    "@react-three/drei": "^9.88.13",
+    "@react-three/fiber": "^8.15.11",
     "@tanstack/react-query": "^5.17.0",
     "@types/d3": "^7.4.3",
     "clsx": "^2.1.0",
     "d3": "^7.9.0",
     "next": "^14.0.0",
+    "rbush": "^3.0.1",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
+    "three": "^0.158.0",
     "tailwind-merge": "^2.2.0",
     "zustand": "^4.5.0"
   },
@@ -39,8 +43,10 @@
     "@types/d3-zoom": "^3.0.8",
     "@types/jest": "^29.5.11",
     "@types/node": "^20.0.0",
+    "@types/rbush": "^4.0.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
+    "@types/three": "^0.158.3",
     "autoprefixer": "^10.4.17",
     "eslint": "^8.57.1",
     "eslint-config-next": "^14.2.35",

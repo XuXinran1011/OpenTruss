@@ -30,6 +30,16 @@ class RelationshipType(str, Enum):
     
     # 审批历史关系（InspectionLot -> ApprovalHistory）
     HAS_APPROVAL_HISTORY = "HAS_APPROVAL_HISTORY"
+    
+    # 支吊架关系（Element -> Element）
+    SUPPORTS = "SUPPORTS"  # 支吊架支撑MEP元素（Hanger -> Element）
+    HAS_HANGER = "HAS_HANGER"  # MEP元素有支吊架（Element -> Hanger，反向关系）
+    
+    # 容器关系（Element -> Element）
+    CONTAINED_IN = "CONTAINED_IN"  # 电缆/电线包含在桥架/线管中（Wire/Cable -> CableTray/Conduit）
+    
+    # 综合支吊架关系（Element -> Element）
+    USES_INTEGRATED_HANGER = "USES_INTEGRATED_HANGER"  # 元素使用综合支吊架（Element -> IntegratedHanger）
 
 
 # 关系类型常量（方便使用）
@@ -40,4 +50,8 @@ LOCATED_AT = RelationshipType.LOCATED_AT
 CONNECTED_TO = RelationshipType.CONNECTED_TO
 HAS_LOT = RelationshipType.HAS_LOT
 HAS_APPROVAL_HISTORY = RelationshipType.HAS_APPROVAL_HISTORY
+SUPPORTS = RelationshipType.SUPPORTS
+HAS_HANGER = RelationshipType.HAS_HANGER
+CONTAINED_IN = RelationshipType.CONTAINED_IN
+USES_INTEGRATED_HANGER = RelationshipType.USES_INTEGRATED_HANGER
 

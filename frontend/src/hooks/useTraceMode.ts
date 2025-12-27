@@ -60,7 +60,7 @@ export function useTraceMode() {
       setError({ message: '构件 ID 不能为空', elementId });
       return;
     }
-    if (request.geometry_2d && (!request.geometry_2d.coordinates || request.geometry_2d.coordinates.length < 2)) {
+    if (request.geometry && (!request.geometry.coordinates || request.geometry.coordinates.length < 2)) {
       setError({ message: '几何坐标无效，至少需要 2 个点', elementId });
       return;
     }

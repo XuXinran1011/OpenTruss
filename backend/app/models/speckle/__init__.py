@@ -6,8 +6,11 @@
 """
 
 from .base import (
-    Geometry2D,
+    Point,
+    Geometry,
+    Geometry2D,  # 向后兼容别名（已废弃）
     SpeckleBuiltElementBase,
+    normalize_coordinates,
 )
 
 from .architectural import (
@@ -31,6 +34,8 @@ from .mep import (
     CableTray,
     Conduit,
     Wire,
+    Hanger,
+    IntegratedHanger,
 )
 
 from .spatial import (
@@ -63,7 +68,7 @@ SpeckleBuiltElement = Union[
     # Structural
     Beam, Brace, Structure, Rebar,
     # MEP
-    Duct, Pipe, CableTray, Conduit, Wire,
+    Duct, Pipe, CableTray, Conduit, Wire, Hanger, IntegratedHanger,
     # Spatial
     Level, Room, Space, Zone, Area,
     # Other
@@ -73,9 +78,12 @@ SpeckleBuiltElement = Union[
 
 __all__ = [
     # Base
-    "Geometry2D",
+    "Point",
+    "Geometry",
+    "Geometry2D",  # 向后兼容别名（已废弃）
     "SpeckleBuiltElementBase",
     "SpeckleBuiltElement",
+    "normalize_coordinates",
     # Architectural
     "Wall",
     "Floor",
@@ -93,6 +101,8 @@ __all__ = [
     "CableTray",
     "Conduit",
     "Wire",
+    "Hanger",
+    "IntegratedHanger",
     # Spatial
     "Level",
     "Room",

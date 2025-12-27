@@ -6,7 +6,7 @@ from app.services.ingestion import IngestionService
 from app.utils.memgraph import MemgraphClient
 from app.services.schema import initialize_schema
 from app.models.speckle.architectural import Wall
-from app.models.speckle.base import Geometry2D
+from app.models.speckle.base import Geometry
 from app.models.api.elements import (
     TopologyUpdateRequest,
     ElementUpdateRequest,
@@ -40,9 +40,9 @@ def test_element(ingestion_service):
     """创建测试用的构件"""
     wall = Wall(
         speckle_type="Wall",
-        geometry_2d=Geometry2D(
+        geometry=Geometry(
             type="Polyline",
-            coordinates=[[0, 0], [10, 0], [10, 5], [0, 5], [0, 0]],
+            coordinates=[[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0], [0, 0, 0]],
             closed=True
         ),
         level_id="level_test_workbench",
@@ -113,14 +113,14 @@ def test_get_unassigned_elements(workbench_service, test_element):
 
 def test_update_element_topology(workbench_service, test_element):
     """测试更新构件拓扑关系（Trace Mode）"""
-    new_geometry = Geometry2D(
+    new_geometry = Geometry(
         type="Polyline",
-        coordinates=[[0, 0], [15, 0], [15, 5], [0, 5], [0, 0]],
+        coordinates=[[0, 0, 0], [15, 0, 0], [15, 5, 0], [0, 5, 0], [0, 0, 0]],
         closed=True
     )
     
     request = TopologyUpdateRequest(
-        geometry_2d=new_geometry,
+        geometry=new_geometry,
         connected_elements=[],
     )
     
@@ -131,7 +131,7 @@ def test_update_element_topology(workbench_service, test_element):
     
     # 验证几何数据已更新
     element = workbench_service.get_element(test_element)
-    assert element.geometry_2d.coordinates == new_geometry.coordinates
+    assert element.geometry.coordinates == new_geometry.coordinates
 
 
 def test_update_element_topology_with_connections(workbench_service, ingestion_service):
@@ -139,9 +139,9 @@ def test_update_element_topology_with_connections(workbench_service, ingestion_s
     # 创建两个构件
     wall1 = Wall(
         speckle_type="Wall",
-        geometry_2d=Geometry2D(
+        geometry=Geometry(
             type="Polyline",
-            coordinates=[[0, 0], [10, 0], [10, 5], [0, 5], [0, 0]],
+            coordinates=[[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0], [0, 0, 0]],
             closed=True
         ),
         level_id="level_test_workbench",
@@ -150,9 +150,9 @@ def test_update_element_topology_with_connections(workbench_service, ingestion_s
     
     wall2 = Wall(
         speckle_type="Wall",
-        geometry_2d=Geometry2D(
+        geometry=Geometry(
             type="Polyline",
-            coordinates=[[10, 0], [20, 0], [20, 5], [10, 5], [10, 0]],
+            coordinates=[[10, 0, 0], [20, 0, 0], [20, 5, 0], [10, 5, 0], [10, 0, 0]],
             closed=True
         ),
         level_id="level_test_workbench",
@@ -237,9 +237,9 @@ def test_batch_lift_elements(workbench_service, ingestion_service):
     for i in range(3):
         wall = Wall(
             speckle_type="Wall",
-            geometry_2d=Geometry2D(
+            geometry=Geometry(
                 type="Polyline",
-                coordinates=[[i*10, 0], [(i+1)*10, 0], [(i+1)*10, 5], [i*10, 5], [i*10, 0]],
+                coordinates=[[i*10, 0, 0], [(i+1)*10, 0, 0], [(i+1)*10, 5, 0], [i*10, 5, 0], [i*10, 0, 0]],
                 closed=True
             ),
             level_id="level_test_workbench",
@@ -286,7 +286,7 @@ def test_classify_element(workbench_service, ingestion_service):
     from app.models.gb50300.nodes import ItemNode
     from datetime import datetime
     
-    item_id = "test_item_classify"
+    item_id = "item_test_classify"
     item = ItemNode(
         id=item_id,
         name="测试分项",
@@ -299,9 +299,9 @@ def test_classify_element(workbench_service, ingestion_service):
     # 创建测试构件
     wall = Wall(
         speckle_type="Wall",
-        geometry_2d=Geometry2D(
+        geometry=Geometry(
             type="Polyline",
-            coordinates=[[0, 0], [10, 0], [10, 5], [0, 5], [0, 0]],
+            coordinates=[[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0], [0, 0, 0]],
             closed=True
         ),
         level_id="level_test_workbench",
@@ -322,7 +322,7 @@ def test_classify_element(workbench_service, ingestion_service):
 
 def test_classify_element_not_found(workbench_service):
     """测试归类不存在的构件（应该失败）"""
-    request = ClassifyRequest(item_id="test_item_001")
+    request = ClassifyRequest(item_id="item_test_001")
     
     with pytest.raises(ValueError, match="Element not found"):
         workbench_service.classify_element("nonexistent_element", request)
@@ -330,7 +330,7 @@ def test_classify_element_not_found(workbench_service):
 
 def test_classify_element_item_not_found(workbench_service, test_element):
     """测试归类到不存在的 Item（应该失败）"""
-    request = ClassifyRequest(item_id="nonexistent_item")
+    request = ClassifyRequest(item_id="item_nonexistent")
     
     with pytest.raises(ValueError, match="Item not found"):
         workbench_service.classify_element(test_element, request)

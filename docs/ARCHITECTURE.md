@@ -274,21 +274,70 @@ semantic_allowlist = {
 
 #### 3.3.4 审批工作流服务 (Approval Service)
 
+**实现状态**：✅ **已实现**（OpenTruss Phase 4）
+
 **职责**：
-- 管理检验批状态机
+- 管理检验批状态机（PLANNING → IN_PROGRESS → SUBMITTED → APPROVED → PUBLISHED）
 - 验证完整性（高度、材质、闭合拓扑）
 - 处理审批/驳回操作
-- 发送通知
+- 记录审批历史
+
+**状态转换规则**：
+- `PLANNING` → `IN_PROGRESS`: 负责人手动更新
+- `IN_PROGRESS` → `SUBMITTED`: 负责人提交，触发完整性验证和规则引擎校验
+- `SUBMITTED` → `APPROVED`: 必须通过审批端点完成，由 APPROVER 角色执行
+- `APPROVED` → `PUBLISHED`: 负责人手动更新
+- 驳回操作：APPROVER 可将 `SUBMITTED` 驳回至 `IN_PROGRESS`；PM 可将 `SUBMITTED` 或 `APPROVED` 驳回至 `IN_PROGRESS` 或 `PLANNING`
+
+**API 端点**：
+- `POST /api/v1/lots/{lot_id}/approve` - 审批通过
+- `POST /api/v1/lots/{lot_id}/reject` - 驳回检验批
+- `GET /api/v1/lots/{lot_id}/approval-history` - 获取审批历史
+
+**实现位置**：
+- `backend/app/services/approval.py` - ApprovalService 服务
+- `backend/app/api/v1/approval.py` - API 端点
 
 #### 3.3.5 IFC 导出服务 (Export Service)
+
+**实现状态**：✅ **已实现**（OpenTruss Phase 4）
 
 **技术栈**：ifcopenshell
 
 **职责**：
-- 按检验批导出 IFC 模型
+- 按检验批导出 IFC 模型（单个检验批）
+- 批量导出多个检验批为单个 IFC 文件（合并导出）
+- 导出整个项目的所有检验批
 - 几何生成（2D → 3D Lift）
 - IFC 文件生成与验证
 - 支持 Revit/Navisworks 兼容性
+
+**导出要求**：
+- 检验批必须处于 `APPROVED` 状态
+- 所有构件必须具有完整的几何信息（geometry, height, base_offset）
+- 批量导出时，所有检验批必须属于同一个项目
+
+**支持的 Speckle 类型映射**：
+- Wall → IfcWall
+- Column → IfcColumn
+- Beam → IfcBeam
+- Brace → IfcMember
+- Floor → IfcSlab
+- Roof → IfcRoof
+- Ceiling → IfcCovering
+- Duct → IfcDuctSegment
+- Pipe → IfcPipeSegment
+- CableTray → IfcCableSegment
+- Conduit → IfcCableSegment
+
+**API 端点**：
+- `GET /api/v1/export/ifc?inspection_lot_id={id}` - 导出单个检验批
+- `GET /api/v1/export/ifc?project_id={id}` - 导出整个项目
+- `POST /api/v1/export/ifc/batch` - 批量导出多个检验批
+
+**实现位置**：
+- `backend/app/services/export.py` - ExportService 服务
+- `backend/app/api/v1/export.py` - API 端点
 
 #### 3.3.6 MEP 路由规划服务 (Routing Service)
 
@@ -337,10 +386,17 @@ graph TB
 1. **路由规划**：计算符合约束的最短路径
 2. **约束验证**：坡度、角度、转弯半径、宽度约束
 3. **空间限制**：检查并避开禁止穿过的空间
-4. **原始路由约束**：新路由不能经过原始路由未经过的房间
+4. **原始路由约束**：新路由不能经过原始路由未经过的房间（仅针对Room，非房间Space允许通过）
 5. **分步路由规划**：支持按分项/系统/规格区间筛选
 
-详细说明参见 [MEP_ROUTING_DETAILED.md](./MEP_ROUTING_DETAILED.md)。
+**Room和Space数据模型关系**：
+- **Room（房间）**：具体的房间元素，存储在Memgraph中
+- **Space（空间）**：MEP空间元素，包含房间空间和公共空间（如走廊、大厅等）
+- **关联关系**：Space通过`room_id`字段关联到Room。如果`Space.room_id`存在，则该Space受原始路由约束限制；如果为None，则为非房间空间，允许作为更短路由使用
+- **约束逻辑**：原始路由约束仅针对Room。Element的`original_route_room_ids`字段存储Room ID列表（不是Space ID），用于验证Room约束
+- **设计决策**：区分Room和Space约束的目的是允许系统在非房间空间（走廊、大厅等）中优化路由，提高路由规划的灵活性
+
+详细说明参见 [MEP_ROUTING_DETAILED.md](./MEP_ROUTING_DETAILED.md#4-原始路由约束)。
 
 #### 3.3.7 管线综合排布服务 (Coordination Service)
 
@@ -587,7 +643,8 @@ sequenceDiagram
     RoutingService->>Memgraph: 查询障碍物<br/>(Beam, Column, Space)
     Memgraph-->>RoutingService: 返回障碍物
     RoutingService->>RoutingService: 检查空间限制<br/>(forbid_horizontal_mep)
-    RoutingService->>RoutingService: 计算最短路径<br/>(符合约束条件)
+    RoutingService->>RoutingService: 验证Room约束<br/>(原始路由未经过的Room不能穿过)
+    RoutingService->>RoutingService: 计算最短路径<br/>(符合约束条件，非房间Space允许通过)
     RoutingService-->>RoutingAPI: 返回路径点
     RoutingAPI-->>Frontend: {path_points, constraints, warnings}
     Frontend-->>MEPEngineer: 显示路径（虚线/半透明）

@@ -9,7 +9,7 @@ from decimal import Decimal
 import logging
 import json
 
-from app.models.speckle.base import Geometry2D, SpeckleBuiltElementBase
+from app.models.speckle.base import Geometry, Geometry2D, normalize_coordinates
 
 if TYPE_CHECKING:
     from app.utils.memgraph import MemgraphClient
@@ -21,9 +21,14 @@ logger = logging.getLogger(__name__)
 IFC_MIN_LENGTH = 0.01  # 最小长度（米）
 IFC_MAX_LENGTH = 10000.0  # 最大长度（米）
 IFC_MIN_HEIGHT = 0.01  # 最小高度（米）
-IFC_MAX_HEIGHT = 1000.0  # 最大高度（米）
+IFC_MAX_HEIGHT = 1000.0  # 最大高度（米，用于 Walls/Columns 的拉伸距离）
+IFC_MAX_CROSS_SECTION_DEPTH = 2.0  # 最大横截面深度（米，用于 Beams/Pipes）
 IFC_MIN_ANGLE = 0.0  # 最小角度（度）
 IFC_MAX_ANGLE = 360.0  # 最大角度（度）
+
+# 构件类型分类（用于 height 验证）
+EXTRUSION_ELEMENT_TYPES = {"Wall", "Column", "Floor", "Ceiling", "Roof"}  # height 表示拉伸距离
+CROSS_SECTION_ELEMENT_TYPES = {"Beam", "Pipe", "Duct", "CableTray", "Conduit"}  # height 表示横截面深度
 
 # 允许的构件类型（根据 IFC 标准）
 ALLOWED_SPECKLE_TYPES = {
@@ -46,14 +51,14 @@ class GeometryValidator:
     
     @staticmethod
     def validate_coordinates(coordinates: list, info: ValidationInfo) -> list:
-        """验证坐标数据
+        """验证坐标数据（支持 2D 和 3D 输入）
         
         Args:
-            coordinates: 坐标列表
+            coordinates: 坐标列表，可以是 2D [[x, y], ...] 或 3D [[x, y, z], ...]
             info: 验证上下文信息
             
         Returns:
-            验证后的坐标列表
+            验证后的 3D 坐标列表 [[x, y, z], ...]（2D 输入自动补 z=0.0）
             
         Raises:
             ValueError: 坐标不符合要求
@@ -64,26 +69,38 @@ class GeometryValidator:
         if len(coordinates) < 2:
             raise ValueError("坐标至少需要2个点")
         
-        # 验证每个坐标点
-        for i, point in enumerate(coordinates):
+        # 使用 normalize_coordinates 规范化坐标（2D→3D 转换）
+        try:
+            normalized = normalize_coordinates(coordinates)
+        except ValueError as e:
+            raise ValueError(f"坐标规范化失败: {e}")
+        
+        # 验证每个坐标点（现在应该是 3D）
+        for i, point in enumerate(normalized):
             if not isinstance(point, (list, tuple)):
                 raise ValueError(f"坐标点 {i} 必须是列表或元组")
             
-            if len(point) != 2:
-                raise ValueError(f"坐标点 {i} 必须包含2个值 (x, y)")
+            if len(point) != 3:
+                raise ValueError(f"坐标点 {i} 必须包含3个值 (x, y, z)，got {len(point)}")
             
-            x, y = point
-            if not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+            x, y, z = point
+            if (not isinstance(x, (int, float)) or 
+                not isinstance(y, (int, float)) or 
+                not isinstance(z, (int, float))):
                 raise ValueError(f"坐标点 {i} 的值必须是数字")
             
             # 检查坐标范围（合理的建筑尺寸范围）
             if abs(x) > IFC_MAX_LENGTH or abs(y) > IFC_MAX_LENGTH:
-                raise ValueError(f"坐标点 {i} 超出允许范围 (最大 {IFC_MAX_LENGTH} 米)")
+                raise ValueError(f"坐标点 {i} 的 X 或 Y 超出允许范围 (最大 {IFC_MAX_LENGTH} 米)")
+            
+            # Z 坐标范围检查（允许负值，如地下室）
+            if abs(z) > IFC_MAX_HEIGHT:
+                raise ValueError(f"坐标点 {i} 的 Z 超出允许范围 (最大 {IFC_MAX_HEIGHT} 米)")
         
-        return coordinates
+        return normalized
     
     @staticmethod
-    def validate_polyline_closed(geometry: Geometry2D) -> Geometry2D:
+    def validate_polyline_closed(geometry: Geometry) -> Geometry:
         """验证 Polyline 是否闭合
         
         Args:
@@ -100,11 +117,17 @@ class GeometryValidator:
             if len(coords) < 3:
                 raise ValueError("闭合的 Polyline 至少需要3个点")
             
-            # 检查首尾点是否相同
+            # 检查首尾点是否相同（3D 坐标比较）
             first = coords[0]
             last = coords[-1]
-            if first != last:
-                raise ValueError("标记为闭合的 Polyline，首尾点必须相同")
+            # 确保是 3D 坐标进行比较（使用数值比较，避免浮点误差）
+            if len(first) != 3 or len(last) != 3:
+                raise ValueError("坐标点必须是 3D [x, y, z]")
+            # 允许小的浮点误差
+            if (abs(first[0] - last[0]) > 1e-6 or 
+                abs(first[1] - last[1]) > 1e-6 or 
+                abs(first[2] - last[2]) > 1e-6):
+                raise ValueError("标记为闭合的 Polyline，首尾点必须相同（3D 坐标）")
         
         return geometry
 
@@ -113,12 +136,17 @@ class IFCConstraintValidator:
     """IFC 标准约束验证器"""
     
     @staticmethod
-    def validate_height(height: float | None, info: ValidationInfo) -> float | None:
+    def validate_height(height: float | None, info: ValidationInfo = None, speckle_type: str | None = None) -> float | None:
         """验证高度值是否符合 IFC 标准
+        
+        根据构件类型应用不同的验证逻辑：
+        - Walls/Columns: height 表示拉伸距离，验证范围 0.01 - 1000.0 米
+        - Beams/Pipes: height 表示横截面深度，验证范围 0.01 - 2.0 米
         
         Args:
             height: 高度值（米）
-            info: 验证上下文信息
+            info: 验证上下文信息（Pydantic ValidationInfo，可选）
+            speckle_type: 构件类型（可选，如果提供则使用类型特定的验证规则）
             
         Returns:
             验证后的高度值
@@ -132,11 +160,33 @@ class IFCConstraintValidator:
         if not isinstance(height, (int, float)):
             raise ValueError("高度必须是数字")
         
+        # 尝试从 ValidationInfo 获取 speckle_type
+        if speckle_type is None and info is not None:
+            try:
+                # 在 Pydantic v2 中，可以通过 info.data 访问父模型数据
+                if hasattr(info, 'data') and info.data:
+                    speckle_type = info.data.get('speckle_type')
+            except (AttributeError, KeyError):
+                pass
+        
+        # 根据构件类型确定最大高度
+        if speckle_type and speckle_type in CROSS_SECTION_ELEMENT_TYPES:
+            # Beams/Pipes: 横截面深度，通常不超过 2 米
+            max_height = IFC_MAX_CROSS_SECTION_DEPTH
+            height_meaning = "横截面深度"
+        else:
+            # Walls/Columns 等: 拉伸距离，可以使用较大的范围
+            max_height = IFC_MAX_HEIGHT
+            height_meaning = "拉伸距离" if (speckle_type and speckle_type in EXTRUSION_ELEMENT_TYPES) else "高度"
+        
         if height < IFC_MIN_HEIGHT:
             raise ValueError(f"高度 {height} 小于最小允许值 {IFC_MIN_HEIGHT} 米")
         
-        if height > IFC_MAX_HEIGHT:
-            raise ValueError(f"高度 {height} 超过最大允许值 {IFC_MAX_HEIGHT} 米")
+        if height > max_height:
+            raise ValueError(
+                f"{height_meaning} {height} 超过最大允许值 {max_height} 米"
+                f"（{speckle_type or '该构件类型'}）"
+            )
         
         return float(height)
     
@@ -189,7 +239,7 @@ class IFCConstraintValidator:
         return speckle_type
     
     @staticmethod
-    def validate_geometry_length(geometry: Geometry2D) -> Geometry2D:
+    def validate_geometry_length(geometry: Geometry) -> Geometry:
         """验证几何图形的尺寸是否符合 IFC 标准
         
         Args:
@@ -205,14 +255,16 @@ class IFCConstraintValidator:
         if len(coords) < 2:
             return geometry
         
-        # 计算所有线段的总长度
+        # 计算所有线段的总长度（3D 距离）
         total_length = 0.0
         for i in range(len(coords) - 1):
             p1 = coords[i]
             p2 = coords[i + 1]
+            # 3D 距离计算
             dx = p2[0] - p1[0]
             dy = p2[1] - p1[1]
-            length = (dx ** 2 + dy ** 2) ** 0.5
+            dz = p2[2] - p1[2] if len(p2) >= 3 else 0.0
+            length = (dx ** 2 + dy ** 2 + dz ** 2) ** 0.5
             total_length += length
         
         # 检查总长度
@@ -858,7 +910,7 @@ class ConstructabilityValidator:
         dy = end[1] - start[1]
         
         # 计算角度（0-360度）
-        angle = math.atan2(dy, dx) * (180 / math.PI)
+        angle = math.atan2(dy, dx) * (180 / math.pi)
         if angle < 0:
             angle += 360
         
@@ -900,19 +952,19 @@ class SpatialValidator:
                 "maxZ": float
             }
         """
-        # 解析 geometry_2d
-        geometry_2d_data = element.get("geometry_2d")
-        if isinstance(geometry_2d_data, str):
+        # 解析 geometry（3D 原生）
+        geometry_data = element.get("geometry")
+        if isinstance(geometry_data, str):
             try:
-                geometry_2d_data = json.loads(geometry_2d_data)
+                geometry_data = json.loads(geometry_data)
             except json.JSONDecodeError:
-                logger.warning(f"Failed to parse geometry_2d JSON for element {element.get('id')}")
+                logger.warning(f"Failed to parse geometry JSON for element {element.get('id')}")
                 return None
         
-        if not geometry_2d_data or not isinstance(geometry_2d_data, dict):
+        if not geometry_data or not isinstance(geometry_data, dict):
             return None
         
-        coordinates = geometry_2d_data.get("coordinates")
+        coordinates = geometry_data.get("coordinates")
         if not coordinates or len(coordinates) < 2:
             return None
         
@@ -998,7 +1050,7 @@ class SpatialValidator:
         elements_query = """
         MATCH (e:Element)
         WHERE e.id IN $element_ids
-        RETURN e.id as id, e.geometry_2d as geometry_2d, e.height as height, e.base_offset as base_offset
+        RETURN e.id as id, e.geometry as geometry, e.height as height, e.base_offset as base_offset
         """
         elements_result = self.client.execute_query(elements_query, {"element_ids": element_ids})
         
@@ -1018,7 +1070,7 @@ class SpatialValidator:
             
             element_dict = {
                 "id": element_id,
-                "geometry_2d": row.get("geometry_2d"),
+                "geometry": row.get("geometry"),
                 "height": row.get("height"),
                 "base_offset": row.get("base_offset"),
             }

@@ -63,7 +63,8 @@ system_info = Info(
 # 初始化系统信息
 system_info.info({
     "version": "1.0.0",
-    "description": "OpenTruss - Graph First BIM Middleware"
+    "description": "OpenTruss - Graph First BIM Middleware",
+    "release_date": "2025-01-01"
 })
 
 

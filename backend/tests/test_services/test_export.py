@@ -19,7 +19,7 @@ from app.models.gb50300.nodes import (
     ItemNode, InspectionLotNode, LevelNode
 )
 from app.models.gb50300.element import ElementNode
-from app.models.speckle.base import Geometry2D
+from app.models.speckle.base import Geometry
 
 
 @pytest.fixture
@@ -147,9 +147,9 @@ def sample_element_with_geometry(memgraph_client, sample_project_structure):
     lot_id = sample_project_structure["lot_id"]
     level_id = sample_project_structure["level_id"]
     
-    geometry_2d = Geometry2D(
+    geometry = Geometry(
         type="Polyline",
-        coordinates=[[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0], [0.0, 0.0]],
+        coordinates=[[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [10.0, 10.0, 0.0], [0.0, 10.0, 0.0], [0.0, 0.0, 0.0]],
         closed=True
     )
     
@@ -157,7 +157,7 @@ def sample_element_with_geometry(memgraph_client, sample_project_structure):
         id=element_id,
         speckle_id="speckle_001",
         speckle_type="Wall",
-        geometry_2d=geometry_2d,
+        geometry=geometry,
         height=3.0,
         base_offset=0.0,
         level_id=level_id,

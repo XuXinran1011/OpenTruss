@@ -22,9 +22,9 @@ def sample_ingest_request():
         "elements": [
             {
                 "speckle_type": "Wall",
-                "geometry_2d": {
+                "geometry": {
                     "type": "Polyline",
-                    "coordinates": [[0, 0], [10, 0], [10, 5], [0, 5], [0, 0]],
+                    "coordinates": [[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0], [0, 0, 0]],
                     "closed": True
                 },
                 "level_id": "level_f1"

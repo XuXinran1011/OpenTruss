@@ -3,9 +3,15 @@
 提供检验批审批和驳回接口
 """
 
+import logging
+from datetime import datetime
+from typing import Dict, Any
 from fastapi import APIRouter, HTTPException, status, Depends
 
 from app.services.approval import ApprovalService, ApprovalRole
+from app.core.exceptions import NotFoundError, ConflictError, ValidationError
+
+logger = logging.getLogger(__name__)
 from app.models.api.approval import (
     ApproveRequest,
     RejectRequest,
@@ -13,6 +19,9 @@ from app.models.api.approval import (
     RejectResponse,
     ApprovalHistoryResponse,
     ApprovalHistoryItem,
+    BatchApproveRequest,
+    BatchApproveResponse,
+    BatchApproveResult,
 )
 from app.utils.memgraph import get_memgraph_client, MemgraphClient
 from app.core.auth import get_current_user, require_approver, require_pm, TokenData
@@ -38,7 +47,7 @@ async def approve_lot(
     request: ApproveRequest,
     service: ApprovalService = Depends(get_approval_service),
     current_user: TokenData = Depends(require_approver),
-) -> dict:
+) -> Dict[str, Any]:
     """审批通过检验批"""
     try:
         # 使用当前认证用户的信息（而不是请求中的 approver_id）
@@ -61,15 +70,21 @@ async def approve_lot(
             "data": response.model_dump()
         }
         
-    except ValueError as e:
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=e.message
+        )
+    except (ConflictError, ValidationError) as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=e.message
         )
     except Exception as e:
+        logger.error(f"Failed to approve lot {lot_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to approve lot: {str(e)}"
+            detail="审批检验批时发生意外错误，请稍后重试或联系技术支持"
         )
 
 
@@ -84,7 +99,7 @@ async def reject_lot(
     request: RejectRequest,
     service: ApprovalService = Depends(get_approval_service),
     current_user: TokenData = Depends(require_approver),
-) -> dict:
+) -> Dict[str, Any]:
     """驳回检验批"""
     try:
         # 验证 reject_level
@@ -129,15 +144,21 @@ async def reject_lot(
         
     except HTTPException:
         raise
-    except ValueError as e:
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=e.message
+        )
+    except (ConflictError, ValidationError) as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=e.message
         )
     except Exception as e:
+        logger.error(f"Failed to reject lot {lot_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to reject lot: {str(e)}"
+            detail="驳回检验批时发生意外错误，请稍后重试或联系技术支持"
         )
 
 
@@ -150,7 +171,7 @@ async def reject_lot(
 async def get_approval_history(
     lot_id: str,
     service: ApprovalService = Depends(get_approval_service),
-) -> dict:
+) -> Dict[str, Any]:
     """获取审批历史"""
     try:
         history_data = service.get_approval_history(lot_id)
@@ -177,9 +198,77 @@ async def get_approval_history(
             "data": response.model_dump()
         }
         
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=e.message
+        )
     except Exception as e:
+        logger.error(f"Failed to get approval history for lot {lot_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get approval history: {str(e)}"
+            detail="获取审批历史时发生意外错误，请稍后重试或联系技术支持"
+        )
+
+
+@router.post(
+    "/batch-approve",
+    response_model=dict,
+    summary="批量审批检验批",
+    description="批量审批通过多个检验批（Approver 权限）"
+)
+async def batch_approve_lots(
+    request: BatchApproveRequest,
+    service: ApprovalService = Depends(get_approval_service),
+    current_user: TokenData = Depends(require_approver),
+) -> Dict[str, Any]:
+    """批量审批通过检验批"""
+    try:
+        result = service.batch_approve_lots(
+            lot_ids=request.lot_ids,
+            approver_id=current_user.user_id,  # 从 token 获取
+            comment=request.comment
+        )
+        
+        # 转换结果格式
+        success_results = [
+            BatchApproveResult(
+                lot_id=item["lot_id"],
+                status=item.get("status"),
+                approved_by=item.get("approved_by"),
+                approved_at=item.get("approved_at")
+            )
+            for item in result["success"]
+        ]
+        
+        failed_results = [
+            BatchApproveResult(
+                lot_id=item["lot_id"],
+                error=item.get("error")
+            )
+            for item in result["failed"]
+        ]
+        
+        response = BatchApproveResponse(
+            success=success_results,
+            failed=failed_results,
+            total=result["total"]
+        )
+        
+        return {
+            "status": "success",
+            "data": response.model_dump()
+        }
+        
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=e.message
+        )
+    except Exception as e:
+        logger.error(f"Failed to batch approve lots: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="批量审批检验批时发生意外错误，请稍后重试或联系技术支持"
         )
 

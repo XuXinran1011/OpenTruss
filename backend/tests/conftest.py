@@ -35,13 +35,13 @@ def memgraph_client():
 def sample_wall_element():
     """示例 Wall 元素数据"""
     from app.models.speckle import Wall
-    from app.models.speckle.base import Geometry2D
+    from app.models.speckle.base import Geometry
     
     return Wall(
         speckle_type="Wall",
-        geometry_2d=Geometry2D(
+        geometry=Geometry(
             type="Polyline",
-            coordinates=[[0, 0], [10, 0], [10, 5], [0, 5], [0, 0]],
+            coordinates=[[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0], [0, 0, 0]],
             closed=True
         ),
         level_id="level_f1",

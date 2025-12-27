@@ -172,18 +172,18 @@ def test_data_ingestion():
         from app.services.ingestion import IngestionService
         from app.utils.memgraph import MemgraphClient
         from app.models.speckle import Wall
-        from app.models.speckle.base import Geometry2D
+        from app.models.speckle.base import Geometry
         
         print("准备测试数据...")
         # 创建测试用的 Speckle 元素
-        geometry = Geometry2D(
+        geometry = Geometry(
             type="Polyline",
-            coordinates=[[0, 0], [10, 0], [10, 5], [0, 5], [0, 0]],
+            coordinates=[[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0], [0, 0, 0]],
             closed=True
         )
         speckle_wall = Wall(
             speckle_type="Wall",
-            geometry_2d=geometry,
+            geometry=geometry,
             level_id="level_test_001"
         )
         

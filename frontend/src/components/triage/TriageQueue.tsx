@@ -8,6 +8,7 @@ import { IssueType } from '@/types';
 import { useWorkbenchStore } from '@/stores/workbench';
 import { useCanvas } from '@/contexts/CanvasContext';
 import { cn } from '@/lib/utils';
+import { useMemo } from 'react';
 
 interface IssueGroup {
   type: IssueType;
@@ -32,7 +33,7 @@ function TriageQueueComponent() {
     queryFn: () => getElements({ page: 1, page_size: 1000, max_confidence: 0.7 }), // 置信度 < 0.7
   });
 
-  // 分类问题构件
+  // 分类问题构件（按严重性排序：拓扑错误 > 缺失高度 > 低置信度）
   const issueGroups: IssueGroup[] = [
     {
       type: 'topology_error' as IssueType,
@@ -53,9 +54,32 @@ function TriageQueueComponent() {
       color: 'bg-amber-600',
       elements: lowConfidenceData?.items || [],
     },
-  ].filter((group) => group.elements.length > 0);
+  ]
+    .filter((group) => group.elements.length > 0)
+    .sort((a, b) => {
+      // 按严重性排序：topology_error > z_missing > low_confidence
+      const severityOrder: Record<IssueType, number> = {
+        topology_error: 0,
+        z_missing: 1,
+        low_confidence: 2,
+      };
+      return severityOrder[a.type] - severityOrder[b.type];
+    });
 
   const totalIssues = issueGroups.reduce((sum, group) => sum + group.elements.length, 0);
+  
+  // 统计信息
+  const issueStats = useMemo(() => {
+    const stats = {
+      topology_error: 0,
+      z_missing: 0,
+      low_confidence: 0,
+    };
+    issueGroups.forEach((group) => {
+      stats[group.type] = group.elements.length;
+    });
+    return stats;
+  }, [issueGroups]);
 
   const handleIssueClick = (elementId: string) => {
     addSelectedElementId(elementId);
@@ -77,7 +101,32 @@ function TriageQueueComponent() {
   return (
     <div className="h-full flex flex-col border-b border-zinc-200">
       <div className="p-2 border-b border-zinc-200 bg-zinc-100">
-        <h3 className="text-sm font-medium text-zinc-900">分诊队列 ({totalIssues})</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-zinc-900">分诊队列</h3>
+          <span className="text-xs font-semibold text-zinc-700">{totalIssues}</span>
+        </div>
+        {totalIssues > 0 && (
+          <div className="mt-1 flex items-center gap-2 text-xs text-zinc-600">
+            {issueStats.topology_error > 0 && (
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
+                <span>{issueStats.topology_error}</span>
+              </span>
+            )}
+            {issueStats.z_missing > 0 && (
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-600" />
+                <span>{issueStats.z_missing}</span>
+              </span>
+            )}
+            {issueStats.low_confidence > 0 && (
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
+                <span>{issueStats.low_confidence}</span>
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto">

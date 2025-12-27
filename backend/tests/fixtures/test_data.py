@@ -10,9 +10,9 @@ def get_sample_wall_element() -> Dict[str, Any]:
     """获取示例 Wall 元素数据"""
     return {
         "speckle_type": "Wall",
-        "geometry_2d": {
+        "geometry": {
             "type": "Polyline",
-            "coordinates": [[0, 0], [10, 0], [10, 5], [0, 5], [0, 0]],
+            "coordinates": [[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0], [0, 0, 0]],
             "closed": True
         },
         "level_id": "level_f1",
@@ -24,9 +24,9 @@ def get_sample_beam_element() -> Dict[str, Any]:
     """获取示例 Beam 元素数据"""
     return {
         "speckle_type": "Beam",
-        "geometry_2d": {
+        "geometry": {
             "type": "Line",
-            "coordinates": [[0, 0], [10, 0]],
+            "coordinates": [[0, 0, 0], [10, 0, 0]],
         },
         "level_id": "level_f1",
         "height": 0.5,
@@ -38,9 +38,9 @@ def get_sample_column_element() -> Dict[str, Any]:
     """获取示例 Column 元素数据"""
     return {
         "speckle_type": "Column",
-        "geometry_2d": {
+        "geometry": {
             "type": "Polyline",
-            "coordinates": [[0, 0], [0.5, 0], [0.5, 0.5], [0, 0.5], [0, 0]],
+            "coordinates": [[0, 0, 0], [0.5, 0, 0], [0.5, 0.5, 0], [0, 0.5, 0], [0, 0, 0]],
             "closed": True
         },
         "level_id": "level_f1",
@@ -65,9 +65,9 @@ def get_sample_unassigned_element() -> Dict[str, Any]:
     """获取未分配的构件（无 inspection_lot_id）"""
     return {
         "speckle_type": "Wall",
-        "geometry_2d": {
+        "geometry": {
             "type": "Polyline",
-            "coordinates": [[0, 0], [5, 0], [5, 3], [0, 3], [0, 0]],
+            "coordinates": [[0, 0, 0], [5, 0, 0], [5, 3, 0], [0, 3, 0], [0, 0, 0]],
             "closed": True
         },
         "level_id": "level_f1",
@@ -127,11 +127,11 @@ def sample_element_with_geometry(
 ) -> Dict[str, Any]:
     """创建带几何数据的构件数据"""
     from datetime import datetime
-    from app.models.speckle.base import Geometry2D
+    from app.models.speckle.base import Geometry
     
-    geometry_2d = Geometry2D(
+    geometry = Geometry(
         type="Polyline",
-        coordinates=[[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0], [0.0, 0.0]],
+        coordinates=[[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [10.0, 10.0, 0.0], [0.0, 10.0, 0.0], [0.0, 0.0, 0.0]],
         closed=True
     )
     
@@ -139,7 +139,7 @@ def sample_element_with_geometry(
         "id": element_id,
         "speckle_id": f"speckle_{element_id}",
         "speckle_type": speckle_type,
-        "geometry_2d": geometry_2d,
+        "geometry": geometry,
         "height": height,
         "base_offset": base_offset,
         "status": "APPROVED",

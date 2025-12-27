@@ -6,7 +6,7 @@ from app.services.ingestion import IngestionService
 from app.utils.memgraph import MemgraphClient
 from app.services.schema import initialize_schema
 from app.models.speckle.architectural import Wall
-from app.models.speckle.base import Geometry2D
+from app.models.speckle.base import Geometry
 
 
 @pytest.fixture(scope="module")
@@ -28,9 +28,9 @@ def sample_wall():
     """创建示例 Wall 元素"""
     return Wall(
         speckle_type="Wall",
-        geometry_2d=Geometry2D(
+        geometry=Geometry(
             type="Polyline",
-            coordinates=[[0, 0], [10, 0], [10, 5], [0, 5], [0, 0]],
+            coordinates=[[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0], [0, 0, 0]],
             closed=True
         ),
         level_id="level_test_f1",
@@ -120,7 +120,7 @@ def test_ingest_element_with_missing_geometry(ingestion_service):
     
     mock_element = MockSpeckleElement()
     
-    with pytest.raises(ValueError, match="无法从 Speckle 元素提取 geometry_2d"):
+    with pytest.raises(ValueError, match="无法从 Speckle 元素提取 geometry"):
         ingestion_service.ingest_speckle_element(mock_element, project_id)
 
 
@@ -131,9 +131,9 @@ def test_ingest_element_creates_default_level(ingestion_service, sample_wall):
     # 使用不存在的 level_id
     wall_new_level = Wall(
         speckle_type="Wall",
-        geometry_2d=Geometry2D(
+        geometry=Geometry(
             type="Polyline",
-            coordinates=[[0, 0], [5, 0], [5, 3], [0, 3], [0, 0]],
+            coordinates=[[0, 0, 0], [5, 0, 0], [5, 3, 0], [0, 3, 0], [0, 0, 0]],
             closed=True
         ),
         level_id="level_nonexistent",

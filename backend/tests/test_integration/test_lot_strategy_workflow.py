@@ -11,7 +11,7 @@ from app.services.workbench import WorkbenchService
 from app.utils.memgraph import MemgraphClient
 from app.services.schema import initialize_schema, UNASSIGNED_ITEM_ID
 from app.models.speckle.architectural import Wall
-from app.models.speckle.base import Geometry2D
+from app.models.speckle.base import Geometry
 
 
 @pytest.fixture(scope="module")
@@ -56,9 +56,9 @@ def test_elements(ingestion_service):
     for i, level_id in enumerate(["level_f1", "level_f2", "level_f3"]):
         wall = Wall(
             speckle_type="Wall",
-            geometry_2d=Geometry2D(
+            geometry=Geometry(
                 type="Polyline",
-                coordinates=[[i*10, 0], [(i+1)*10, 0], [(i+1)*10, 5], [i*10, 5], [i*10, 0]],
+                coordinates=[[i*10, 0, 0], [(i+1)*10, 0, 0], [(i+1)*10, 5, 0], [i*10, 5, 0], [i*10, 0, 0]],
                 closed=True
             ),
             level_id=level_id,

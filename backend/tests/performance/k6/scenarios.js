@@ -103,9 +103,9 @@ export function editorWorkflow() {
     const updateResponse = http.patch(
       `${API_BASE_URL}${API_VERSION}/elements/${elementId}/topology`,
       JSON.stringify({
-        geometry_2d: {
+        geometry: {
           type: 'Polyline',
-          coordinates: [[0, 0], [10, 0], [10, 5], [0, 5]],
+          coordinates: [[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0]],
           closed: true,
         },
       }),

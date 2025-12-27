@@ -7,7 +7,7 @@ from app.main import app
 from app.utils.memgraph import MemgraphClient
 from app.services.schema import initialize_schema
 from app.services.ingestion import IngestionService
-from app.models.speckle.base import Geometry2D
+from app.models.speckle.base import Geometry
 
 
 client = TestClient(app)
@@ -33,9 +33,9 @@ def test_element_id():
     
     wall = Wall(
         speckle_type="Wall",
-        geometry_2d=Geometry2D(
+        geometry=Geometry(
             type="Polyline",
-            coordinates=[[0, 0], [10, 0], [10, 5], [0, 5], [0, 0]],
+            coordinates=[[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0], [0, 0, 0]],
             closed=True
         ),
         level_id="level_default_test_project_001",

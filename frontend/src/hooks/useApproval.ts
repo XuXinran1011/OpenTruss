@@ -5,8 +5,10 @@ import {
   approveLot,
   rejectLot,
   getApprovalHistory,
+  batchApproveLots,
   ApproveRequest,
   RejectRequest,
+  BatchApproveRequest,
 } from '@/services/approval';
 
 /**
@@ -55,6 +57,23 @@ export function useApprovalHistory(lotId: string | null) {
     queryKey: ['approvalHistory', lotId],
     queryFn: () => getApprovalHistory(lotId!),
     enabled: !!lotId,
+  });
+}
+
+/**
+ * 批量审批通过检验批
+ */
+export function useBatchApproveLots() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (request: BatchApproveRequest) => batchApproveLots(request),
+    onSuccess: () => {
+      // 使相关查询失效，触发重新获取
+      queryClient.invalidateQueries({ queryKey: ['lots'] });
+      queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
+      queryClient.invalidateQueries({ queryKey: ['approvalHistory'] });
+    },
   });
 }
 

@@ -8,6 +8,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 from app.utils.memgraph import MemgraphClient, convert_neo4j_datetime
+from app.core.cache import cache_result
 from app.models.api.hierarchy import (
     ProjectListItem,
     ProjectDetail,
@@ -135,61 +136,9 @@ class HierarchyService:
         if not project:
             return None
         
-        # 优化：使用单个查询获取完整层级树
-        # 使用 OPTIONAL MATCH 处理可能缺失的节点
-        hierarchy_query = """
-        MATCH (p:Project {id: $project_id})
-        OPTIONAL MATCH (p)-[:PHYSICALLY_CONTAINS]->(b:Building)
-        OPTIONAL MATCH (b)-[:MANAGEMENT_CONTAINS]->(d:Division)
-        OPTIONAL MATCH (b)-[:PHYSICALLY_CONTAINS]->(l:Level)
-        OPTIONAL MATCH (d)-[:MANAGEMENT_CONTAINS]->(sd:SubDivision)
-        OPTIONAL MATCH (sd)-[:MANAGEMENT_CONTAINS]->(i:Item)
-        OPTIONAL MATCH (i)-[:HAS_LOT]->(lot:InspectionLot)
-        OPTIONAL MATCH (lot)-[:MANAGEMENT_CONTAINS]->(e:Element)
-        WITH p, b, d, l, sd, i, lot, e,
-             collect(DISTINCT e.id) as element_ids
-        RETURN p.id as project_id, p.name as project_name,
-               collect(DISTINCT {
-                   id: b.id,
-                   name: b.name,
-                   label: 'Building',
-                   divisions: collect(DISTINCT {
-                       id: d.id,
-                       name: d.name,
-                       label: 'Division',
-                       subdivisions: collect(DISTINCT {
-                           id: sd.id,
-                           name: sd.name,
-                           label: 'SubDivision',
-                           items: collect(DISTINCT {
-                               id: i.id,
-                               name: i.name,
-                               label: 'Item',
-                               lots: collect(DISTINCT {
-                                   id: lot.id,
-                                   name: lot.name,
-                                   label: 'InspectionLot',
-                                   element_count: size(element_ids)
-                               })
-                           })
-                       })
-                   }),
-                   levels: collect(DISTINCT {
-                       id: l.id,
-                       name: l.name,
-                       label: 'Level'
-                   })
-               }) as buildings
-        """
-        
-        result = self.client.execute_query(hierarchy_query, {"project_id": project_id})
-        
-        if not result or not result[0]:
-            return None
-        
-        # 由于 Cypher 的复杂嵌套结构，我们仍然使用递归方法构建树
-        # 但可以通过批量查询优化子节点查询
-        root_node = self._build_hierarchy_node_optimized("Project", project_id)
+        # 使用递归方法构建树（避免Memgraph不支持嵌套collect的问题）
+        # 这个方法虽然需要多次查询，但更稳定可靠
+        root_node = self._build_hierarchy_node("Project", project_id)
         
         if not root_node:
             return None
@@ -351,7 +300,7 @@ class HierarchyService:
             # 对于其他节点类型，递归构建
             children = []
             for r in results:
-                child_node = self._build_hierarchy_node_optimized(child_label, r["id"])
+                child_node = self._build_hierarchy_node(child_label, r["id"])
                 if child_node:
                     children.append(child_node)
             

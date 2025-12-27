@@ -9,6 +9,10 @@ interface DragContextType {
   setDraggedElementIds: (ids: string[] | null) => void;
   isDraggingElement: boolean;
   setIsDraggingElement: (isDragging: boolean) => void;
+  dragPosition: { x: number; y: number } | null;
+  setDragPosition: (position: { x: number; y: number } | null) => void;
+  dragPreviewElement: HTMLElement | null;
+  setDragPreviewElement: (element: HTMLElement | null) => void;
 }
 
 const DragContext = createContext<DragContextType>({
@@ -16,11 +20,17 @@ const DragContext = createContext<DragContextType>({
   setDraggedElementIds: () => {},
   isDraggingElement: false,
   setIsDraggingElement: () => {},
+  dragPosition: null,
+  setDragPosition: () => {},
+  dragPreviewElement: null,
+  setDragPreviewElement: () => {},
 });
 
 export function DragProvider({ children }: { children: ReactNode }) {
   const [draggedElementIds, setDraggedElementIds] = useState<string[] | null>(null);
   const [isDraggingElement, setIsDraggingElement] = useState(false);
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
+  const [dragPreviewElement, setDragPreviewElement] = useState<HTMLElement | null>(null);
 
   return (
     <DragContext.Provider
@@ -29,6 +39,10 @@ export function DragProvider({ children }: { children: ReactNode }) {
         setDraggedElementIds,
         isDraggingElement,
         setIsDraggingElement,
+        dragPosition,
+        setDragPosition,
+        dragPreviewElement,
+        setDragPreviewElement,
       }}
     >
       {children}

@@ -89,3 +89,44 @@ export async function getApprovalHistory(
   return response.data;
 }
 
+/**
+ * 批量审批请求
+ */
+export interface BatchApproveRequest {
+  lot_ids: string[];
+  comment?: string;
+}
+
+/**
+ * 批量审批结果项
+ */
+export interface BatchApproveResult {
+  lot_id: string;
+  status?: string;
+  approved_by?: string;
+  approved_at?: string;
+  error?: string;
+}
+
+/**
+ * 批量审批响应
+ */
+export interface BatchApproveResponse {
+  success: BatchApproveResult[];
+  failed: BatchApproveResult[];
+  total: number;
+}
+
+/**
+ * 批量审批通过检验批
+ */
+export async function batchApproveLots(
+  request: BatchApproveRequest
+): Promise<BatchApproveResponse> {
+  const response = await apiPost<ApiResponse<BatchApproveResponse>>(
+    `/api/v1/lots/batch-approve`,
+    request
+  );
+  return response.data;
+}
+

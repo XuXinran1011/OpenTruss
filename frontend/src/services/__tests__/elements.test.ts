@@ -101,7 +101,7 @@ describe('elements Service', () => {
       const mockResponse = {
         id: 'element-1',
         speckle_type: 'Wall',
-        geometry_2d: { type: 'Polyline', coordinates: [] },
+        geometry: { type: 'Polyline', coordinates: [] },
       }
       
       mockApiGet.mockResolvedValue(mockResponse)
@@ -117,9 +117,9 @@ describe('elements Service', () => {
     it('应该成功更新构件拓扑', async () => {
       const mockResponse = { id: 'element-1', updated: true }
       const request = {
-        geometry_2d: {
+        geometry: {
           type: 'Polyline',
-          coordinates: [[0, 0], [10, 0]],
+          coordinates: [[0, 0, 0], [10, 0, 0]], // 3D 坐标
         },
       }
       

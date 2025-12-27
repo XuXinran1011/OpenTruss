@@ -5,10 +5,11 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWorkbenchStore } from '@/stores/workbench';
-import { getElementDetail, updateElement, batchLiftElements, ElementDetail } from '@/services/elements';
+import { getElementDetail, updateElement, batchLiftElements, ElementDetail, getElements } from '@/services/elements';
 import { useLiftMode } from '@/hooks/useLiftMode';
 import { useToastContext } from '@/providers/ToastProvider';
 import { cn } from '@/lib/utils';
+import { LiftMode3DPreview } from '@/components/canvas/LiftMode3DPreview';
 
 export function ParameterPanel() {
   const { selectedElementIds, mode } = useWorkbenchStore();
@@ -16,6 +17,7 @@ export function ParameterPanel() {
   const { batchLift, isLifting, error: liftError, clearError: clearLiftError } = useLiftMode();
   const { showToast } = useToastContext();
   const [lastBatchSuccess, setLastBatchSuccess] = useState(false);
+  const [show3DPreview, setShow3DPreview] = useState(false);
   const [localValues, setLocalValues] = useState({
     height: '',
     baseOffset: '',
@@ -47,6 +49,19 @@ export function ParameterPanel() {
     queryKey: ['element', firstElementId],
     queryFn: () => getElementDetail(firstElementId),
     enabled: !!firstElementId && selectedElementIds.length === 1,
+  });
+
+  // 获取所有选中构件的详情（用于 3D 预览）
+  const { data: allElementDetails } = useQuery({
+    queryKey: ['elements', 'details', selectedElementIds],
+    queryFn: async () => {
+      if (selectedElementIds.length === 0) return [];
+      const details = await Promise.all(
+        selectedElementIds.map((id) => getElementDetail(id))
+      );
+      return details.filter((d): d is ElementDetail => d !== null);
+    },
+    enabled: selectedElementIds.length > 0 && show3DPreview,
   });
 
   // 更新本地值（使用useEffect避免在render中直接调用setState）
@@ -179,6 +194,18 @@ export function ParameterPanel() {
                 placeholder="concrete"
               />
             </div>
+
+            {/* 3D 预览按钮（仅在 Lift Mode 下显示） */}
+            {mode === 'lift' && selectedElementIds.length > 0 && (
+              <div className="pt-2">
+                <button
+                  onClick={() => setShow3DPreview(true)}
+                  className="w-full px-3 py-2 text-xs font-medium text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded transition-colors"
+                >
+                  3D 预览
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -211,6 +238,16 @@ export function ParameterPanel() {
           取消
         </button>
       </div>
+
+      {/* 3D 预览模态框 */}
+      {show3DPreview && allElementDetails && allElementDetails.length > 0 && (
+        <LiftMode3DPreview
+          elements={allElementDetails}
+          height={localValues.height ? parseFloat(localValues.height) : undefined}
+          baseOffset={localValues.baseOffset ? parseFloat(localValues.baseOffset) : undefined}
+          onClose={() => setShow3DPreview(false)}
+        />
+      )}
     </div>
   );
 }

@@ -3,10 +3,12 @@
 提供构件查询和操作接口（Trace/Lift/Classify Mode）
 """
 
-from typing import Optional
+import logging
+from typing import Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, status, Query, Depends
 
 from app.services.workbench import WorkbenchService
+from app.core.exceptions import NotFoundError, ConflictError, ValidationError
 from app.models.api.elements import (
     ElementListResponse,
     ElementQueryParams,
@@ -26,6 +28,8 @@ from app.models.api.elements import (
 )
 from app.utils.memgraph import get_memgraph_client, MemgraphClient
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/elements", tags=["elements"])
 
@@ -121,18 +125,30 @@ async def get_element(
     service: WorkbenchService = Depends(get_workbench_service),
 ) -> dict:
     """获取构件详情"""
-    element = service.get_element(element_id)
-    
-    if not element:
+    try:
+        element = service.get_element(element_id)
+        
+        if not element:
+            raise NotFoundError(
+                f"Element not found: {element_id}",
+                {"element_id": element_id, "resource_type": "Element"}
+            )
+        
+        return {
+            "status": "success",
+            "data": element.model_dump(),
+        }
+    except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Element not found: {element_id}",
+            detail=e.message,
         )
-    
-    return {
-        "status": "success",
-        "data": element.model_dump(),
-    }
+    except Exception as e:
+        logger.error(f"Unexpected error in get_element: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="获取构件详情时发生意外错误，请稍后重试或联系技术支持"
+        )
 
 
 @router.patch(
@@ -153,10 +169,21 @@ async def update_element_topology(
             "status": "success",
             "data": result,
         }
-    except ValueError as e:
+    except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e),
+            detail=e.message,
+        )
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=e.message,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error in update_element_topology: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="更新构件拓扑关系时发生意外错误，请稍后重试或联系技术支持"
         )
 
 
@@ -178,17 +205,21 @@ async def update_element(
             "status": "success",
             "data": result,
         }
-    except ValueError as e:
-        error_msg = str(e)
-        status_code = status.HTTP_404_NOT_FOUND
-        if "locked" in error_msg.lower():
-            status_code = status.HTTP_409_CONFLICT
-        elif "not found" in error_msg.lower():
-            status_code = status.HTTP_404_NOT_FOUND
-        
+    except NotFoundError as e:
         raise HTTPException(
-            status_code=status_code,
-            detail=error_msg,
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=e.message,
+        )
+    except ConflictError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=e.message,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error in update_element: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="更新构件参数时发生意外错误，请稍后重试或联系技术支持"
         )
 
 
@@ -210,15 +241,16 @@ async def batch_get_elements(
             "status": "success",
             "data": response.model_dump(),
         }
-    except ValueError as e:
+    except ValidationError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            detail=e.message,
         )
     except Exception as e:
+        logger.error(f"Unexpected error in batch_get_elements: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to batch get elements: {str(e)}"
+            detail="批量获取构件详情时发生意外错误，请稍后重试或联系技术支持"
         )
 
 
@@ -239,10 +271,21 @@ async def batch_lift_elements(
             "status": "success",
             "data": result.model_dump(),
         }
-    except Exception as e:
+    except (NotFoundError, ConflictError, ValidationError) as e:
+        status_code = status.HTTP_400_BAD_REQUEST
+        if isinstance(e, NotFoundError):
+            status_code = status.HTTP_404_NOT_FOUND
+        elif isinstance(e, ConflictError):
+            status_code = status.HTTP_409_CONFLICT
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
+            status_code=status_code,
+            detail=e.message,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error in batch_lift_elements: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="批量设置 Z 轴参数时发生意外错误，请稍后重试或联系技术支持"
         )
 
 
@@ -264,18 +307,16 @@ async def classify_element(
             "status": "success",
             "data": result.model_dump(),
         }
-    except ValueError as e:
-        error_msg = str(e)
-        status_code = status.HTTP_404_NOT_FOUND
-        # 如果错误消息提到 Item，可能是 404 或 400
-        if "item not found" in error_msg.lower():
-            status_code = status.HTTP_404_NOT_FOUND
-        elif "element not found" in error_msg.lower():
-            status_code = status.HTTP_404_NOT_FOUND
-        
+    except NotFoundError as e:
         raise HTTPException(
-            status_code=status_code,
-            detail=error_msg,
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=e.message,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error in classify_element: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="将构件归类到分项时发生意外错误，请稍后重试或联系技术支持"
         )
 
 
@@ -322,10 +363,16 @@ async def batch_delete_elements(
             "status": "success",
             "data": response.model_dump(),
         }
+    except NotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=e.message,
+        )
     except Exception as e:
+        logger.error(f"Unexpected error in batch_delete_elements: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to batch delete elements: {str(e)}"
+            detail="批量删除构件时发生意外错误，请稍后重试或联系技术支持"
         )
 
 
@@ -346,20 +393,16 @@ async def delete_element(
             "status": "success",
             "data": result,
         }
-    except ValueError as e:
-        error_msg = str(e)
-        status_code = status.HTTP_404_NOT_FOUND
-        if "not found" in error_msg.lower():
-            status_code = status.HTTP_404_NOT_FOUND
-        
+    except NotFoundError as e:
         raise HTTPException(
-            status_code=status_code,
-            detail=error_msg,
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=e.message,
         )
     except Exception as e:
+        logger.error(f"Unexpected error in delete_element: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete element: {str(e)}"
+            detail="删除构件时发生意外错误，请稍后重试或联系技术支持"
         )
 
 

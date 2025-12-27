@@ -122,7 +122,7 @@ class InspectionLotNode(BaseModel):
 class ElementNode(BaseModel):
     id: str
     speckle_type: str
-    geometry_2d: Line | Polyline
+    geometry: Geometry  # 3D 原生几何数据（Line/Polyline），坐标格式：[[x, y, z], ...]
     # 3D Lift Params (Optional in Draft)
     height: Optional[float]
     base_offset: Optional[float]
@@ -153,8 +153,8 @@ class ElementNode(BaseModel):
 [x] 实施规则引擎 Phase 4（拓扑校验）：确保系统逻辑闭环。
 
 **OpenTruss Phase 4**: Workflow & Export (交付)
-[ ] 实现基于检验批的审批状态机。
-[ ] 集成 ifcopenshell 编译器，按检验批导出 IFC。
+[x] 实现基于检验批的审批状态机。
+[x] 集成 ifcopenshell 编译器，按检验批导出 IFC。
 [x] 实施规则引擎 Phase 3（空间校验）：物理碰撞检测（可选，高级特性）。
 7. Success Metrics (成功指标)
 合规性: 生成的数据结构 100% 对应 GB50300 验收表格，可直接用于打印报验单。

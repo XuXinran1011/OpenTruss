@@ -106,9 +106,9 @@ class ElementsUser(HttpUser):
         self.client.patch(
             f"/api/v1/elements/{element_id}/topology",
             json={
-                "geometry_2d": {
+                "geometry": {
                     "type": "Polyline",
-                    "coordinates": [[0, 0], [10, 0], [10, 5], [0, 5]],
+                    "coordinates": [[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0]],
                     "closed": True
                 }
             },

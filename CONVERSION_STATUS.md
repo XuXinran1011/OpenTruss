@@ -18,10 +18,19 @@
    - ✅ Room.cs - 完整（已更新）
    - ✅ Space.cs - 完整（已更新）
 
-2. **基于模式推断创建的模型**:
-   - ⚠️ CableTray, Conduit, Wire - 基于通用模式创建，可能需要补充属性
-   - ⚠️ Opening, Topography, GridLine, Profile, Network, View - 基于通用模式创建
-   - ⚠️ Alignment, Baseline, Featureline, Station - 基于通用模式创建（Civil 3D 元素）
+2. **基于模式推断创建的模型**（已补充完整属性）:
+   - ✅ CableTray, Conduit - 属性完整（width, height/diameter, length）
+   - ✅ Wire - 属性完整（segments为必需字段）
+   - ✅ Opening - 属性完整（outline）
+   - ✅ Topography - 已添加base_geometry字段
+   - ✅ GridLine - 已添加label字段（从name改为label）
+   - ✅ Profile - 已添加curves, name, start_station, end_station
+   - ✅ Network - 已添加name字段（已废弃类型，保持简化）
+   - ✅ View - 属性完整（name）
+   - ✅ Alignment - 已添加curves, name, start_station, end_station, profiles, station_equations, station_equation_directions
+   - ✅ Baseline - 已添加name, is_featureline_based, alignment, profile, featureline
+   - ✅ Featureline - 已添加curve, points, name
+   - ✅ Station - 已添加number, type, location（从station改为number）
 
 ### 已完成的更新
 
@@ -45,15 +54,31 @@
    - `voids`, `space_type`, `zone_name`, `room_id`, `phase_name`
    - `area`, `volume`
 
+5. **MEP 元素补充**：
+   - **CableTray（电缆桥架）** - 属性完整：`width`, `height`, `length`
+   - **Conduit（导管）** - 属性完整：`diameter`, `length`
+   - **Wire（电线）** - 属性完整：`segments`（必需字段）
+
+6. **其他元素补充**：
+   - **GridLine（网格线）** - 添加 `label` 字段
+   - **Profile（剖面）** - 添加 `curves`, `name`, `start_station`, `end_station`
+   - **Alignment（对齐路线）** - 添加 `curves`, `name`, `start_station`, `end_station`, `profiles`, `station_equations`, `station_equation_directions`
+   - **Featureline（特征线）** - 添加 `curve`, `points`, `name`
+   - **Station（桩号）** - 添加 `number`, `type`, `location`（从 `station` 改为 `number`）
+   - **Baseline（基线）** - 添加 `name`, `is_featureline_based`, `alignment`, `profile`, `featureline`
+   - **Topography（地形）** - 添加 `base_geometry` 字段
+   - **Network（网络）** - 添加 `name` 字段（已废弃类型，保持简化实现）
+
 ### 建议的后续验证
 
 1. **测试实际数据摄入**：
    - 使用真实的 Speckle 数据测试 API
    - 验证所有字段是否正确解析
 
-2. **补充缺失的属性**（如果需要）：
-   - 对于 CableTray, Conduit, Wire 等，如果实际使用中发现缺少属性，可以：
-     - 手动查看 GitHub 源代码
+2. **补充缺失的属性**：
+   - ✅ 已完成：所有基于模式推断创建的模型已根据 SpeckleBuiltElements 源文件补充完整属性
+   - 如果实际使用中发现缺少属性，可以：
+     - 手动查看 SpeckleBuiltElements 源代码
      - 或使用实际数据反推需要的字段
 
 3. **动态属性支持**：

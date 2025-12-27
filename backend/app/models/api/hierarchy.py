@@ -7,7 +7,7 @@ from typing import Optional, List, Literal, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict
 
-from app.models.speckle.base import Geometry2D
+from app.models.speckle.base import Geometry
 
 
 class ProjectListItem(BaseModel):

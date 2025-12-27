@@ -46,7 +46,7 @@ describe('useTraceMode', () => {
       
       act(() => {
         result.current.updateTopology('element-1', {
-          geometry_2d: {
+          geometry: {
             type: 'Polyline',
             coordinates: [[0, 0], [10, 0]],
           },
@@ -58,9 +58,9 @@ describe('useTraceMode', () => {
       })
       
       expect(mockUpdateElementTopology).toHaveBeenCalledWith('element-1', {
-        geometry_2d: {
+        geometry: {
           type: 'Polyline',
-          coordinates: [[0, 0], [10, 0]],
+          coordinates: [[0, 0, 0], [10, 0, 0]], // 3D 坐标
         },
       })
       expect(result.current.error).toBeNull()
@@ -75,7 +75,7 @@ describe('useTraceMode', () => {
       await act(async () => {
         try {
           await result.current.updateTopology('element-1', {
-            geometry_2d: {
+            geometry: {
               type: 'Polyline',
               coordinates: [[0, 0], [10, 0]],
             },
@@ -105,7 +105,7 @@ describe('useTraceMode', () => {
       
       act(() => {
         result.current.updateTopology('element-1', {
-          geometry_2d: {
+          geometry: {
             type: 'Polyline',
             coordinates: [[0, 0], [10, 0]],
           },
@@ -134,7 +134,7 @@ describe('useTraceMode', () => {
       await act(async () => {
         try {
           await result.current.updateTopology('element-1', {
-            geometry_2d: {
+            geometry: {
               type: 'Polyline',
               coordinates: [[0, 0], [10, 0]],
             },

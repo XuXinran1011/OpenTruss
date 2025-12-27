@@ -18,7 +18,7 @@ from app.models.gb50300.nodes import (
     ItemNode, InspectionLotNode, LevelNode
 )
 from app.models.gb50300.element import ElementNode
-from app.models.speckle.base import Geometry2D
+from app.models.speckle.base import Geometry
 from app.models.gb50300.relationships import HAS_APPROVAL_HISTORY
 
 
@@ -139,6 +139,35 @@ def test_approval_workflow_complete(sample_project_hierarchy, setup_integration_
     memgraph_client.create_node("InspectionLot", lot_node.model_dump(exclude_none=True))
     memgraph_client.create_relationship("Item", item_id, "InspectionLot", lot_id, "HAS_LOT")
     
+    # 创建测试元素并关联到检验批
+    from app.models.gb50300.element import ElementNode
+    from app.models.speckle.base import Geometry
+    from app.models.gb50300.relationships import MANAGEMENT_CONTAINS
+    
+    element_id = f"{lot_id}_element_001"
+    element = ElementNode(
+        id=element_id,
+        speckle_type="Wall",
+        geometry=Geometry(
+            type="Polyline",
+            coordinates=[[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [10.0, 5.0, 0.0], [0.0, 5.0, 0.0], [0.0, 0.0, 0.0]],
+            closed=True
+        ),
+        level_id=level_id,
+        inspection_lot_id=lot_id,
+        status="Draft",
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    
+    element_dict = element.to_cypher_properties()
+    memgraph_client.create_node("Element", element_dict)
+    memgraph_client.create_relationship(
+        "InspectionLot", lot_id,
+        "Element", element_id,
+        MANAGEMENT_CONTAINS
+    )
+    
     try:
         # 2. 状态转换：PLANNING -> IN_PROGRESS -> SUBMITTED
         memgraph_client.execute_write(
@@ -210,6 +239,36 @@ def test_approval_workflow_with_rejection(sample_project_hierarchy, setup_integr
     )
     memgraph_client.create_node("InspectionLot", lot_node.model_dump(exclude_none=True))
     memgraph_client.create_relationship("Item", item_id, "InspectionLot", lot_id, "HAS_LOT")
+    
+    # 创建测试元素并关联到检验批
+    from app.models.gb50300.element import ElementNode
+    from app.models.speckle.base import Geometry
+    from app.models.gb50300.relationships import MANAGEMENT_CONTAINS
+    
+    level_id = sample_project_hierarchy.get("level_id", "integration_level_002")
+    element_id = f"{lot_id}_element_001"
+    element = ElementNode(
+        id=element_id,
+        speckle_type="Wall",
+        geometry=Geometry(
+            type="Polyline",
+            coordinates=[[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [10.0, 5.0, 0.0], [0.0, 5.0, 0.0], [0.0, 0.0, 0.0]],
+            closed=True
+        ),
+        level_id=level_id,
+        inspection_lot_id=lot_id,
+        status="Draft",
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    
+    element_dict = element.to_cypher_properties()
+    memgraph_client.create_node("Element", element_dict)
+    memgraph_client.create_relationship(
+        "InspectionLot", lot_id,
+        "Element", element_id,
+        MANAGEMENT_CONTAINS
+    )
     
     try:
         # 2. 状态转换到 SUBMITTED
@@ -301,6 +360,36 @@ def test_approval_history_node_persistence(sample_project_hierarchy, setup_integ
     )
     memgraph_client.create_node("InspectionLot", lot_node.model_dump(exclude_none=True))
     memgraph_client.create_relationship("Item", item_id, "InspectionLot", lot_id, "HAS_LOT")
+    
+    # 创建测试元素并关联到检验批
+    from app.models.gb50300.element import ElementNode
+    from app.models.speckle.base import Geometry
+    from app.models.gb50300.relationships import MANAGEMENT_CONTAINS
+    
+    level_id = sample_project_hierarchy.get("level_id", "integration_level_003")
+    element_id = f"{lot_id}_element_001"
+    element = ElementNode(
+        id=element_id,
+        speckle_type="Wall",
+        geometry=Geometry(
+            type="Polyline",
+            coordinates=[[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [10.0, 5.0, 0.0], [0.0, 5.0, 0.0], [0.0, 0.0, 0.0]],
+            closed=True
+        ),
+        level_id=level_id,
+        inspection_lot_id=lot_id,
+        status="Draft",
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    
+    element_dict = element.to_cypher_properties()
+    memgraph_client.create_node("Element", element_dict)
+    memgraph_client.create_relationship(
+        "InspectionLot", lot_id,
+        "Element", element_id,
+        MANAGEMENT_CONTAINS
+    )
     
     try:
         approval_service = ApprovalService(client=memgraph_client)

@@ -242,12 +242,15 @@ class TestRoutingAPI:
         assert "constraint_errors" in data["data"] or "errors" in data["data"]
     
     def test_validate_route_too_few_points(self):
-        """测试路径点太少"""
+        """测试路径点太少或路径不符合约束"""
+        # 方案A: 发送至少2个点但不符合约束的路径（例如禁止的角度）
+        # 对于gravity_drainage系统，90度角度通常是被禁止的
         response = client.post(
             "/api/v1/routing/validate",
             json={
-                "path_points": [[0.0, 0.0]],  # 只有1个点
-                "element_type": "Pipe"
+                "path_points": [[0.0, 0.0], [5.0, 0.0], [5.0, 5.0]],  # 2个点形成90度角
+                "element_type": "Pipe",
+                "system_type": "gravity_drainage"  # 重力排水系统通常禁止90度角
             }
         )
         

@@ -7,7 +7,7 @@ from typing import Optional, List, Literal, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
-from app.models.speckle.base import Geometry2D
+from app.models.speckle.base import Geometry
 from app.core.validators import (
     GeometryValidator,
     IFCConstraintValidator,
@@ -47,7 +47,7 @@ class ElementDetail(BaseModel):
     id: str = Field(..., description="构件 ID")
     speckle_id: Optional[str] = Field(None, description="Speckle 原始对象 ID")
     speckle_type: str = Field(..., description="构件类型")
-    geometry_2d: Geometry2D = Field(..., description="2D 几何数据")
+    geometry: Geometry = Field(..., description="3D 原生几何数据（坐标格式：[[x, y, z], ...]）")
     height: Optional[float] = Field(None, description="高度")
     base_offset: Optional[float] = Field(None, description="基础偏移")
     material: Optional[str] = Field(None, description="材质")
@@ -90,9 +90,9 @@ class ElementDetail(BaseModel):
         "example": {
             "id": "element_001",
             "speckle_type": "Wall",
-            "geometry_2d": {
+            "geometry": {
                 "type": "Polyline",
-                "coordinates": [[0, 0], [10, 0], [10, 5], [0, 5], [0, 0]],
+                "coordinates": [[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0], [0, 0, 0]],
                 "closed": True
             },
             "height": 3.0,
@@ -143,12 +143,12 @@ class ElementQueryParams(BaseModel):
 
 class TopologyUpdateRequest(BaseModel):
     """拓扑更新请求（Trace Mode）"""
-    geometry_2d: Optional[Geometry2D] = Field(None, description="更新的 2D 几何数据")
+    geometry: Optional[Geometry] = Field(None, description="更新的 3D 几何数据（坐标格式：[[x, y, z], ...]）")
     connected_elements: Optional[List[str]] = Field(default_factory=list, description="连接的构件 ID 列表")
     
-    @field_validator("geometry_2d")
+    @field_validator("geometry")
     @classmethod
-    def validate_geometry(cls, v: Optional[Geometry2D]) -> Optional[Geometry2D]:
+    def validate_geometry(cls, v: Optional[Geometry]) -> Optional[Geometry]:
         """验证几何数据"""
         if v is None:
             return v
@@ -163,9 +163,9 @@ class TopologyUpdateRequest(BaseModel):
     
     model_config = ConfigDict(json_schema_extra={
         "example": {
-            "geometry_2d": {
+            "geometry": {
                 "type": "Polyline",
-                "coordinates": [[0, 0], [10, 0], [10, 5], [0, 5], [0, 0]],
+                "coordinates": [[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0], [0, 0, 0]],
                 "closed": True
             },
             "connected_elements": ["element_002", "element_003"]
@@ -297,6 +297,68 @@ class BatchElementDetailResponse(BaseModel):
         "example": {
             "items": [],
             "not_found": []
+        }
+    })
+
+
+class BatchUpdateRequest(BaseModel):
+    """批量更新构件请求"""
+    element_ids: List[str] = Field(..., min_length=1, description="构件 ID 列表")
+    updates: Dict[str, Any] = Field(..., description="要更新的字段字典（支持 height, base_offset, material, status）")
+    
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "element_ids": ["element_001", "element_002"],
+            "updates": {
+                "height": 3.0,
+                "base_offset": 0.0,
+                "material": "concrete"
+            }
+        }
+    })
+
+
+class BatchUpdateResponse(BaseModel):
+    """批量更新构件响应"""
+    success_count: int = Field(..., description="成功更新的数量")
+    failed_count: int = Field(..., description="失败的数量")
+    updated_ids: List[str] = Field(..., description="成功更新的构件 ID 列表")
+    errors: List[Dict[str, Any]] = Field(default_factory=list, description="错误信息列表")
+    
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "success_count": 2,
+            "failed_count": 0,
+            "updated_ids": ["element_001", "element_002"],
+            "errors": []
+        }
+    })
+
+
+class BatchDeleteRequest(BaseModel):
+    """批量删除构件请求"""
+    element_ids: List[str] = Field(..., min_length=1, description="要删除的构件 ID 列表")
+    
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "element_ids": ["element_001", "element_002"]
+        }
+    })
+
+
+class BatchDeleteResponse(BaseModel):
+    """批量删除构件响应"""
+    success_count: int = Field(..., description="成功删除的数量")
+    failed_count: int = Field(..., description="失败的数量")
+    deleted_ids: List[str] = Field(..., description="成功删除的构件 ID 列表")
+    errors: List[Dict[str, Any]] = Field(default_factory=list, description="错误信息列表")
+    
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "success_count": 2,
+            "failed_count": 0,
+            "deleted_ids": ["element_001", "element_002"],
+            "errors": []
         }
     })
 

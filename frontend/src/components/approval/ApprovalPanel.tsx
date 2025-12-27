@@ -18,6 +18,7 @@ export function ApprovalPanel({ lotId, lotStatus, lotName }: ApprovalPanelProps)
   const [rejectReason, setRejectReason] = useState('');
   const [rejectLevel, setRejectLevel] = useState<'IN_PROGRESS' | 'PLANNING'>('IN_PROGRESS');
   const [role, setRole] = useState<'APPROVER' | 'PM'>('APPROVER');
+  const [showRejectConfirm, setShowRejectConfirm] = useState(false);
 
   const approveMutation = useApproveLot();
   const rejectMutation = useRejectLot();
@@ -39,7 +40,14 @@ export function ApprovalPanel({ lotId, lotStatus, lotName }: ApprovalPanelProps)
     }
   };
 
-  const handleReject = () => {
+  const handleRejectClick = () => {
+    if (!rejectReason.trim()) {
+      return; // 如果原因为空，不显示确认对话框
+    }
+    setShowRejectConfirm(true);
+  };
+
+  const handleRejectConfirm = () => {
     if (!rejectMutation.isPending && rejectReason.trim()) {
       rejectMutation.mutate({
         lotId,
@@ -48,8 +56,20 @@ export function ApprovalPanel({ lotId, lotStatus, lotName }: ApprovalPanelProps)
           reject_level: rejectLevel,
           // rejector_id 和 role 从 JWT token 中自动获取
         },
+      }, {
+        onSuccess: () => {
+          setShowRejectConfirm(false);
+          setRejectReason(''); // 清空原因
+        },
+        onError: () => {
+          // 错误时不关闭对话框，让用户看到错误信息
+        },
       });
     }
+  };
+
+  const handleRejectCancel = () => {
+    setShowRejectConfirm(false);
   };
 
   return (
@@ -86,6 +106,7 @@ export function ApprovalPanel({ lotId, lotStatus, lotName }: ApprovalPanelProps)
                 placeholder="输入审批意见..."
                 className="w-full px-3 py-2 text-sm border border-zinc-300 rounded-md focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent"
                 rows={3}
+                disabled={approveMutation.isPending}
               />
             </div>
 
@@ -96,6 +117,18 @@ export function ApprovalPanel({ lotId, lotStatus, lotName }: ApprovalPanelProps)
             >
               {approveMutation.isPending ? '审批中...' : '审批通过'}
             </button>
+
+            {approveMutation.isError && (
+              <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
+                审批失败: {approveMutation.error?.message || '未知错误，请稍后重试'}
+              </div>
+            )}
+
+            {approveMutation.isSuccess && (
+              <div className="text-sm text-emerald-600 bg-emerald-50 p-3 rounded-md">
+                审批成功！检验批状态已更新为 APPROVED。
+              </div>
+            )}
           </div>
         )}
 
@@ -134,12 +167,52 @@ export function ApprovalPanel({ lotId, lotStatus, lotName }: ApprovalPanelProps)
             </div>
 
             <button
-              onClick={handleReject}
+              onClick={handleRejectClick}
               disabled={rejectMutation.isPending || !rejectReason.trim()}
               className="w-full px-4 py-2 bg-red-600 text-white text-sm font-medium rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {rejectMutation.isPending ? '驳回中...' : '驳回'}
             </button>
+
+            {rejectMutation.isError && (
+              <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
+                驳回失败: {rejectMutation.error?.message || '未知错误，请稍后重试'}
+              </div>
+            )}
+
+            {rejectMutation.isSuccess && (
+              <div className="text-sm text-emerald-600 bg-emerald-50 p-3 rounded-md">
+                驳回成功！检验批状态已更新为 {rejectLevel}。
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 驳回确认对话框 */}
+        {showRejectConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold text-zinc-900 mb-2">确认驳回</h3>
+              <p className="text-sm text-zinc-600 mb-4">
+                您确定要驳回此检验批吗？驳回后状态将变更为 <strong>{rejectLevel === 'IN_PROGRESS' ? 'IN_PROGRESS（进行中）' : 'PLANNING（规划中）'}</strong>。
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={handleRejectCancel}
+                  disabled={rejectMutation.isPending}
+                  className="px-4 py-2 text-sm font-medium text-zinc-700 bg-zinc-100 rounded hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleRejectConfirm}
+                  disabled={rejectMutation.isPending}
+                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {rejectMutation.isPending ? '驳回中...' : '确认驳回'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

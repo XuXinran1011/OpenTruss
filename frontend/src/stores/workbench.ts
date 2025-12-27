@@ -20,9 +20,11 @@ interface WorkbenchState {
   traceMode: {
     dwgOpacity: number; // DWG 底图透明度 (0-100)
     xRayMode: boolean; // X-Ray 模式
+    snapEnabled: boolean; // 磁吸功能开关
   };
   setDwgOpacity: (opacity: number) => void;
   setXRayMode: (enabled: boolean) => void;
+  setSnapEnabled: (enabled: boolean) => void;
   
   // Lift Mode 特定状态
   liftMode: {
@@ -62,6 +64,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set) => ({
   traceMode: {
     dwgOpacity: 30, // 默认 30%
     xRayMode: false,
+    snapEnabled: true, // 默认启用磁吸
   },
   setDwgOpacity: (opacity) =>
     set((state) => ({
@@ -70,6 +73,10 @@ export const useWorkbenchStore = create<WorkbenchState>((set) => ({
   setXRayMode: (enabled) =>
     set((state) => ({
       traceMode: { ...state.traceMode, xRayMode: enabled },
+    })),
+  setSnapEnabled: (enabled) =>
+    set((state) => ({
+      traceMode: { ...state.traceMode, snapEnabled: enabled },
     })),
   
   // Lift Mode 状态

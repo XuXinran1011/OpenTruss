@@ -22,14 +22,14 @@ export function generateTestElement(elementId?: string, speckleType: string = 'W
   return {
     speckle_id: `speckle_${id}`,
     speckle_type: speckleType,
-    geometry_2d: {
+    geometry: {
       type: 'Polyline',
       coordinates: [
-        [0, 0],
-        [10, 0],
-        [10, 5],
-        [0, 5],
-        [0, 0],
+        [0, 0, 0],
+        [10, 0, 0],
+        [10, 5, 0],
+        [0, 5, 0],
+        [0, 0, 0],
       ],
       closed: true,
     },

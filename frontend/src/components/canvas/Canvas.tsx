@@ -2,23 +2,35 @@
 
 'use client';
 
+// React / Next.js
 import { useEffect, useRef, useCallback, useImperativeHandle, forwardRef, useState, useMemo } from 'react';
+
+// 第三方库
+import { useQuery } from '@tanstack/react-query';
+
+// 本地模块 - Hooks
 import { useCanvasStore } from '@/stores/canvas';
 import { useWorkbenchStore } from '@/stores/workbench';
 import { useTraceMode } from '@/hooks/useTraceMode';
 import { useToastContext } from '@/providers/ToastProvider';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useDrag } from '@/contexts/DragContext';
-import { Geometry2D } from '@/types';
-import { CanvasRenderer } from './CanvasRenderer';
+
+// 本地模块 - 服务
 import { getElementDetail, getElements, type ElementDetail } from '@/services/elements';
-import { getGeometryBoundingBox } from '@/utils/topology';
-import { MEPRoutingPanel } from './MEPRoutingPanel';
-import { useQuery } from '@tanstack/react-query';
-import { SemanticValidator } from '@/lib/rules/SemanticValidator';
 import { validateSemanticConnection } from '@/services/validation';
+
+// 本地模块 - 工具
+import { Geometry } from '@/types';
+import { getGeometryBoundingBox } from '@/utils/topology';
 import { SpatialIndex } from '@/utils/spatial-index';
 import { debounce } from '@/utils/performance';
+import { SemanticValidator } from '@/lib/rules/SemanticValidator';
+
+// 本地模块 - 组件
+import { CanvasRenderer } from './CanvasRenderer';
+import { MEPRoutingPanel } from './MEPRoutingPanel';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
 export interface CanvasHandle {
   focusOnElement: (elementId: string) => Promise<void>;
@@ -45,6 +57,7 @@ export const Canvas = forwardRef<CanvasHandle>((props, ref) => {
   const { showToast } = useToastContext();
   const { draggedElementIds, isDraggingElement, setDragPosition, setDraggedElementIds } = useDrag();
   const [routingPath, setRoutingPath] = useState<{ x: number; y: number }[] | null>(null);
+  const [previewPath, setPreviewPath] = useState<{ x: number; y: number }[] | null>(null);
   const [collidingElementIds, setCollidingElementIds] = useState<Set<string>>(new Set());
   
   // 获取选中的元素详情（用于路径规划）
@@ -164,10 +177,10 @@ export const Canvas = forwardRef<CanvasHandle>((props, ref) => {
     
     if (allElementDetailsMap.size > 0) {
       const elementsToIndex = Array.from(allElementDetailsMap.values())
-        .filter(detail => detail.geometry_2d?.coordinates)
+        .filter(detail => detail.geometry?.coordinates)
         .map(detail => ({
           id: detail.id,
-          coordinates: detail.geometry_2d!.coordinates,
+          coordinates: detail.geometry!.coordinates,
         }));
       
       index.load(elementsToIndex);
@@ -232,8 +245,21 @@ export const Canvas = forwardRef<CanvasHandle>((props, ref) => {
   useEffect(() => {
     if (selectedElementIds.length < 2) {
       setRoutingPath(null);
+      setPreviewPath(null);
     }
   }, [selectedElementIds]);
+
+  // 处理路由计算结果（区分预览和确认）
+  const handleRouteCalculated = useCallback((path: { x: number; y: number }[], isPreview: boolean) => {
+    if (isPreview) {
+      // 预览路径（虚线显示）
+      setPreviewPath(path);
+    } else {
+      // 已确认路径（实线显示）
+      setRoutingPath(path);
+      setPreviewPath(null);
+    }
+  }, []);
 
   // 显示拓扑更新成功提示
   useEffect(() => {
@@ -267,13 +293,13 @@ export const Canvas = forwardRef<CanvasHandle>((props, ref) => {
         if (mode !== 'trace') return;
         
         const element = allElementDetailsMap.get(elementId);
-        if (!element || !element.geometry_2d) return;
+        if (!element || !element.geometry) return;
         
         // 创建临时元素（使用新的坐标）
         const tempElement: ElementDetail = {
           ...element,
-          geometry_2d: {
-            ...element.geometry_2d,
+          geometry: {
+            ...element.geometry,
             coordinates: newCoordinates,
           },
         };
@@ -319,56 +345,86 @@ export const Canvas = forwardRef<CanvasHandle>((props, ref) => {
       
       // 如果路径有多个点，对每个转弯点进行角度吸附
       if (finalCoordinates.length >= 3) {
-        try {
-          // 动态导入 ConstructabilityValidator（避免循环依赖）
-          import('@/lib/rules/ConstructabilityValidator').then(({ ConstructabilityValidator }) => {
+        // 使用立即执行的异步函数处理角度吸附
+        (async () => {
+          try {
+            // 动态导入 ConstructabilityValidator 和 adjustPathForAngleSnap（避免循环依赖）
+            const { ConstructabilityValidator } = await import('@/lib/rules/ConstructabilityValidator');
+            const { adjustPathForAngleSnap } = await import('@/utils/topology');
             const validator = new ConstructabilityValidator();
             
             // 对每个中间点进行角度吸附
             const newCoords = [...finalCoordinates];
             let hasChanges = false;
             
-            for (let i = 1; i < finalCoordinates.length - 1; i++) {
-              const turnAngle = validator.calculateTurnAngle(finalCoordinates, i);
+            // 从后往前处理，避免索引变化影响后续点
+            for (let i = finalCoordinates.length - 2; i >= 1; i--) {
+              const turnAngle = validator.calculateTurnAngle(newCoords, i);
               const snappedAngle = validator.snapAngle(turnAngle);
               
-              // 如果角度可以吸附，调整路径点
-              // 注意：这里只是简化实现，实际的角度吸附需要更复杂的几何计算
-              // 当前实现仅作为示例，完整的角度吸附需要根据具体需求调整路径点坐标
+              // 如果角度可以吸附且与当前角度差异超过容差，调整路径点
               if (snappedAngle !== null && Math.abs(turnAngle - snappedAngle) > validator['config'].angles.tolerance) {
-                // 这里应该根据 snappedAngle 调整路径点，但需要更复杂的几何计算
-                // 暂时跳过，保持原始坐标
-                // TODO: 实现完整的角度吸附逻辑
+                // 使用角度吸附函数调整路径点
+                const adjusted = adjustPathForAngleSnap(newCoords, i, snappedAngle);
+                // 更新路径（只更新当前点和后续点，前面的点保持不变）
+                for (let j = i; j < adjusted.length && j < newCoords.length; j++) {
+                  newCoords[j] = adjusted[j];
+                }
+                hasChanges = true;
               }
             }
             
-            // 如果坐标有变化，使用调整后的坐标
+            // 如果坐标有变化，使用调整后的坐标更新元素
             if (hasChanges) {
               adjustedCoordinates = newCoords;
+              // 更新几何并调用拓扑更新 API
+              const geomType = (originalType === 'Line' || originalType === 'Polyline') 
+                ? originalType 
+                : (adjustedCoordinates.length === 2 ? 'Line' : 'Polyline');
+              
+              const newGeometry: Geometry = {
+                type: geomType as 'Line' | 'Polyline',
+                coordinates: adjustedCoordinates.map((coord): [number, number, number] => [
+                  coord[0] || 0, 
+                  coord[1] || 0, 
+                  coord[2] !== undefined ? coord[2] : 0.0  // 保留 Z 坐标或默认 0.0
+                ]),
+                closed: originalClosed || false,
+              };
+              
+              updateTopology(elementId, {
+                geometry: newGeometry,
+              });
+              return; // 提前返回，避免后续重复调用updateTopology
             }
-          }).catch((error) => {
-            console.warn('Failed to load ConstructabilityValidator:', error);
-          });
-        } catch (error) {
-          console.warn('Failed to apply angle snapping:', error);
-        }
+          } catch (error) {
+            console.warn('Failed to apply angle snapping:', error);
+          }
+        })();
       }
       
-      // 使用原始几何类型，如果未提供则根据坐标数量推断
-      const geomType = (originalType === 'Line' || originalType === 'Polyline') 
-        ? originalType 
-        : (adjustedCoordinates.length === 2 ? 'Line' : 'Polyline');
-      
-      const newGeometry2D: Geometry2D = {
-        type: geomType as 'Line' | 'Polyline',
-        coordinates: adjustedCoordinates.map((coord): [number, number] => [coord[0] || 0, coord[1] || 0]),
-        closed: originalClosed || false,
-      };
+      // 如果路径点少于3个，无法进行角度吸附，直接使用原始坐标更新
+      if (finalCoordinates.length < 3) {
+        const geomType = (originalType === 'Line' || originalType === 'Polyline') 
+          ? originalType 
+          : (finalCoordinates.length === 2 ? 'Line' : 'Polyline');
+        
+        const newGeometry: Geometry = {
+          type: geomType as 'Line' | 'Polyline',
+          coordinates: finalCoordinates.map((coord): [number, number, number] => [
+            coord[0] || 0, 
+            coord[1] || 0, 
+            coord[2] !== undefined ? coord[2] : 0.0  // 保留 Z 坐标或默认 0.0
+          ]),
+          closed: originalClosed || false,
+        };
 
-      // 调用拓扑更新 API（成功提示由 hook 的 onSuccess 处理）
-      updateTopology(elementId, {
-        geometry_2d: newGeometry2D,
-      });
+        // 调用拓扑更新 API（成功提示由 hook 的 onSuccess 处理）
+        updateTopology(elementId, {
+          geometry: newGeometry,
+        });
+      }
+      // 注意：如果路径点>=3，角度吸附逻辑会在异步函数中处理并调用updateTopology
     }
   }, [mode, updateTopology]);
 
@@ -376,12 +432,12 @@ export const Canvas = forwardRef<CanvasHandle>((props, ref) => {
   const focusOnElement = useCallback(async (elementId: string) => {
     try {
       const elementDetail = await getElementDetail(elementId);
-      if (!elementDetail?.geometry_2d?.coordinates || elementDetail.geometry_2d.coordinates.length === 0) {
+      if (!elementDetail?.geometry?.coordinates || elementDetail.geometry.coordinates.length === 0) {
         return;
       }
 
-      // 计算构件的边界框
-      const bbox = getGeometryBoundingBox(elementDetail.geometry_2d.coordinates);
+      // 计算构件的边界框（使用 X, Y 坐标）
+      const bbox = getGeometryBoundingBox(elementDetail.geometry.coordinates);
       if (!bbox) return;
 
       // 计算中心点
@@ -453,8 +509,8 @@ export const Canvas = forwardRef<CanvasHandle>((props, ref) => {
       let maxY = -Infinity;
 
       for (const detail of elementDetails) {
-        if (!detail?.geometry_2d?.coordinates) continue;
-        const bbox = getGeometryBoundingBox(detail.geometry_2d.coordinates);
+        if (!detail?.geometry?.coordinates) continue;
+        const bbox = getGeometryBoundingBox(detail.geometry.coordinates);
         if (!bbox) continue;
 
         minX = Math.min(minX, bbox.x);
@@ -578,6 +634,7 @@ export const Canvas = forwardRef<CanvasHandle>((props, ref) => {
         selectedElementIds={selectedElementIds}
         mode={mode}
         routingPath={routingPath}
+        previewPath={previewPath}
         collidingElementIds={Array.from(collidingElementIds)}
         onElementDragStart={handleElementDragStart}
         onElementClick={handleElementClick}
@@ -594,9 +651,10 @@ export const Canvas = forwardRef<CanvasHandle>((props, ref) => {
           <MEPRoutingPanel
             sourceElement={sourceElement}
             targetElement={targetElement}
-            onRouteCalculated={setRoutingPath}
+            onRouteCalculated={handleRouteCalculated}
             onClose={() => {
               setRoutingPath(null);
+              setPreviewPath(null);
               clearSelection();
             }}
           />

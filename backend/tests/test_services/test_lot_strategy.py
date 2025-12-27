@@ -7,7 +7,7 @@ from app.services.hierarchy import HierarchyService
 from app.utils.memgraph import MemgraphClient
 from app.services.schema import initialize_schema
 from app.models.speckle.architectural import Wall
-from app.models.speckle.base import Geometry2D
+from app.models.speckle.base import Geometry
 
 
 @pytest.fixture(scope="module")
@@ -53,9 +53,9 @@ def test_elements_with_levels(ingestion_service, memgraph_client):
     # 创建F1层的构件
     wall_f1 = Wall(
         speckle_type="Wall",
-        geometry_2d=Geometry2D(
+        geometry=Geometry(
             type="Polyline",
-            coordinates=[[0, 0], [10, 0], [10, 5], [0, 5], [0, 0]],
+            coordinates=[[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0], [0, 0, 0]],
             closed=True
         ),
         level_id="level_f1",
@@ -65,9 +65,9 @@ def test_elements_with_levels(ingestion_service, memgraph_client):
     # 创建F2层的构件
     wall_f2 = Wall(
         speckle_type="Wall",
-        geometry_2d=Geometry2D(
+        geometry=Geometry(
             type="Polyline",
-            coordinates=[[0, 0], [10, 0], [10, 5], [0, 5], [0, 0]],
+            coordinates=[[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0], [0, 0, 0]],
             closed=True
         ),
         level_id="level_f2",

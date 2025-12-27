@@ -15,7 +15,7 @@
 
 from typing import Optional, List, Dict, Any, Literal, Union
 from pydantic import BaseModel, Field, ConfigDict
-from .base import SpeckleBuiltElementBase, Geometry2D
+from .base import SpeckleBuiltElementBase, Geometry
 
 
 class Opening(SpeckleBuiltElementBase):
@@ -23,7 +23,7 @@ class Opening(SpeckleBuiltElementBase):
     
     洞口元素（门窗洞口等）
     """
-    geometry_2d: Optional[Geometry2D] = Field(None, alias='outline', description='洞口轮廓')
+    geometry: Optional[Geometry] = Field(None, alias='outline', description='洞口轮廓（3D 坐标）')
     
     model_config = ConfigDict(populate_by_name=True)
 
@@ -36,7 +36,7 @@ class Topography(SpeckleBuiltElementBase):
     注意：源文件使用Mesh类型的baseGeometry，对于OpenTruss的2D工作流，使用Dict简化处理
     """
     base_geometry: Optional[Dict[str, Any]] = Field(None, alias='baseGeometry', description='基础几何（Mesh类型，使用Dict简化）')
-    geometry_2d: Optional[Geometry2D] = Field(None, description='地形几何（2D简化表示）')
+    geometry: Optional[Geometry] = Field(None, description='地形几何（3D 坐标）')
     
     model_config = ConfigDict(populate_by_name=True)
 
@@ -46,7 +46,7 @@ class GridLine(SpeckleBuiltElementBase):
     
     网格线元素
     """
-    geometry_2d: Geometry2D = Field(..., alias='baseLine', description='2D geometry (converted from ICurve baseLine, grid line)')
+    geometry: Geometry = Field(..., alias='baseLine', description='3D geometry (converted from ICurve baseLine, grid line, coordinates: [[x, y, z], ...])')
     label: Optional[str] = Field(None, description='网格线标签')
     
     model_config = ConfigDict(populate_by_name=True)
@@ -57,12 +57,12 @@ class Profile(SpeckleBuiltElementBase):
     
     剖面/轮廓元素
     """
-    curves: Optional[List[Geometry2D]] = Field(None, description='轮廓曲线列表')
+    curves: Optional[List[Geometry]] = Field(None, description='轮廓曲线列表（3D 坐标）')
     name: Optional[str] = Field(None, description='剖面名称')
     start_station: Optional[float] = Field(None, alias='startStation', description='起始桩号')
     end_station: Optional[float] = Field(None, alias='endStation', description='结束桩号')
-    # 保留geometry_2d以兼容旧数据，但主要使用curves
-    geometry_2d: Optional[Geometry2D] = Field(None, description='轮廓几何（兼容字段，主要使用curves）')
+    # 保留geometry以兼容旧数据，但主要使用curves
+    geometry: Optional[Geometry] = Field(None, description='轮廓几何（兼容字段，主要使用curves，3D 坐标）')
     
     model_config = ConfigDict(populate_by_name=True)
 
@@ -75,7 +75,7 @@ class Network(SpeckleBuiltElementBase):
     注意：源文件中Network已标记为Obsolete，保持简化实现
     """
     name: Optional[str] = Field(None, description='网络名称')
-    geometry_2d: Optional[Geometry2D] = Field(None, description='网络几何')
+    geometry: Optional[Geometry] = Field(None, description='网络几何（3D 坐标）')
     
     model_config = ConfigDict(populate_by_name=True)
 
@@ -97,15 +97,15 @@ class Alignment(SpeckleBuiltElementBase):
     
     注意：baseCurve已废弃，主要使用curves属性
     """
-    curves: Optional[List[Geometry2D]] = Field(None, description='路线曲线列表（主要几何属性）')
+    curves: Optional[List[Geometry]] = Field(None, description='路线曲线列表（主要几何属性，3D 坐标）')
     name: Optional[str] = Field(None, description='对齐路线名称')
     start_station: Optional[float] = Field(None, alias='startStation', description='起始桩号')
     end_station: Optional[float] = Field(None, alias='endStation', description='结束桩号')
     profiles: Optional[List[Dict[str, Any]]] = Field(None, description='剖面列表（复杂对象，使用Dict简化）')
     station_equations: Optional[List[float]] = Field(None, alias='stationEquations', description='桩号方程列表')
     station_equation_directions: Optional[List[bool]] = Field(None, alias='stationEquationDirections', description='桩号方程方向列表')
-    # 保留geometry_2d以兼容旧数据，但主要使用curves
-    geometry_2d: Optional[Geometry2D] = Field(None, description='对齐路线几何（兼容字段，主要使用curves）')
+    # 保留geometry以兼容旧数据，但主要使用curves
+    geometry: Optional[Geometry] = Field(None, description='对齐路线几何（兼容字段，主要使用curves，3D 坐标）')
     
     model_config = ConfigDict(populate_by_name=True)
 
@@ -122,7 +122,7 @@ class Baseline(SpeckleBuiltElementBase):
     alignment: Optional[Dict[str, Any]] = Field(None, description='水平对齐（复杂对象，使用Dict简化）')
     profile: Optional[Dict[str, Any]] = Field(None, description='垂直剖面（复杂对象，使用Dict简化）')
     featureline: Optional[Dict[str, Any]] = Field(None, description='特征线（复杂对象，使用Dict简化）')
-    geometry_2d: Optional[Geometry2D] = Field(None, description='基线几何')
+    geometry: Optional[Geometry] = Field(None, description='基线几何（3D 坐标）')
     
     model_config = ConfigDict(populate_by_name=True)
 
@@ -132,11 +132,11 @@ class Featureline(SpeckleBuiltElementBase):
     
     特征线元素（Civil 3D）
     """
-    curve: Optional[Geometry2D] = Field(None, description='特征线曲线（主要几何属性）')
+    curve: Optional[Geometry] = Field(None, description='特征线曲线（主要几何属性，3D 坐标）')
     points: Optional[List[List[float]]] = Field(None, description='点列表（3D点，每个点为[x, y, z]）')
     name: Optional[str] = Field(None, description='特征线名称')
-    # 保留geometry_2d以兼容旧数据，但主要使用curve
-    geometry_2d: Optional[Geometry2D] = Field(None, description='特征线几何（兼容字段，主要使用curve）')
+    # 保留geometry以兼容旧数据，但主要使用curve
+    geometry: Optional[Geometry] = Field(None, description='特征线几何（兼容字段，主要使用curve，3D 坐标）')
     
     model_config = ConfigDict(populate_by_name=True)
 

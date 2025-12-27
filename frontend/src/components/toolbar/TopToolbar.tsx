@@ -24,8 +24,8 @@ export function TopToolbar() {
   } = useCanvasStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 处理 DWG 文件上传
-  const handleDwgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 处理 DWG 文件上传（使用后端API）
+  const handleDwgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -35,12 +35,13 @@ export function TopToolbar() {
       return;
     }
 
-    // 创建 FileReader 读取文件
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const imageUrl = event.target?.result as string;
+    try {
+      // 使用后端API上传
+      const { uploadBackground, getBackgroundUrl } = await import('@/services/background');
+      const backgroundInfo = await uploadBackground(file);
       
-      // 创建 Image 对象
+      // 使用后端URL加载图片
+      const imageUrl = getBackgroundUrl(backgroundInfo.id);
       const img = new Image();
       img.onload = () => {
         setDwgImage(img);
@@ -51,11 +52,10 @@ export function TopToolbar() {
         alert('图片加载失败');
       };
       img.src = imageUrl;
-    };
-    reader.onerror = () => {
-      alert('文件读取失败');
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '上传失败';
+      alert(`上传失败：${errorMessage}`);
+    }
   };
 
   const modes: { id: WorkbenchMode; label: string }[] = [
@@ -102,7 +102,21 @@ export function TopToolbar() {
             上传 DWG 底图
           </button>
 
-          {/* 底图显示开关 */}
+          {/* 底图显示/隐藏切换 */}
+          <button
+            onClick={() => setShowDwgBackground(!showDwgBackground)}
+            className={cn(
+              'px-3 py-1.5 text-xs font-medium rounded transition-colors',
+              showDwgBackground
+                ? 'bg-zinc-900 text-white'
+                : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+            )}
+            title={showDwgBackground ? '隐藏底图' : '显示底图'}
+          >
+            {showDwgBackground ? '隐藏底图' : '显示底图'}
+          </button>
+
+          {/* 底图控制面板（仅在显示时） */}
           {showDwgBackground && (
             <>
               {/* 底图透明度滑块 */}

@@ -17,12 +17,16 @@ def approval_service(memgraph_client):
 @pytest.fixture
 def sample_lot_id(memgraph_client):
     """创建测试用的检验批并返回 ID"""
+    from app.models.gb50300.element import ElementNode
+    from app.models.speckle.base import Geometry
+    from app.models.gb50300.relationships import MANAGEMENT_CONTAINS
+    
     lot_id = "test_lot_approval_001"
     lot_node = InspectionLotNode(
         id=lot_id,
         name="测试检验批",
         status="SUBMITTED",
-        item_id="test_item_001",
+        item_id="item_test_001",
         spatial_scope="test_scope",
         created_at=datetime.now(),
         updated_at=datetime.now()
@@ -30,6 +34,32 @@ def sample_lot_id(memgraph_client):
     
     # 创建检验批节点
     memgraph_client.create_node("InspectionLot", lot_node.model_dump(exclude_none=True))
+    
+    # 创建测试元素并关联到检验批
+    element_id = "test_element_approval_001"
+    element = ElementNode(
+        id=element_id,
+        speckle_type="Wall",
+        geometry=Geometry(
+            type="Polyline",
+            coordinates=[[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [10.0, 5.0, 0.0], [0.0, 5.0, 0.0], [0.0, 0.0, 0.0]],
+            closed=True
+        ),
+        level_id="level_test_001",
+        inspection_lot_id=lot_id,
+        status="Draft",
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    
+    # 将geometry转换为字典格式
+    element_dict = element.to_cypher_properties()
+    memgraph_client.create_node("Element", element_dict)
+    memgraph_client.create_relationship(
+        "InspectionLot", lot_id,
+        "Element", element_id,
+        MANAGEMENT_CONTAINS
+    )
     
     yield lot_id
     

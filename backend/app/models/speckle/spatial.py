@@ -10,7 +10,7 @@
 
 from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel, Field, ConfigDict
-from .base import SpeckleBuiltElementBase, Geometry2D
+from .base import SpeckleBuiltElementBase, Geometry
 
 
 class Level(SpeckleBuiltElementBase):
@@ -29,12 +29,12 @@ class Room(SpeckleBuiltElementBase):
     
     房间元素
     """
-    geometry_2d: Optional[Geometry2D] = Field(None, alias='outline', description='房间轮廓')
+    geometry: Optional[Geometry] = Field(None, alias='outline', description='房间轮廓（3D 坐标）')
     name: Optional[str] = Field(None, description='房间名称')
     number: Optional[str] = Field(None, description='房间编号')
     base_point: Optional[List[float]] = Field(None, alias='basePoint', description='基准点坐标 [x, y, z]')
     height: Optional[float] = Field(None, description='房间高度')
-    voids: Optional[List[Geometry2D]] = Field(default_factory=list, description='开洞轮廓列表')
+    voids: Optional[List[Geometry]] = Field(default_factory=list, description='开洞轮廓列表（3D 坐标）')
     area: Optional[float] = Field(None, description='房间面积')
     volume: Optional[float] = Field(None, description='房间体积')
     
@@ -46,14 +46,14 @@ class Space(SpeckleBuiltElementBase):
     
     空间元素（MEP 空间）
     """
-    geometry_2d: Optional[Geometry2D] = Field(None, alias='outline', description='空间轮廓')
+    geometry: Optional[Geometry] = Field(None, alias='outline', description='空间轮廓（3D 坐标）')
     name: Optional[str] = Field(None, description='空间名称')
     number: Optional[str] = Field(None, description='空间编号')
     base_point: Optional[List[float]] = Field(None, alias='basePoint', description='基准点坐标 [x, y, z]')
     base_offset: Optional[float] = Field(None, description='基础偏移')
     top_level: Optional[str] = Field(None, alias='topLevel', description='顶部楼层 ID（从 Level 对象转换）')
     top_offset: Optional[float] = Field(None, description='顶部偏移')
-    voids: Optional[List[Geometry2D]] = Field(default_factory=list, description='开洞轮廓列表')
+    voids: Optional[List[Geometry]] = Field(default_factory=list, description='开洞轮廓列表（3D 坐标）')
     space_type: Optional[str] = Field(None, alias='spaceType', description='空间类型')
     zone_name: Optional[str] = Field(None, alias='zoneName', description='区域名称')
     room_id: Optional[str] = Field(None, alias='roomId', description='关联房间 ID')
@@ -62,6 +62,7 @@ class Space(SpeckleBuiltElementBase):
     volume: Optional[float] = Field(None, description='空间体积')
     forbid_horizontal_mep: bool = Field(False, description='禁止水平MEP管线穿过此空间')
     forbid_vertical_mep: bool = Field(False, description='禁止竖向MEP管线穿过此空间')
+    use_integrated_hanger: bool = Field(default=False, description='是否使用综合支吊架')
     
     model_config = ConfigDict(populate_by_name=True)
 
@@ -71,7 +72,7 @@ class Zone(SpeckleBuiltElementBase):
     
     区域元素
     """
-    geometry_2d: Optional[Geometry2D] = Field(None, alias='outline', description='区域轮廓')
+    geometry: Optional[Geometry] = Field(None, alias='outline', description='区域轮廓（3D 坐标）')
     name: Optional[str] = Field(None, description='区域名称')
     
     model_config = ConfigDict(populate_by_name=True)
@@ -82,7 +83,7 @@ class Area(SpeckleBuiltElementBase):
     
     面积元素
     """
-    geometry_2d: Optional[Geometry2D] = Field(None, alias='outline', description='面积轮廓')
+    geometry: Optional[Geometry] = Field(None, alias='outline', description='面积轮廓（3D 坐标）')
     area: Optional[float] = Field(None, description='面积值')
     name: Optional[str] = Field(None, description='面积名称')
     

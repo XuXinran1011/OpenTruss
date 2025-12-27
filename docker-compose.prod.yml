@@ -1,0 +1,158 @@
+version: '3.8'
+
+# Production Docker Compose configuration for OpenTruss
+# Usage: docker-compose -f docker-compose.prod.yml up -d
+
+services:
+  # Memgraph 图数据库
+  memgraph:
+    image: memgraph/memgraph:latest
+    container_name: opentruss-memgraph-prod
+    restart: unless-stopped
+    ports:
+      - "7687:7687"  # Bolt 协议（仅内网访问，生产环境应使用内部网络）
+    volumes:
+      - memgraph-data:/var/lib/memgraph
+      # 可选：备份目录
+      - ./data/backups:/backups
+    environment:
+      - MEMGRAPH_LOG_LEVEL=WARNING  # 生产环境使用 WARNING 级别
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7444/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - opentruss-internal
+    # 生产环境建议：使用 secrets 管理敏感信息
+    # secrets:
+    #   - memgraph_password
+
+  # FastAPI 后端
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      # 生产环境不使用缓存
+      # args:
+      #   - BUILDKIT_INLINE_CACHE=1
+    container_name: opentruss-backend-prod
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - MEMGRAPH_HOST=memgraph
+      - MEMGRAPH_PORT=7687
+      - MEMGRAPH_USER=${MEMGRAPH_USER:-memgraph}
+      - MEMGRAPH_PASSWORD=${MEMGRAPH_PASSWORD}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-1440}
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - DATA_DIR=/app/data
+      - LOG_LEVEL=${LOG_LEVEL:-WARNING}
+      - DEBUG=false
+      - RELOAD=false
+    volumes:
+      - backend-data:/app/data
+      # 可选：挂载日志目录
+      - ./logs/backend:/app/logs
+    depends_on:
+      memgraph:
+        condition: service_healthy
+    networks:
+      - opentruss-internal
+    # 生产环境建议：设置资源限制
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Next.js 前端
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: opentruss-frontend-prod
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+      - NODE_ENV=production
+    volumes:
+      # 生产环境不需要挂载源码
+      - ./logs/frontend:/app/logs
+    depends_on:
+      - backend
+    networks:
+      - opentruss-internal
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # 可选：Nginx 反向代理（推荐用于生产环境）
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: opentruss-nginx-prod
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./nginx/ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - backend
+  #     - frontend
+  #   networks:
+  #     - opentruss-internal
+
+volumes:
+  memgraph-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/memgraph
+  backend-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/backend
+
+networks:
+  opentruss-internal:
+    driver: bridge
+    internal: false  # 设置为 true 可禁止外部访问
+
+# 生产环境建议使用 Docker Secrets（需要 Docker Swarm）
+# secrets:
+#   memgraph_password:
+#     external: true
+#   jwt_secret_key:
+#     external: true
+

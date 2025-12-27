@@ -21,13 +21,25 @@ export type InspectionLotStatus = 'PLANNING' | 'IN_PROGRESS' | 'SUBMITTED' | 'AP
 export type GeometryType = 'Line' | 'Polyline';
 
 /**
- * 2D 几何数据
+ * 3D 原生几何数据（OpenTruss 格式）
+ * 
+ * 底层数据模型是 3D 原生的，支持：
+ * - AI 识别结果（2D 输入，自动补 z=0.0）
+ * - Revit 导出数据（3D 输入，无损保存）
+ * 
+ * 坐标格式：[[x1, y1, z1], [x2, y2, z2], ...]
  */
-export interface Geometry2D {
+export interface Geometry {
   type: GeometryType;
-  coordinates: number[][];
+  coordinates: number[][]; // 3D 坐标：[[x, y, z], ...]，支持 2D 输入（自动补 z=0.0）
   closed?: boolean;
 }
+
+/**
+ * @deprecated 使用 Geometry 代替（3D 原生）
+ * 保留此类型以保持向后兼容
+ */
+export interface Geometry2D extends Geometry {}
 
 /**
  * 层级节点类型

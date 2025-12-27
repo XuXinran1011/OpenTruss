@@ -66,3 +66,31 @@ class ApprovalHistoryResponse(BaseModel):
     lot_id: str = Field(..., description="检验批 ID")
     history: List[ApprovalHistoryItem] = Field(..., description="审批历史记录列表")
 
+
+class BatchApproveRequest(BaseModel):
+    """批量审批请求"""
+    lot_ids: List[str] = Field(..., description="检验批 ID 列表", min_length=1)
+    comment: Optional[str] = Field(None, description="审批意见（应用到所有检验批）")
+    
+    model_config = ConfigDict(json_schema_extra={
+        "example": {
+            "lot_ids": ["lot_001", "lot_002", "lot_003"],
+            "comment": "批量审批通过"
+        }
+    })
+
+
+class BatchApproveResult(BaseModel):
+    """批量审批结果项"""
+    lot_id: str = Field(..., description="检验批 ID")
+    status: Optional[str] = Field(None, description="新状态（成功时）")
+    approved_by: Optional[str] = Field(None, description="审批人 ID（成功时）")
+    approved_at: Optional[str] = Field(None, description="审批时间（成功时）")
+    error: Optional[str] = Field(None, description="错误信息（失败时）")
+
+
+class BatchApproveResponse(BaseModel):
+    """批量审批响应"""
+    success: List[BatchApproveResult] = Field(..., description="成功审批的检验批列表")
+    failed: List[BatchApproveResult] = Field(..., description="审批失败的检验批列表")
+    total: int = Field(..., description="总数")

@@ -15,7 +15,7 @@ import type { Selection } from 'd3-selection';
 
 // 使用require解决Next.js模块解析问题
 // eslint-disable-next-line
-const d3Required = require('d3') as typeof d3Type;
+const d3Required = require('d3') as any;
 
 /**
  * D3包装器接口
@@ -26,9 +26,10 @@ export interface D3Wrapper {
   selectAll: typeof d3Type.selectAll;
   zoom: typeof d3Type.zoom;
   zoomIdentity: typeof d3Type.zoomIdentity;
-  drag: typeof d3Type.drag;
+  drag: any; // d3.drag 的类型定义较复杂，使用 any
   pointer: typeof d3Type.pointer;
-  line: typeof d3Type.line;
+  line: any; // d3.line 的类型定义较复杂，使用 any
+  transition: any; // d3.transition 的类型定义较复杂，使用 any
 }
 
 /**
@@ -43,6 +44,7 @@ export const d3: D3Wrapper = {
   drag: d3Required.drag,
   pointer: d3Required.pointer,
   line: d3Required.line,
+  transition: d3Required.transition,
 };
 
 // 导出常用类型供其他文件使用

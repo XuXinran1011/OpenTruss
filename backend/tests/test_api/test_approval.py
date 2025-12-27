@@ -31,18 +31,48 @@ def memgraph_client():
 @pytest.fixture
 def sample_lot_id(memgraph_client):
     """创建测试用的检验批并返回 ID"""
+    from app.models.gb50300.element import ElementNode
+    from app.models.speckle.base import Geometry
+    from app.models.gb50300.relationships import MANAGEMENT_CONTAINS
+    
     lot_id = "test_lot_api_001"
     lot_node = InspectionLotNode(
         id=lot_id,
         name="测试检验批",
         status="SUBMITTED",
-        item_id="test_item_001",
+        item_id="item_test_001",
         spatial_scope="test_scope",
         created_at=datetime.now(),
         updated_at=datetime.now()
     )
     
     memgraph_client.create_node("InspectionLot", lot_node.model_dump(exclude_none=True))
+    
+    # 创建测试元素并关联到检验批
+    element_id = "test_element_api_approval_001"
+    element = ElementNode(
+        id=element_id,
+        speckle_type="Wall",
+        geometry=Geometry(
+            type="Polyline",
+            coordinates=[[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [10.0, 5.0, 0.0], [0.0, 5.0, 0.0], [0.0, 0.0, 0.0]],
+            closed=True
+        ),
+        level_id="level_test_api_001",
+        inspection_lot_id=lot_id,
+        status="Draft",
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    
+    # 将geometry转换为字典格式
+    element_dict = element.to_cypher_properties()
+    memgraph_client.create_node("Element", element_dict)
+    memgraph_client.create_relationship(
+        "InspectionLot", lot_id,
+        "Element", element_id,
+        MANAGEMENT_CONTAINS
+    )
     
     yield lot_id
     
@@ -145,18 +175,124 @@ def test_get_approval_history_endpoint(approver_token, sample_lot_id, memgraph_c
 
 def test_approval_status_transitions(approver_token, pm_token, memgraph_client):
     """测试状态转换逻辑"""
+    from app.models.gb50300.element import ElementNode
+    from app.models.speckle.base import Geometry
+    from app.models.gb50300.relationships import MANAGEMENT_CONTAINS
+    from app.models.gb50300.nodes import LevelNode, BuildingNode
+    from app.models.gb50300.relationships import PHYSICALLY_CONTAINS, LOCATED_AT
+    
+    # 创建项目结构（Project -> Building -> Level）
+    from app.models.gb50300.nodes import ProjectNode
+    
+    project_id = "test_project_status_transitions"
+    building_id = "test_building_status_transitions"
+    level_id = "test_level_status_transitions"
+    
+    # 创建 Project（如果需要）
+    if not memgraph_client.execute_query("MATCH (p:Project {id: $project_id}) RETURN p", {"project_id": project_id}):
+        project = ProjectNode(
+            id=project_id,
+            name="测试项目",
+            created_at=datetime.now(),
+            updated_at=datetime.now()
+        )
+        memgraph_client.create_node("Project", project.model_dump(exclude_none=True))
+    
+    # 创建 Building（如果需要）
+    if not memgraph_client.execute_query("MATCH (b:Building {id: $building_id}) RETURN b", {"building_id": building_id}):
+        building = BuildingNode(
+            id=building_id,
+            name="测试建筑",
+            project_id=project_id,
+            created_at=datetime.now(),
+            updated_at=datetime.now()
+        )
+        memgraph_client.create_node("Building", building.model_dump(exclude_none=True))
+        memgraph_client.create_relationship("Project", project_id, "Building", building_id, "HAS_BUILDING")
+    
+    # 创建 Level
+    if not memgraph_client.execute_query("MATCH (l:Level {id: $level_id}) RETURN l", {"level_id": level_id}):
+        level = LevelNode(
+            id=level_id,
+            name="测试层",
+            building_id=building_id,
+            elevation=0.0,
+            created_at=datetime.now(),
+            updated_at=datetime.now()
+        )
+        memgraph_client.create_node("Level", level.model_dump(exclude_none=True))
+        memgraph_client.create_relationship("Building", building_id, "Level", level_id, PHYSICALLY_CONTAINS)
+    
+    # 清理可能存在的旧测试数据
     lot_id = "test_lot_status_transitions"
+    element_id = "test_element_status_transitions"
+    
+    memgraph_client.execute_write(
+        """
+        MATCH (lot:InspectionLot {id: $lot_id})-[r:MANAGEMENT_CONTAINS]->(e:Element)
+        DELETE r
+        """,
+        {"lot_id": lot_id}
+    )
+    memgraph_client.execute_write(
+        """
+        MATCH (lot:InspectionLot {id: $lot_id})
+        DELETE lot
+        """,
+        {"lot_id": lot_id}
+    )
+    memgraph_client.execute_write(
+        """
+        MATCH (e:Element {id: $element_id})
+        DETACH DELETE e
+        """,
+        {"element_id": element_id}
+    )
+    
     lot_node = InspectionLotNode(
         id=lot_id,
         name="测试检验批",
         status="PLANNING",
-        item_id="test_item_001",
+        item_id="item_test_001",
         spatial_scope="test_scope",
         created_at=datetime.now(),
         updated_at=datetime.now()
     )
     
     memgraph_client.create_node("InspectionLot", lot_node.model_dump(exclude_none=True))
+    
+    # 创建测试构件并关联到检验批
+    element_node = ElementNode(
+        id=element_id,
+        speckle_type="Wall",
+        geometry=Geometry(
+            type="Polyline",
+            coordinates=[[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [10.0, 5.0, 0.0], [0.0, 5.0, 0.0], [0.0, 0.0, 0.0]],
+            closed=True
+        ),
+        height=3.0,
+        base_offset=0.0,
+        material="concrete",
+        level_id=level_id,
+        inspection_lot_id=lot_id,
+        status="Draft",
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    
+    # 使用 to_cypher_properties() 方法
+    element_dict = element_node.to_cypher_properties()
+    memgraph_client.create_node("Element", element_dict)
+    memgraph_client.create_relationship(
+        "InspectionLot", lot_id,
+        "Element", element_id,
+        MANAGEMENT_CONTAINS
+    )
+    memgraph_client.create_relationship(
+        "Element", element_id,
+        "Level", level_id,
+        LOCATED_AT
+    )
     
     try:
         # 1. PLANNING -> IN_PROGRESS (通过更新状态)
@@ -177,7 +313,11 @@ def test_approval_status_transitions(approver_token, pm_token, memgraph_client):
             json={"comment": "验收通过"},
             headers={"Authorization": f"Bearer {approver_token}"}
         )
-        assert response.status_code == 200
+        if response.status_code != 200:
+            print(f"\n=== Approval failed ===")
+            print(f"Status: {response.status_code}")
+            print(f"Response: {response.text}")
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
         
         # 验证状态为 APPROVED
         query = "MATCH (lot:InspectionLot {id: $lot_id}) RETURN lot.status as status"
@@ -231,3 +371,98 @@ def test_approve_nonexistent_lot(approver_token):
     assert response.status_code == 400
     assert "not found" in response.json()["detail"].lower()
 
+
+def test_approve_invalid_status(approver_token, memgraph_client):
+    """测试审批非 SUBMITTED 状态的检验批"""
+    lot_id = "test_lot_invalid_status_api"
+    lot_node = InspectionLotNode(
+        id=lot_id,
+        name="测试检验批",
+        status="PLANNING",  # PLANNING 状态不能审批
+        item_id="item_test_001",
+        spatial_scope="test_scope",
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    
+    memgraph_client.create_node("InspectionLot", lot_node.model_dump(exclude_none=True))
+    
+    try:
+        response = client.post(
+            f"/api/v1/lots/{lot_id}/approve",
+            json={"comment": "验收通过"},
+            headers={"Authorization": f"Bearer {approver_token}"}
+        )
+        
+        assert response.status_code == 400
+        assert "cannot approve" in response.json()["detail"].lower() or "must be submitted" in response.json()["detail"].lower()
+    finally:
+        memgraph_client.execute_write(
+            "MATCH (lot:InspectionLot {id: $lot_id}) DETACH DELETE lot",
+            {"lot_id": lot_id}
+        )
+
+
+def test_reject_invalid_level(approver_token, sample_lot_id):
+    """测试驳回时使用无效的 reject_level"""
+    response = client.post(
+        f"/api/v1/lots/{sample_lot_id}/reject",
+        json={
+            "reason": "测试",
+            "reject_level": "INVALID_LEVEL"  # 无效的级别
+        },
+        headers={"Authorization": f"Bearer {approver_token}"}
+    )
+    
+    assert response.status_code == 400
+    assert "reject_level" in response.json()["detail"].lower() or "must be" in response.json()["detail"].lower()
+
+
+def test_reject_approver_to_planning(approver_token, sample_lot_id):
+    """测试 Approver 试图驳回至 PLANNING（应该失败，只有 PM 可以）"""
+    response = client.post(
+        f"/api/v1/lots/{sample_lot_id}/reject",
+        json={
+            "reason": "测试",
+            "reject_level": "PLANNING"  # Approver 不能驳回至 PLANNING
+        },
+        headers={"Authorization": f"Bearer {approver_token}"}
+    )
+    
+    # API 应该返回 400，因为 Approver 只能驳回至 IN_PROGRESS
+    assert response.status_code == 400
+    assert "only reject to in_progress" in response.json()["detail"].lower() or "approver" in response.json()["detail"].lower()
+
+
+def test_reject_pm_to_planning(pm_token, memgraph_client):
+    """测试 PM 驳回至 PLANNING（应该成功）"""
+    lot_id = "test_lot_pm_reject"
+    lot_node = InspectionLotNode(
+        id=lot_id,
+        name="测试检验批",
+        status="APPROVED",  # PM 可以驳回 APPROVED 状态
+        item_id="item_test_001",
+        spatial_scope="test_scope",
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    
+    memgraph_client.create_node("InspectionLot", lot_node.model_dump(exclude_none=True))
+    
+    try:
+        response = client.post(
+            f"/api/v1/lots/{lot_id}/reject",
+            json={
+                "reason": "重大错误，需要重新规划",
+                "reject_level": "PLANNING"
+            },
+            headers={"Authorization": f"Bearer {pm_token}"}
+        )
+        
+        assert response.status_code == 200
+        assert response.json()["data"]["status"] == "PLANNING"
+    finally:
+        memgraph_client.execute_write(
+            "MATCH (lot:InspectionLot {id: $lot_id}) DETACH DELETE lot",
+            {"lot_id": lot_id}
+        )

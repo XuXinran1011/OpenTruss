@@ -113,6 +113,96 @@ export function getGeometryEndpoints(coordinates: number[][]): { x: number; y: n
 }
 
 /**
+ * 获取线段的中点
+ */
+export function getLineMidpoint(
+  start: { x: number; y: number },
+  end: { x: number; y: number }
+): { x: number; y: number } {
+  return {
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+  };
+}
+
+/**
+ * 获取几何的所有中点（用于磁吸检测）
+ * 对于线段，返回中点；对于多段线，返回每段的中点
+ */
+export function getGeometryMidpoints(coordinates: number[][]): { x: number; y: number }[] {
+  if (coordinates.length < 2) return [];
+  
+  const midpoints: { x: number; y: number }[] = [];
+  
+  for (let i = 0; i < coordinates.length - 1; i++) {
+    const start = { x: coordinates[i][0] || 0, y: coordinates[i][1] || 0 };
+    const end = { x: coordinates[i + 1][0] || 0, y: coordinates[i + 1][1] || 0 };
+    midpoints.push(getLineMidpoint(start, end));
+  }
+  
+  return midpoints;
+}
+
+/**
+ * 获取所有几何的交点（用于磁吸检测）
+ * 计算当前几何与其他几何的交点
+ * 
+ * @param coordinates - 当前几何的坐标数组
+ * @param otherGeometries - 其他几何的坐标数组
+ * @param spatialIndex - 可选的空间索引，用于预过滤候选几何
+ * @param searchBbox - 可选的搜索边界框，用于空间过滤
+ * @returns 交点数组
+ */
+export function getGeometryIntersections(
+  coordinates: number[][],
+  otherGeometries: Array<{ coordinates: number[][] }>,
+  spatialIndex?: { search: (bbox: Rectangle) => string[] },
+  searchBbox?: Rectangle
+): { x: number; y: number }[] {
+  const intersections: { x: number; y: number }[] = [];
+  
+  if (coordinates.length < 2) return intersections;
+  
+  // 如果提供了空间索引和搜索边界框，先进行空间过滤
+  let geometriesToCheck = otherGeometries;
+  if (spatialIndex && searchBbox) {
+    const candidateIds = spatialIndex.search(searchBbox);
+    // 注意：这里假设 otherGeometries 中的元素有某种方式关联到ID
+    // 由于当前接口不包含ID，我们暂时跳过这个优化
+    // 在实际使用中，调用方已经通过空间索引过滤了 otherGeometries
+  }
+  
+  // 遍历当前几何的每条线段
+  for (let i = 0; i < coordinates.length - 1; i++) {
+    const p1 = { x: coordinates[i][0] || 0, y: coordinates[i][1] || 0 };
+    const p2 = { x: coordinates[i + 1][0] || 0, y: coordinates[i + 1][1] || 0 };
+    
+    // 与其他几何的每条线段计算交点
+    for (const otherGeometry of geometriesToCheck) {
+      if (otherGeometry.coordinates.length < 2) continue;
+      
+      for (let j = 0; j < otherGeometry.coordinates.length - 1; j++) {
+        const p3 = { 
+          x: otherGeometry.coordinates[j][0] || 0, 
+          y: otherGeometry.coordinates[j][1] || 0 
+        };
+        const p4 = { 
+          x: otherGeometry.coordinates[j + 1][0] || 0, 
+          y: otherGeometry.coordinates[j + 1][1] || 0 
+        };
+        
+        const intersection = lineIntersection(p1, p2, p3, p4);
+        if (intersection) {
+          intersections.push(intersection);
+        }
+      }
+    }
+  }
+  
+  return intersections;
+}
+
+/**
  * 查找最近的吸附点
  */
 export function findNearestSnapPoint(
@@ -144,8 +234,8 @@ export interface SnapPointElement {
   element?: {
     id: string;
     speckle_type?: string;
-    geometry_2d?: {
-      coordinates: number[][];
+    geometry?: {
+      coordinates: number[][];  // 3D 坐标：[[x, y, z], ...]
       type?: string;
       closed?: boolean;
     };
@@ -227,6 +317,96 @@ export function nearestPointOnLine(
   const dist = Math.sqrt(dx * dx + dy * dy);
 
   return { x: xx, y: yy, distance: dist };
+}
+
+/**
+ * 调整路径点以实现角度吸附
+ * 
+ * 给定路径点 P[i-1], P[i], P[i+1]，调整P[i]的位置使转弯角度等于目标角度。
+ * 保持P[i-1]到P[i]的距离和P[i]到P[i+1]的距离不变。
+ * 
+ * **边界情况处理**：
+ * - 如果路径点少于3个或索引无效，返回原路径
+ * - 如果向量长度为0，返回原路径（避免除零错误）
+ * 
+ * @param path - 路径点数组 [[x1, y1], [x2, y2], ...]
+ * @param pointIndex - 需要调整的转弯点索引（路径中的中间点，1 到 path.length-2）
+ * @param targetAngle - 目标角度（度）
+ * @returns 调整后的路径点数组
+ */
+export function adjustPathForAngleSnap(
+  path: number[][],
+  pointIndex: number,
+  targetAngle: number
+): number[][] {
+  if (path.length < 3 || pointIndex < 1 || pointIndex >= path.length - 1) {
+    return path; // 无法调整，返回原路径
+  }
+
+  const pPrev = path[pointIndex - 1];
+  const pCurr = path[pointIndex];
+  const pNext = path[pointIndex + 1];
+
+  // 计算当前两个向量
+  const v1 = {
+    x: pCurr[0] - pPrev[0],
+    y: pCurr[1] - pPrev[1]
+  };
+  const v2 = {
+    x: pNext[0] - pCurr[0],
+    y: pNext[1] - pCurr[1]
+  };
+
+  // 计算向量长度
+  const len1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+  const len2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+
+  if (len1 === 0 || len2 === 0) {
+    return path; // 向量长度为0，无法调整
+  }
+
+  // 归一化向量1
+  const dir1 = {
+    x: v1.x / len1,
+    y: v1.y / len1
+  };
+
+  // 计算向量1的角度（弧度）
+  const angle1 = Math.atan2(dir1.y, dir1.x);
+
+  // 计算目标角度对应的向量2方向（弧度）
+  // 目标角度是内角，所以向量2的方向 = 向量1的方向 + (180° - 目标角度)
+  const targetAngleRad = (targetAngle * Math.PI) / 180;
+  const angle2 = angle1 + (Math.PI - targetAngleRad);
+
+  // 计算归一化的向量2方向
+  const dir2 = {
+    x: Math.cos(angle2),
+    y: Math.sin(angle2)
+  };
+
+  // 计算新的P[i]位置
+  // 方案1：保持P[i-1]到P[i]的距离不变，P[i]的新位置 = P[i-1] + len1 * dir1
+  // 方案2：保持P[i]到P[i+1]的距离不变，P[i]的新位置 = P[i+1] - len2 * dir2
+  // 我们采用方案1，然后调整P[i+1]使其到新P[i]的距离和方向满足要求
+  
+  const newPCurr = {
+    x: pPrev[0] + len1 * dir1.x,
+    y: pPrev[1] + len1 * dir1.y
+  };
+
+  // 计算新的P[i+1]位置（保持P[i]到P[i+1]的距离）
+  const newPNext = {
+    x: newPCurr.x + len2 * dir2.x,
+    y: newPCurr.y + len2 * dir2.y
+  };
+
+  // 创建调整后的路径
+  const adjustedPath = [...path];
+  adjustedPath[pointIndex] = [newPCurr.x, newPCurr.y];
+  adjustedPath[pointIndex + 1] = [newPNext.x, newPNext.y];
+
+  return adjustedPath;
 }
 
 /**

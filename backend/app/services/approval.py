@@ -9,6 +9,7 @@ from datetime import datetime
 from enum import Enum
 
 from app.utils.memgraph import MemgraphClient, convert_neo4j_datetime
+from app.core.exceptions import NotFoundError, ConflictError, ValidationError
 from app.models.gb50300.relationships import MANAGEMENT_CONTAINS, HAS_APPROVAL_HISTORY
 from app.models.gb50300.nodes import ApprovalHistoryNode
 
@@ -55,7 +56,9 @@ class ApprovalService:
             Dict: 审批结果
             
         Raises:
-            ValueError: 如果检验批不存在或状态不允许审批
+            NotFoundError: 如果检验批不存在
+            ConflictError: 如果状态不允许审批
+            ValidationError: 如果检验批为空或数据不完整
         """
         # 验证检验批存在且状态为 SUBMITTED
         lot_query = """
@@ -65,16 +68,150 @@ class ApprovalService:
         result = self.client.execute_query(lot_query, {"lot_id": lot_id})
         
         if not result:
-            raise ValueError(f"InspectionLot not found: {lot_id}")
+            raise NotFoundError(
+                f"InspectionLot not found: {lot_id}. Please check the lot ID and try again.",
+                {"lot_id": lot_id, "resource_type": "InspectionLot"}
+            )
         
         lot_data = result[0]
         current_status = lot_data["status"]
         
         if current_status != "SUBMITTED":
-            raise ValueError(
-                f"Cannot approve lot {lot_id}: current status is {current_status}, "
-                "must be SUBMITTED to approve"
+            raise ConflictError(
+                f"Cannot approve lot {lot_id}: current status is '{current_status}', "
+                "must be 'SUBMITTED' to approve. Please submit the lot first.",
+                {"lot_id": lot_id, "current_status": current_status, "required_status": "SUBMITTED"}
             )
+        
+        # 验证检验批完整性（轻量级验证，确保基本的几何信息完整）
+        # 注意：提交时已经做了完整的验证，这里只做基本的完整性检查
+        elements_query = """
+        MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
+        RETURN count(e) as element_count,
+               count(CASE WHEN e.geometry IS NOT NULL THEN 1 END) as elements_with_geometry,
+               count(CASE WHEN e.height IS NOT NULL AND e.base_offset IS NOT NULL THEN 1 END) as elements_with_height
+        """
+        elements_result = self.client.execute_query(elements_query, {"lot_id": lot_id})
+        
+        if not elements_result:
+            raise ValidationError(
+                f"Failed to query elements for lot {lot_id}",
+                {"lot_id": lot_id}
+            )
+        
+        result_data = elements_result[0]
+        element_count = result_data.get("element_count", 0)
+        elements_with_geometry = result_data.get("elements_with_geometry", 0)
+        elements_with_height = result_data.get("elements_with_height", 0)
+        
+        if element_count == 0:
+            raise ValidationError(
+                f"Cannot approve lot {lot_id}: the lot contains no elements. "
+                "Please add elements to the lot before approval.",
+                {"lot_id": lot_id, "element_count": 0}
+            )
+        
+        # 检查几何信息完整性
+        if elements_with_geometry < element_count:
+            missing_count = element_count - elements_with_geometry
+            raise ValidationError(
+                f"Cannot approve lot {lot_id}: {missing_count} out of {element_count} elements "
+                "are missing geometry. All elements must have complete geometry information for approval.",
+                {"lot_id": lot_id, "missing_count": missing_count, "total_count": element_count}
+            )
+        
+        if elements_with_height < element_count:
+            missing_count = element_count - elements_with_height
+            logger.warning(
+                f"Lot {lot_id}: {missing_count} out of {element_count} elements are missing height or base_offset. "
+                "This may affect 3D visualization and IFC export."
+            )
+        
+        # Brick Schema 语义验证（硬检查）
+        semantic_errors = []
+        try:
+            from app.core.semantic_validator import get_semantic_validator
+            from app.models.gb50300.element import ElementNode
+            from app.core.ontology import MEMGRAPH_BRICK_RELATIONSHIPS, DEFAULT_RELATIONSHIP
+            
+            semantic_validator = get_semantic_validator()
+            
+            # 获取检验批内所有构件的连接关系（支持所有 Brick 关系类型）
+            all_relationship_types = list(MEMGRAPH_BRICK_RELATIONSHIPS.keys()) + [DEFAULT_RELATIONSHIP]
+            # 构建 Cypher 查询中的关系类型列表字符串
+            relationship_types_str = "['" + "', '".join(all_relationship_types) + "']"
+            
+            connections_query = f"""
+            MATCH (lot:InspectionLot {{id: $lot_id}})-[:MANAGEMENT_CONTAINS]->(e1:Element)
+            MATCH (e1)-[r]->(e2:Element)
+            WHERE type(r) IN {relationship_types_str}
+            MATCH (lot)-[:MANAGEMENT_CONTAINS]->(e2)
+            RETURN e1.id as source_id, e1.speckle_type as source_type,
+                   e2.id as target_id, e2.speckle_type as target_type,
+                   type(r) as relationship_type
+            """
+            connections = self.client.execute_query(connections_query, {"lot_id": lot_id})
+            
+            # 获取所有元素数据用于验证
+            elements_query = """
+            MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
+            RETURN e
+            """
+            elements_result = self.client.execute_query(elements_query, {"lot_id": lot_id})
+            elements_dict = {dict(elem["e"])["id"]: dict(elem["e"]) for elem in elements_result}
+            
+            # 验证每个连接
+            for conn in connections:
+                source_id = conn["source_id"]
+                target_id = conn["target_id"]
+                relationship = conn["relationship_type"]
+                
+                source_data = elements_dict.get(source_id)
+                target_data = elements_dict.get(target_id)
+                
+                if not source_data or not target_data:
+                    continue
+                
+                # 创建 ElementNode 对象用于验证
+                try:
+                    source_element = ElementNode(**source_data)
+                    target_element = ElementNode(**target_data)
+                    
+                    # 执行语义验证
+                    result = semantic_validator.validate_connection(
+                        source_element,
+                        target_element,
+                        relationship
+                    )
+                    
+                    if not result.valid:
+                        error_msg = (
+                            f"{source_element.speckle_type} ({source_id}) cannot {relationship} "
+                            f"{target_element.speckle_type} ({target_id})"
+                        )
+                        if result.error:
+                            error_msg += f": {result.error}"
+                        if result.suggestion:
+                            error_msg += f". Suggestion: use {result.suggestion}"
+                        semantic_errors.append(error_msg)
+                except Exception as e:
+                    logger.warning(f"Failed to validate connection {source_id} -> {target_id}: {e}")
+                    continue
+            
+            # 如果有语义错误，阻止审批
+            if semantic_errors:
+                error_summary = f"Found {len(semantic_errors)} semantic validation errors"
+                raise ValidationError(
+                    f"Cannot approve lot {lot_id}: {error_summary}. "
+                    f"Details: {'; '.join(semantic_errors[:5])}",  # 只显示前5个错误
+                    {"lot_id": lot_id, "error_count": len(semantic_errors), "errors": semantic_errors[:5]}
+                )
+        except ValueError:
+            # 重新抛出语义验证错误
+            raise
+        except Exception as e:
+            # 其他错误记录警告但不阻止审批
+            logger.warning(f"Semantic validation failed for lot {lot_id}: {e}. Proceeding with approval.")
         
         # 更新状态为 APPROVED
         update_query = """
@@ -105,6 +242,58 @@ class ApprovalService:
             "comment": comment
         }
     
+    def batch_approve_lots(
+        self,
+        lot_ids: List[str],
+        approver_id: str,
+        comment: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """批量审批通过检验批
+        
+        Args:
+            lot_ids: 检验批 ID 列表
+            approver_id: 审批人 ID
+            comment: 审批意见（可选，应用到所有检验批）
+            
+        Returns:
+            Dict: 批量审批结果，包含成功和失败的列表
+        """
+        if not lot_ids:
+            raise ValidationError(
+                "lot_ids 不能为空",
+                {"lot_ids": lot_ids}
+            )
+        
+        results = {
+            "success": [],
+            "failed": [],
+            "total": len(lot_ids)
+        }
+        
+        for lot_id in lot_ids:
+            try:
+                result = self.approve_lot(
+                    lot_id=lot_id,
+                    approver_id=approver_id,
+                    comment=comment
+                )
+                results["success"].append({
+                    "lot_id": lot_id,
+                    "status": result["status"],
+                    "approved_by": result.get("approved_by"),
+                    "approved_at": result.get("approved_at")
+                })
+            except Exception as e:
+                logger.warning(f"Failed to approve lot {lot_id}: {e}")
+                results["failed"].append({
+                    "lot_id": lot_id,
+                    "error": str(e)
+                })
+        
+        logger.info(f"Batch approval completed: {len(results['success'])} succeeded, {len(results['failed'])} failed")
+        
+        return results
+    
     def reject_lot(
         self,
         lot_id: str,
@@ -126,7 +315,9 @@ class ApprovalService:
             Dict: 驳回结果
             
         Raises:
-            ValueError: 如果检验批不存在、状态不允许驳回或权限不足
+            NotFoundError: 如果检验批不存在
+            ConflictError: 如果状态不允许驳回
+            ValidationError: 如果权限不足或参数无效
         """
         # 验证检验批存在
         lot_query = """
@@ -136,7 +327,10 @@ class ApprovalService:
         result = self.client.execute_query(lot_query, {"lot_id": lot_id})
         
         if not result:
-            raise ValueError(f"InspectionLot not found: {lot_id}")
+            raise NotFoundError(
+                f"InspectionLot not found: {lot_id}. Please check the lot ID and try again.",
+                {"lot_id": lot_id, "resource_type": "InspectionLot"}
+            )
         
         lot_data = result[0]
         current_status = lot_data["status"]
@@ -145,24 +339,32 @@ class ApprovalService:
         if role == ApprovalRole.APPROVER:
             # Approver 只能驳回 SUBMITTED 状态的检验批，且只能驳回到 IN_PROGRESS
             if current_status != "SUBMITTED":
-                raise ValueError(
-                    f"Cannot reject lot {lot_id}: current status is {current_status}, "
-                    "Approver can only reject SUBMITTED lots"
+                raise ConflictError(
+                    f"Cannot reject lot {lot_id}: current status is '{current_status}', "
+                    "Approver can only reject SUBMITTED lots. Please wait until the lot is submitted.",
+                    {"lot_id": lot_id, "current_status": current_status, "required_status": "SUBMITTED"}
                 )
             if reject_level != "IN_PROGRESS":
-                raise ValueError(
-                    f"Approver can only reject to IN_PROGRESS, not {reject_level}"
+                raise ValidationError(
+                    f"Approver can only reject to 'IN_PROGRESS', not '{reject_level}'. "
+                    "Only PM can reject to 'PLANNING'.",
+                    {"lot_id": lot_id, "reject_level": reject_level, "allowed_level": "IN_PROGRESS"}
                 )
         
         elif role == ApprovalRole.PM:
             # PM 可以驳回 APPROVED 状态的检验批，可以驳回到 IN_PROGRESS 或 PLANNING
             if current_status not in ["SUBMITTED", "APPROVED"]:
-                raise ValueError(
-                    f"Cannot reject lot {lot_id}: current status is {current_status}, "
-                    "PM can only reject SUBMITTED or APPROVED lots"
+                raise ConflictError(
+                    f"Cannot reject lot {lot_id}: current status is '{current_status}', "
+                    "PM can only reject SUBMITTED or APPROVED lots. "
+                    f"Current status '{current_status}' is not eligible for rejection.",
+                    {"lot_id": lot_id, "current_status": current_status, "allowed_statuses": ["SUBMITTED", "APPROVED"]}
                 )
         else:
-            raise ValueError(f"Invalid role: {role}")
+            raise ValidationError(
+                f"Invalid role: {role}. Must be 'APPROVER' or 'PM'.",
+                {"role": str(role), "allowed_roles": ["APPROVER", "PM"]}
+            )
         
         # 更新状态
         update_query = """

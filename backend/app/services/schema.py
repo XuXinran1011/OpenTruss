@@ -148,7 +148,7 @@ def _ensure_unassigned_item(client: MemgraphClient) -> None:
         item = ItemNode(
             id=UNASSIGNED_ITEM_ID,
             name="未分配构件",
-            sub_division_id=subdiv_id
+            subdivision_id=subdiv_id
         )
         
         props = item.model_dump(exclude_none=True)

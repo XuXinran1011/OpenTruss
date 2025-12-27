@@ -3,7 +3,7 @@
 提供 GB50300 层级结构的查询接口
 """
 
-from typing import Optional
+from typing import Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, status, Query, Depends
 
 from app.services.hierarchy import HierarchyService
@@ -40,7 +40,7 @@ async def get_projects(
     page: int = Query(default=1, ge=1, description="页码"),
     page_size: int = Query(default=20, ge=1, le=100, description="每页数量"),
     service: HierarchyService = Depends(get_hierarchy_service),
-) -> dict:
+) -> Dict[str, Any]:
     """获取项目列表"""
     result = service.get_projects(page=page, page_size=page_size)
     return {
@@ -58,7 +58,7 @@ async def get_projects(
 async def get_project(
     project_id: str,
     service: HierarchyService = Depends(get_hierarchy_service),
-) -> dict:
+) -> Dict[str, Any]:
     """获取项目详情"""
     project = service.get_project_detail(project_id)
     
@@ -83,7 +83,7 @@ async def get_project(
 async def get_project_hierarchy(
     project_id: str,
     service: HierarchyService = Depends(get_hierarchy_service),
-) -> dict:
+) -> Dict[str, Any]:
     """获取项目层级树"""
     hierarchy = service.get_project_hierarchy(project_id)
     
@@ -108,7 +108,7 @@ async def get_project_hierarchy(
 async def get_building(
     building_id: str,
     service: HierarchyService = Depends(get_hierarchy_service),
-) -> dict:
+) -> Dict[str, Any]:
     """获取单体详情"""
     building = service.get_building_detail(building_id)
     
@@ -133,7 +133,7 @@ async def get_building(
 async def get_division(
     division_id: str,
     service: HierarchyService = Depends(get_hierarchy_service),
-) -> dict:
+) -> Dict[str, Any]:
     """获取分部详情"""
     division = service.get_division_detail(division_id)
     
@@ -158,7 +158,7 @@ async def get_division(
 async def get_subdivision(
     subdivision_id: str,
     service: HierarchyService = Depends(get_hierarchy_service),
-) -> dict:
+) -> Dict[str, Any]:
     """获取子分部详情"""
     subdivision = service.get_subdivision_detail(subdivision_id)
     
@@ -183,7 +183,7 @@ async def get_subdivision(
 async def get_item(
     item_id: str,
     service: HierarchyService = Depends(get_hierarchy_service),
-) -> dict:
+) -> Dict[str, Any]:
     """获取分项详情"""
     item = service.get_item_detail(item_id)
     
@@ -208,7 +208,7 @@ async def get_item(
 async def get_inspection_lot(
     lot_id: str,
     service: HierarchyService = Depends(get_hierarchy_service),
-) -> dict:
+) -> Dict[str, Any]:
     """获取检验批详情"""
     lot = service.get_inspection_lot_detail(lot_id)
     

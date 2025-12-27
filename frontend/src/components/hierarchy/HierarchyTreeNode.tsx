@@ -32,11 +32,20 @@ function HierarchyTreeNodeComponent({ node, level = 0, onSelect }: HierarchyTree
   const { showToast } = useToastContext();
   const { draggedElementIds, setDraggedElementIds } = useDrag();
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isInvalidDropTarget, setIsInvalidDropTarget] = useState(false);
 
   // 显示错误和成功提示
   useEffect(() => {
     if (error) {
-      showToast(error.message, 'error');
+      // 构建详细的错误消息
+      let errorMessage = error.message;
+      if (error.elementId) {
+        errorMessage += ` (构件: ${error.elementId})`;
+      }
+      if (error.itemId) {
+        errorMessage += ` (分项: ${error.itemId})`;
+      }
+      showToast(errorMessage, 'error');
       clearError();
     }
   }, [error, showToast, clearError]);
@@ -78,14 +87,32 @@ function HierarchyTreeNodeComponent({ node, level = 0, onSelect }: HierarchyTree
 
   // 拖拽处理
   const handleDragOver = (e: React.DragEvent) => {
-    if (!isDropTarget) return;
+    // 检查是否有正在拖拽的构件
+    const hasDraggedElements = draggedElementIds && draggedElementIds.length > 0;
+    if (!hasDraggedElements) {
+      // 尝试从 dataTransfer 获取
+      try {
+        const elementIdsStr = e.dataTransfer.getData('application/element-ids');
+        if (!elementIdsStr) return;
+      } catch {
+        return;
+      }
+    }
+
     e.preventDefault();
     e.stopPropagation();
-    setIsDragOver(true);
+    
+    if (isDropTarget) {
+      setIsDragOver(true);
+      setIsInvalidDropTarget(false);
+    } else {
+      // 无效的拖放目标
+      setIsInvalidDropTarget(true);
+      setIsDragOver(false);
+    }
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
-    if (!isDropTarget) return;
     e.preventDefault();
     e.stopPropagation();
     // 检查鼠标是否真的离开了元素
@@ -94,22 +121,35 @@ function HierarchyTreeNodeComponent({ node, level = 0, onSelect }: HierarchyTree
     const y = e.clientY;
     if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
       setIsDragOver(false);
+      setIsInvalidDropTarget(false);
     }
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    if (!isDropTarget) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDragOver(false);
+    setIsInvalidDropTarget(false);
+
+    // 如果不是有效的拖放目标，显示错误提示
+    if (!isDropTarget) {
+      showToast(`无法将构件归类到 ${node.label} 节点，只能归类到分项（Item）节点`, 'error');
+      return;
+    }
 
     try {
       // 优先从 dataTransfer 获取（HTML5 drag）
       let elementIds: string[] | null = null;
       const elementIdsStr = e.dataTransfer.getData('application/element-ids');
       if (elementIdsStr) {
-        elementIds = JSON.parse(elementIdsStr) as string[];
-      } else if (draggedElementIds) {
+        try {
+          elementIds = JSON.parse(elementIdsStr) as string[];
+        } catch (parseError) {
+          showToast('无法解析拖拽数据，请重试', 'error');
+          console.error('Failed to parse drag data:', parseError);
+          return;
+        }
+      } else if (draggedElementIds && draggedElementIds.length > 0) {
         // 从Context获取（SVG 拖拽）
         elementIds = draggedElementIds;
         setDraggedElementIds(null);
@@ -117,6 +157,7 @@ function HierarchyTreeNodeComponent({ node, level = 0, onSelect }: HierarchyTree
 
       if (elementIds && elementIds.length > 0) {
         // 调用归类功能（批量归类）
+        // 注意：成功提示会在 useClassifyMode hook 中显示，这里不重复显示
         classify(node.id, elementIds);
       } else {
         showToast('没有可归类的构件', 'warning');
@@ -138,8 +179,13 @@ function HierarchyTreeNodeComponent({ node, level = 0, onSelect }: HierarchyTree
         className={cn(
           'flex items-center gap-1.5 px-2 py-1.5 text-sm cursor-pointer hover:bg-zinc-100 transition-all duration-200',
           isSelected && 'bg-zinc-200',
-          isDragOver && isDropTarget && 'bg-orange-100 border-2 border-orange-600 border-dashed scale-105 shadow-lg',
-          !isDropTarget && 'cursor-default'
+          // 有效拖放目标的高亮（拖拽悬停时）
+          isDragOver && isDropTarget && 'bg-orange-100 border-2 border-orange-600 border-dashed scale-105 shadow-lg ring-2 ring-orange-400 ring-offset-1',
+          // 无效拖放目标的高亮（拖拽悬停时）
+          isInvalidDropTarget && 'bg-red-50 border-2 border-red-400 border-dashed',
+          !isDropTarget && 'cursor-default',
+          // 有效拖放目标的提示（拖拽时但未悬停）
+          draggedElementIds && draggedElementIds.length > 0 && isDropTarget && !isDragOver && !isInvalidDropTarget && 'bg-orange-50 border border-orange-300'
         )}
         style={{ paddingLeft: `${level * 16 + 8}px` }}
       >

@@ -5,7 +5,8 @@
 
 from typing import List, Union, Any, Dict
 from fastapi import APIRouter, HTTPException, status, Depends
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError as PydanticValidationError
+from app.core.exceptions import ValidationError
 
 # 导入 Speckle 模型
 from app.models.speckle import (
@@ -118,12 +119,18 @@ def parse_speckle_element(element_data: Dict[str, Any]) -> SpeckleBuiltElement:
     # 获取元素类型
     speckle_type = element_data.get("speckle_type") or element_data.get("speckleType")
     if not speckle_type:
-        raise ValueError("缺少 speckle_type 字段")
+        raise ValidationError(
+            "缺少 speckle_type 字段",
+            {"element_data": element_data}
+        )
     
     # 查找对应的模型类
     model_class = SPECKLE_TYPE_MAP.get(speckle_type)
     if not model_class:
-        raise ValueError(f"不支持的 Speckle 类型: {speckle_type}")
+        raise ValidationError(
+            f"不支持的 Speckle 类型: {speckle_type}",
+            {"speckle_type": speckle_type, "supported_types": list(SPECKLE_TYPE_MAP.keys())}
+        )
     
     # 处理字段别名兼容性
     # Speckle 可能使用 baseLine 或 baseCurve，统一转换为 baseCurve
@@ -134,8 +141,11 @@ def parse_speckle_element(element_data: Dict[str, Any]) -> SpeckleBuiltElement:
     try:
         # 使用 Pydantic 解析（允许通过字段别名）
         return model_class(**element_data_normalized)
-    except ValidationError as e:
-        raise ValueError(f"元素数据验证失败: {e}")
+    except PydanticValidationError as e:
+        raise ValidationError(
+            f"元素数据验证失败: {e}",
+            {"validation_errors": str(e)}
+        )
 
 
 @router.post(
@@ -179,7 +189,7 @@ async def ingest_elements(
             if not element.inspection_lot_id:
                 unassigned_count += 1
                 
-        except ValueError as e:
+        except ValidationError as e:
             errors.append({
                 "index": idx,
                 "error": str(e),

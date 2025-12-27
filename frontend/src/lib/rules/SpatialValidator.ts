@@ -53,18 +53,18 @@ export class SpatialValidator {
    * @returns 3D 包围盒，如果无法计算则返回 null
    */
   calculateBoundingBox(element: ElementDetail): BoundingBox3D | null {
-    const geometry2d = element.geometry_2d;
+    const geometry = element.geometry;
     
     // 检查必要的几何数据
-    if (!geometry2d || !geometry2d.coordinates || geometry2d.coordinates.length < 2) {
+    if (!geometry || !geometry.coordinates || geometry.coordinates.length < 2) {
       return null;
     }
     
     const height = element.height ?? 0;
     const baseOffset = element.base_offset ?? 0;
     
-    // 计算 2D 包围盒
-    const coords = geometry2d.coordinates;
+    // 计算 2D 包围盒（使用 X, Y 坐标，忽略 Z）
+    const coords = geometry.coordinates;
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;

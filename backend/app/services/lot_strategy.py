@@ -10,6 +10,7 @@ from datetime import datetime
 from enum import Enum
 
 from app.utils.memgraph import MemgraphClient, convert_neo4j_datetime
+from app.core.exceptions import NotFoundError, ValidationError
 from app.models.gb50300.nodes import InspectionLotNode
 from app.models.gb50300.relationships import HAS_LOT, MANAGEMENT_CONTAINS
 
@@ -55,7 +56,10 @@ class LotStrategyService:
         item_query = "MATCH (item:Item {id: $item_id}) RETURN item"
         item_result = self.client.execute_query(item_query, {"item_id": item_id})
         if not item_result:
-            raise ValueError(f"Item not found: {item_id}")
+            raise NotFoundError(
+                f"Item not found: {item_id}",
+                {"item_id": item_id, "resource_type": "Item"}
+            )
         
         item_data = dict(item_result[0]["item"])
         item_name = item_data.get("name", item_id)

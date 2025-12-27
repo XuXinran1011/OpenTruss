@@ -19,7 +19,7 @@ except ImportError:
     logging.warning("ifcopenshell not available. IFC export functionality will be disabled.")
 
 from app.utils.memgraph import MemgraphClient
-from app.models.speckle.base import Geometry2D
+from app.models.speckle.base import Geometry
 
 logger = logging.getLogger(__name__)
 
@@ -79,20 +79,20 @@ class ExportService:
         lot_data = result[0]
         if lot_data["status"] != "APPROVED":
             raise ValueError(
-                f"Cannot export lot {lot_id}: status is {lot_data['status']}, "
-                "must be APPROVED to export"
+                f"Cannot export lot {lot_id} (status: '{lot_data['status']}'): "
+                "lot must be APPROVED to export. Please approve the lot first."
             )
         
         # 获取检验批下的所有构件（只返回完整的元素）
         # 在查询时就过滤掉不完整的元素，避免返回大量数据后再验证
         elements_query = """
         MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
-        WHERE e.geometry_2d IS NOT NULL 
+        WHERE e.geometry IS NOT NULL 
           AND e.height IS NOT NULL 
           AND e.base_offset IS NOT NULL
         OPTIONAL MATCH (e)-[:LOCATED_AT]->(level:Level)
         RETURN e.id as id, e.speckle_type as speckle_type,
-               e.geometry_2d as geometry_2d, e.height as height,
+               e.geometry as geometry, e.height as height,
                e.base_offset as base_offset, e.material as material,
                level.id as level_id, level.name as level_name
         """
@@ -105,7 +105,7 @@ class ExportService:
             MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
             WITH count(e) as total_count
             MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
-            WHERE e.geometry_2d IS NOT NULL 
+            WHERE e.geometry IS NOT NULL 
               AND e.height IS NOT NULL 
               AND e.base_offset IS NOT NULL
             WITH total_count, count(e) as complete_count
@@ -120,24 +120,24 @@ class ExportService:
                 if total_count > 0:
                     raise ValueError(
                         f"Lot {lot_id} contains {total_count} elements, but only {complete_count} have complete data "
-                        f"(missing geometry_2d, height, or base_offset)"
+                        f"(missing geometry, height, or base_offset)"
                     )
             
             raise ValueError(f"Lot {lot_id} contains no elements")
         
-        # 后验证：确保 geometry_2d 字典有必要的字段（针对字典类型的额外检查）
+        # 后验证：确保 geometry 字典有必要的字段（针对字典类型的额外检查）
         incomplete = []
         for elem in elements:
-            geometry_2d = elem.get("geometry_2d")
-            # 如果 geometry_2d 是字典，检查是否有 type 和 coordinates
-            if isinstance(geometry_2d, dict):
-                if not geometry_2d.get("type") or not geometry_2d.get("coordinates"):
+            geometry = elem.get("geometry")
+            # 如果 geometry 是字典，检查是否有 type 和 coordinates
+            if isinstance(geometry, dict):
+                if not geometry.get("type") or not geometry.get("coordinates"):
                     incomplete.append(elem.get("id"))
         
         if incomplete:
             incomplete_list = incomplete[:10]  # 只显示前10个，避免错误信息过长
             error_msg = (
-                f"Lot {lot_id} contains {len(incomplete)} elements with invalid geometry_2d "
+                f"Lot {lot_id} contains {len(incomplete)} elements with invalid geometry "
                 f"(missing 'type' or 'coordinates' fields)"
             )
             if len(incomplete) > 10:
@@ -385,12 +385,12 @@ class ExportService:
         elements_query = """
         MATCH (lot:InspectionLot)-[:MANAGEMENT_CONTAINS]->(e:Element)
         WHERE lot.id IN $lot_ids
-          AND e.geometry_2d IS NOT NULL 
+          AND e.geometry IS NOT NULL 
           AND e.height IS NOT NULL 
           AND e.base_offset IS NOT NULL
         OPTIONAL MATCH (e)-[:LOCATED_AT]->(level:Level)
         RETURN DISTINCT e.id as id, e.speckle_type as speckle_type,
-               e.geometry_2d as geometry_2d, e.height as height,
+               e.geometry as geometry, e.height as height,
                e.base_offset as base_offset, e.material as material,
                level.id as level_id, level.name as level_name
         """
@@ -414,15 +414,15 @@ class ExportService:
         # 步骤4：验证所有构件的数据完整性
         incomplete = []
         for elem in all_elements:
-            geometry_2d = elem.get("geometry_2d")
-            if isinstance(geometry_2d, dict):
-                if not geometry_2d.get("type") or not geometry_2d.get("coordinates"):
+            geometry = elem.get("geometry")
+            if isinstance(geometry, dict):
+                if not geometry.get("type") or not geometry.get("coordinates"):
                     incomplete.append(elem.get("id"))
         
         if incomplete:
             incomplete_list = incomplete[:10]  # 只显示前10个，避免错误信息过长
             error_msg = (
-                f"Found {len(incomplete)} elements with invalid geometry_2d "
+                f"Found {len(incomplete)} elements with invalid geometry "
                 f"(missing 'type' or 'coordinates' fields)"
             )
             if len(incomplete) > 10:
@@ -575,19 +575,19 @@ class ExportService:
             return None
         
         # 解析几何数据
-        geometry_2d_data = element.get("geometry_2d")
-        if isinstance(geometry_2d_data, str):
+        geometry_data = element.get("geometry")
+        if isinstance(geometry_data, str):
             try:
-                geometry_2d_data = json.loads(geometry_2d_data)
+                geometry_data = json.loads(geometry_data)
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse geometry_2d JSON for element {element.get('id')}: {e}")
+                logger.error(f"Failed to parse geometry JSON for element {element.get('id')}: {e}")
                 return None
         
-        if not geometry_2d_data:
-            logger.warning(f"Missing geometry_2d for element {element.get('id')}")
+        if not geometry_data:
+            logger.warning(f"Missing geometry for element {element.get('id')}")
             return None
         
-        geometry_2d = Geometry2D(**geometry_2d_data)
+        geometry = Geometry(**geometry_data)
         
         height = element.get("height")
         base_offset = element.get("base_offset", 0.0)
@@ -604,13 +604,13 @@ class ExportService:
             name=element.get("id", "Unnamed Element")
         )
         
-        # 创建完整的几何表示（2D → 3D 转换）
+        # 创建完整的几何表示（3D 原生数据，可能包含 Z 坐标）
         try:
             logger.debug(f"为元素 {element.get('id')} 创建几何表示")
             self._create_ifc_geometry(
                 ifc_file=ifc_file,
                 ifc_element=ifc_element,
-                geometry_2d=geometry_2d,
+                geometry=geometry,
                 height=height,
                 base_offset=base_offset
             )
@@ -627,7 +627,7 @@ class ExportService:
         self,
         ifc_file: Any,
         ifc_element: Any,
-        geometry_2d: Geometry2D,
+        geometry: Geometry,
         height: float,
         base_offset: float
     ) -> None:
@@ -636,7 +636,7 @@ class ExportService:
         Args:
             ifc_file: IFC 文件对象
             ifc_element: IFC 元素对象
-            geometry_2d: 2D 几何数据
+            geometry: 3D 原生几何数据（坐标格式：[[x, y, z], ...]）
             height: 高度
             base_offset: 基础偏移
         """
@@ -648,12 +648,19 @@ class ExportService:
             # 如果获取失败，创建新的上下文
             model_context = run("context.add_context", ifc_file, context_type="Model")
         
-        # 2. 将 2D 坐标转换为 3D 坐标（在 XY 平面，Z = base_offset）
+        # 2. 处理 3D 坐标（如果坐标已有 Z 值，使用坐标的 Z；否则使用 base_offset）
         coordinates_3d = []
-        for coord in geometry_2d.coordinates:
-            if len(coord) >= 2:
-                x = coord[0] if len(coord) > 0 else 0.0
-                y = coord[1] if len(coord) > 1 else 0.0
+        for coord in geometry.coordinates:
+            if len(coord) >= 3:
+                # 已有 Z 坐标，使用它
+                x, y, z = coord[0], coord[1], coord[2]
+                # 如果 Z 为 0.0 且 base_offset 不为 0，使用 base_offset（向后兼容）
+                if z == 0.0 and base_offset != 0.0:
+                    z = base_offset
+                coordinates_3d.append((x, y, z))
+            elif len(coord) >= 2:
+                # 只有 X, Y，使用 base_offset 作为 Z
+                x, y = coord[0], coord[1]
                 z = base_offset
                 coordinates_3d.append((x, y, z))
         
@@ -663,7 +670,7 @@ class ExportService:
         
         # 3. 创建轮廓（Polyline）
         # 如果是闭合的 Polyline，创建闭合轮廓
-        if geometry_2d.type == "Polyline" and geometry_2d.closed:
+        if geometry.type == "Polyline" and geometry.closed:
             # 确保最后一个点与第一个点相同（闭合）
             if coordinates_3d[0] != coordinates_3d[-1]:
                 coordinates_3d.append(coordinates_3d[0])

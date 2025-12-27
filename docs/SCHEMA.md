@@ -155,9 +155,9 @@ CREATE (lot:InspectionLot {
 | `id` | String | 是 | 唯一标识符 |
 | `speckle_id` | String | 否 | Speckle 原始 ID |
 | `speckle_type` | String | 是 | 构件类型（如：Wall、Column） |
-| `geometry_2d` | Object | 是 | 2D 几何数据（Line/Polyline） |
-| `height` | Float | 否 | 高度（3D Lift 参数） |
-| `base_offset` | Float | 否 | 基础偏移（3D Lift 参数） |
+| `geometry` | Object | 是 | 3D 原生几何数据（Line/Polyline），坐标格式：[[x, y, z], ...] |
+| `height` | Float | 否 | 高度（Walls/Columns: 拉伸距离；Beams/Pipes: 横截面深度） |
+| `base_offset` | Float | 否 | 基础偏移（Z 轴起点） |
 | `material` | String | 否 | 材质 |
 | `level_id` | String | 是 | 所属楼层 ID |
 | `zone_id` | String | 否 | 所属区域 ID |
@@ -186,9 +186,9 @@ CREATE (lot:InspectionLot {
 CREATE (e:Element {
   id: "element_001",
   speckle_type: "Wall",
-  geometry_2d: {
+  geometry: {
     type: "Polyline",
-    coordinates: [[0, 0], [10, 0], [10, 5], [0, 5], [0, 0]],
+    coordinates: [[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0], [0, 0, 0]],
     closed: true
   },
   height: 3.0,

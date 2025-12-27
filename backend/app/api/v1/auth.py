@@ -3,6 +3,7 @@
 提供登录、登出和用户信息查询接口
 """
 
+from typing import Dict, Any
 from fastapi import APIRouter, HTTPException, status, Depends
 from datetime import timedelta
 
@@ -31,7 +32,7 @@ def get_user_service(
 async def login(
     request: LoginRequest,
     service: UserService = Depends(get_user_service),
-) -> dict:
+) -> Dict[str, Any]:
     """用户登录"""
     # 验证用户凭据
     user = service.authenticate_user(request.username, request.password)
@@ -81,7 +82,7 @@ async def login(
 async def get_current_user_info(
     current_user: TokenData = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
-) -> dict:
+) -> Dict[str, Any]:
     """获取当前用户信息"""
     # 从数据库获取完整用户信息
     user = service.get_user_by_id(current_user.user_id)
@@ -114,7 +115,7 @@ async def get_current_user_info(
 )
 async def logout(
     current_user: TokenData = Depends(get_current_user),
-) -> dict:
+) -> Dict[str, Any]:
     """用户登出"""
     # JWT是无状态的，服务端不需要存储session
     # 客户端只需删除本地存储的token即可

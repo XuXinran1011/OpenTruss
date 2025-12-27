@@ -4,7 +4,7 @@
  * 提供各种校验功能的 API 调用
  */
 
-import { API_CONFIG } from '@/config/api';
+import { API_CONFIG } from '@/lib/api/config';
 import { apiPost } from './api';
 
 export interface SemanticValidationRequest {

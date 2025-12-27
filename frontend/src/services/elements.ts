@@ -2,7 +2,7 @@
 
 import { apiGet, apiPost, apiPatch, apiDelete } from './api';
 import { ApiResponse, PaginatedResponse } from './api';
-import { Geometry2D } from '@/types';
+import { Geometry } from '@/types';
 
 /**
  * 构件列表项
@@ -27,7 +27,7 @@ export interface ElementDetail {
   id: string;
   speckle_id?: string;
   speckle_type: string;
-  geometry_2d: Geometry2D;
+  geometry: Geometry;
   height?: number;
   base_offset?: number;
   material?: string;
@@ -63,7 +63,7 @@ export interface ElementQueryParams {
  * 拓扑更新请求
  */
 export interface TopologyUpdateRequest {
-  geometry_2d?: Geometry2D;
+  geometry?: Geometry;
   connected_elements?: string[];
 }
 

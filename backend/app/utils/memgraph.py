@@ -86,6 +86,11 @@ class MemgraphClient:
         self.user = user or settings.memgraph_user
         self.password = password or settings.memgraph_password
         
+        # 连接池配置参数
+        self._max_connection_lifetime = 3600  # 1小时
+        self._max_connection_pool_size = 50
+        self._connection_acquisition_timeout = 60  # 60秒
+        
         # 创建 Memgraph 连接（使用 Neo4j 驱动，因为 Memgraph 兼容 Neo4j Bolt 协议）
         self._driver: Optional[GraphDatabase.driver] = None
         self._connect()

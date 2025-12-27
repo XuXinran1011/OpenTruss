@@ -10,6 +10,8 @@ from typing import List, Optional, Dict, Any, Literal
 from datetime import datetime
 
 from app.utils.memgraph import MemgraphClient, convert_neo4j_datetime
+from app.core.cache import get_cache
+from app.core.exceptions import NotFoundError, ConflictError, ValidationError
 from app.models.api.elements import (
     ElementListItem,
     ElementDetail,
@@ -21,7 +23,7 @@ from app.models.api.elements import (
     ClassifyRequest,
     ClassifyResponse,
 )
-from app.models.speckle.base import Geometry2D
+from app.models.speckle.base import Geometry
 from app.models.gb50300.element import ElementNode
 from app.models.gb50300.relationships import (
     CONNECTED_TO,
@@ -202,12 +204,18 @@ class WorkbenchService:
         
         items = []
         for r in results:
+            # 处理可能为 None 的字段，提供默认值
+            level_id = r.get("level_id") or ""
+            status = r.get("status") or "Draft"
+            if status not in ["Draft", "Verified"]:
+                status = "Draft"
+            
             items.append(ElementListItem(
                 id=r["id"],
                 speckle_type=r["speckle_type"],
-                level_id=r["level_id"],
+                level_id=level_id,
                 inspection_lot_id=r.get("inspection_lot_id"),
-                status=r.get("status", "Draft"),
+                status=status,
                 has_height=r.get("height") is not None,
                 has_material=r.get("material") is not None,
                 created_at=convert_neo4j_datetime(r.get("created_at")) or datetime.now(),
@@ -243,14 +251,18 @@ class WorkbenchService:
         
         # 限制批量查询数量，避免查询过大（从100提高到500）
         if len(element_ids) > 500:
-            raise ValueError("最多支持批量查询500个构件")
+            raise ValidationError(
+                "最多支持批量查询500个构件",
+                {"element_count": len(element_ids), "max_count": 500}
+            )
         
         # 使用单个查询获取所有构件的详细信息和连接关系
         # 使用OPTIONAL MATCH来处理可能没有连接关系的构件
         query = """
         MATCH (e:Element)
         WHERE e.id IN $element_ids
-        OPTIONAL MATCH (e)-[:CONNECTED_TO]->(other:Element)
+        OPTIONAL MATCH (e)-[r]->(other:Element)
+        WHERE type(r) IN ['CONNECTED_TO', 'FEEDS', 'FEEDS_FROM', 'CONTROLS', 'HAS_PART', 'LOCATED_IN', 'SERVES']
         WITH e, collect(DISTINCT other.id) as connected_ids
         RETURN e,
                connected_ids
@@ -269,23 +281,23 @@ class WorkbenchService:
             connected_elements = row.get("connected_ids", [])
             connected_elements = [cid for cid in connected_elements if cid]  # 过滤None值
             
-            # 解析 geometry_2d
-            geometry_2d_dict = element_data.get("geometry_2d")
-            if not isinstance(geometry_2d_dict, dict):
-                logger.warning(f"Element {element_id} has no geometry_2d, skipping")
+            # 解析 geometry
+            geometry_dict = element_data.get("geometry")
+            if not isinstance(geometry_dict, dict):
+                logger.warning(f"Element {element_id} has no geometry, skipping")
                 continue
             
             try:
-                geometry_2d = Geometry2D(**geometry_2d_dict)
+                geometry = Geometry(**geometry_dict)
             except Exception as e:
-                logger.warning(f"Failed to parse geometry_2d for element {element_id}: {e}")
+                logger.warning(f"Failed to parse geometry for element {element_id}: {e}")
                 continue
             
             element_map[element_id] = ElementDetail(
                 id=element_data["id"],
                 speckle_id=element_data.get("speckle_id"),
                 speckle_type=element_data["speckle_type"],
-                geometry_2d=geometry_2d,
+                geometry=geometry,
                 height=element_data.get("height"),
                 base_offset=element_data.get("base_offset"),
                 material=element_data.get("material"),
@@ -329,28 +341,33 @@ class WorkbenchService:
         
         element_data = dict(result[0]["e"])
         
-        # 查询连接的构件
-        connected_query = """
-        MATCH (e:Element {id: $element_id})-[r:CONNECTED_TO]->(other:Element)
-        RETURN other.id as id
+        # 查询连接的构件（支持所有 Brick 关系类型）
+        from app.core.ontology import MEMGRAPH_BRICK_RELATIONSHIPS, DEFAULT_RELATIONSHIP
+        all_relationship_types = list(MEMGRAPH_BRICK_RELATIONSHIPS.keys()) + [DEFAULT_RELATIONSHIP]
+        relationship_types_str = "['" + "', '".join(all_relationship_types) + "']"
+        
+        connected_query = f"""
+        MATCH (e:Element {{id: $element_id}})-[r]->(other:Element)
+        WHERE type(r) IN {relationship_types_str}
+        RETURN other.id as id, type(r) as relationship_type
         """
         connected_results = self.client.execute_query(connected_query, {"element_id": element_id})
         connected_elements = [r["id"] for r in connected_results]
         
-        # 解析 geometry_2d
-        geometry_2d_dict = element_data.get("geometry_2d")
-        if isinstance(geometry_2d_dict, dict):
-            geometry_2d = Geometry2D(**geometry_2d_dict)
+        # 解析 geometry
+        geometry_dict = element_data.get("geometry")
+        if isinstance(geometry_dict, dict):
+            geometry = Geometry(**geometry_dict)
         else:
-            # 如果没有 geometry_2d，返回 None（不应该发生）
-            logger.warning(f"Element {element_id} has no geometry_2d")
+            # 如果没有 geometry，返回 None（不应该发生）
+            logger.warning(f"Element {element_id} has no geometry")
             return None
         
         return ElementDetail(
             id=element_data["id"],
             speckle_id=element_data.get("speckle_id"),
             speckle_type=element_data["speckle_type"],
-            geometry_2d=geometry_2d,
+            geometry=geometry,
             height=element_data.get("height"),
             base_offset=element_data.get("base_offset"),
             material=element_data.get("material"),
@@ -399,12 +416,18 @@ class WorkbenchService:
         
         items = []
         for r in results:
+            # 处理可能为 None 的字段，提供默认值
+            level_id = r.get("level_id") or ""
+            status = r.get("status") or "Draft"
+            if status not in ["Draft", "Verified"]:
+                status = "Draft"
+            
             items.append(ElementListItem(
                 id=r["id"],
                 speckle_type=r["speckle_type"],
-                level_id=r["level_id"],
+                level_id=level_id,
                 inspection_lot_id=None,
-                status=r.get("status", "Draft"),
+                status=status,
                 has_height=r.get("height") is not None,
                 has_material=r.get("material") is not None,
                 created_at=convert_neo4j_datetime(r.get("created_at")) or datetime.now(),
@@ -440,16 +463,16 @@ class WorkbenchService:
         if not element:
             raise ValueError(f"Element not found: {element_id}")
         
-        # 如果提供了 geometry_2d，更新几何数据
-        if request.geometry_2d:
-            geometry_dict = request.geometry_2d.model_dump()
+        # 如果提供了 geometry，更新几何数据
+        if request.geometry:
+            geometry_dict = request.geometry.model_dump()
             update_query = """
             MATCH (e:Element {id: $element_id})
-            SET e.geometry_2d = $geometry_2d, e.updated_at = datetime()
+            SET e.geometry = $geometry, e.updated_at = datetime()
             """
             self.client.execute_write(update_query, {
                 "element_id": element_id,
-                "geometry_2d": geometry_dict,
+                "geometry": geometry_dict,
             })
             
             # 清除相关缓存
@@ -458,27 +481,71 @@ class WorkbenchService:
         
         # 更新连接关系
         if request.connected_elements is not None:
-            # 删除旧的连接关系
-            delete_query = """
-            MATCH (e:Element {id: $element_id})-[r:CONNECTED_TO]->()
-            DELETE r
-            """
-            self.client.execute_write(delete_query, {"element_id": element_id})
+            # 删除旧的连接关系（删除所有可能的关系类型）
+            # 注意：Cypher 不支持在关系类型中使用 OR，需要分别删除
+            from app.core.ontology import MEMGRAPH_BRICK_RELATIONSHIPS, DEFAULT_RELATIONSHIP
+            all_relationship_types = list(MEMGRAPH_BRICK_RELATIONSHIPS.keys()) + [DEFAULT_RELATIONSHIP]
             
-            # 创建新的连接关系
+            for rel_type in all_relationship_types:
+                delete_query = f"""
+                MATCH (e:Element {{id: $element_id}})-[r:{rel_type}]->()
+                DELETE r
+                """
+                self.client.execute_write(delete_query, {"element_id": element_id})
+            
+            # 创建新的连接关系（使用 Brick 语义关系）
             invalid_connections = []
+            from app.core.ontology import get_ontology_mapper
+            
+            # 获取源元素的类型
+            source_element = self.get_element(element_id)
+            if not source_element:
+                logger.warning(f"Source element not found: {element_id}")
+                return {
+                    "id": element_id,
+                    "topology_updated": False,
+                    "error": "Source element not found"
+                }
+            
+            source_type = source_element.speckle_type
+            mapper = get_ontology_mapper()
+            
             for connected_id in request.connected_elements:
-                # 验证目标构件存在
-                target = self.client.execute_query(
-                    "MATCH (e:Element {id: $id}) RETURN e.id as id",
-                    {"id": connected_id}
-                )
-                if target:
+                # 验证目标构件存在并获取类型
+                target_query = "MATCH (e:Element {id: $id}) RETURN e.id as id, e.speckle_type as speckle_type"
+                target_result = self.client.execute_query(target_query, {"id": connected_id})
+                
+                if target_result:
+                    target_type = target_result[0].get("speckle_type")
+                    
+                    # 推断 Brick 语义关系类型
+                    relationship_type = mapper.infer_relationship_type(source_type, target_type)
+                    
+                    # 如果创建 CONTAINED_IN 关系（电缆 -> 桥架），验证容量
+                    if relationship_type == "CONTAINED_IN" and target_type == "CableTray":
+                        from app.core.cable_capacity_validator import CableCapacityValidator
+                        validator = CableCapacityValidator(self.client)
+                        capacity_result = validator.validate_cable_tray_capacity(
+                            connected_id, element_id
+                        )
+                        if not capacity_result["valid"]:
+                            invalid_connections.append({
+                                "id": connected_id,
+                                "reason": "; ".join(capacity_result["errors"])
+                            })
+                            logger.warning(
+                                f"Capacity validation failed for cable {element_id} -> tray {connected_id}: "
+                                f"{'; '.join(capacity_result['errors'])}"
+                            )
+                            continue  # 跳过这个连接
+                    
+                    # 创建关系（使用推断的关系类型）
                     self.client.create_relationship(
                         "Element", element_id,
                         "Element", connected_id,
-                        CONNECTED_TO
+                        relationship_type
                     )
+                    logger.debug(f"Created {relationship_type} relationship: {element_id} -> {connected_id}")
                 else:
                     invalid_connections.append(connected_id)
                     logger.warning(f"Target element not found for connection: {connected_id}")
@@ -510,18 +577,23 @@ class WorkbenchService:
             Dict: 更新结果
             
         Raises:
-            ValueError: 如果构件不存在或已锁定
+            NotFoundError: 如果构件不存在
+            ConflictError: 如果构件已锁定
         """
         # 验证构件存在
         element = self.get_element(element_id)
         if not element:
-            raise ValueError(f"Element not found: {element_id}. Please check the element ID and try again.")
+            raise NotFoundError(
+                f"Element not found: {element_id}. Please check the element ID and try again.",
+                {"element_id": element_id, "resource_type": "Element"}
+            )
         
         # 检查是否锁定
         if element.locked:
-            raise ValueError(
+            raise ConflictError(
                 f"Element {element_id} is locked and cannot be modified. "
-                f"Unlock the element first or contact the administrator."
+                f"Unlock the element first or contact the administrator.",
+                {"element_id": element_id, "reason": "locked"}
             )
         
         # 构建更新字段
@@ -635,7 +707,10 @@ class WorkbenchService:
         # 验证构件存在
         element = self.get_element(element_id)
         if not element:
-            raise ValueError(f"Element not found: {element_id}")
+            raise NotFoundError(
+                f"Element not found: {element_id}",
+                {"element_id": element_id, "resource_type": "Element"}
+            )
         
         # 使用 DETACH DELETE 删除节点及其所有关系
         delete_query = """
@@ -848,18 +923,20 @@ class WorkbenchService:
         # 验证构件存在
         element = self.get_element(element_id)
         if not element:
-            raise ValueError(
+            raise NotFoundError(
                 f"Element not found: {element_id}. "
-                f"Please check the element ID and ensure it exists in the database."
+                f"Please check the element ID and ensure it exists in the database.",
+                {"element_id": element_id, "resource_type": "Element"}
             )
         
         # 验证目标 Item 存在
         item_query = "MATCH (item:Item {id: $item_id}) RETURN item.id as id, item.name as name"
         item_result = self.client.execute_query(item_query, {"item_id": request.item_id})
         if not item_result:
-            raise ValueError(
+            raise NotFoundError(
                 f"Item not found: {request.item_id}. "
-                f"Please check the item ID and ensure it exists in the hierarchy."
+                f"Please check the item ID and ensure it exists in the hierarchy.",
+                {"item_id": request.item_id, "resource_type": "Item"}
             )
         
         # 获取之前的 item_id（通过 inspection_lot_id 查找）

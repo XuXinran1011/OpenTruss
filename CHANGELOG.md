@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planned
+- Additional performance optimizations
+- Enhanced monitoring capabilities
+- Extended API documentation
+
+## [1.0.0] - 2025-01-01
+
 ### Added
 - Comprehensive testing infrastructure (unit, integration, E2E, performance)
 - GitHub Actions CI/CD workflows
@@ -16,6 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Architecture diagrams and ADR (Architecture Decision Records)
 - Contributing guidelines and issue templates
 - Unified setup scripts (Makefile, setup.sh, setup.ps1)
+- HITL Workbench with three modes (Trace, Lift, Classify)
+- GB50300-compliant hierarchy structure
+- Inspection lot management with rule engine
+- Approval workflow with state machine
+- IFC export functionality
+- RESTful API with FastAPI
+- Next.js frontend with Canvas visualization
+- Authentication and authorization (JWT)
+- MEP routing planning and coordination
+- Spatial collision detection
+- Rule engine for semantic, constructability, topology, and spatial validation
 
 ### Changed
 - Improved README.md with table of contents and better documentation links
@@ -24,8 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fixed commit message encoding issues (using English for all commits)
-
-## [1.0.0] - 2025-01-01
 
 ### Added
 - Initial release of OpenTruss
@@ -52,7 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
-- **1.0.0**: Initial release
+- **1.0.0** (2025-01-01): Initial release - Complete OpenTruss platform with HITL Workbench, rule engine, approval workflow, and IFC export
 - **Unreleased**: Development version with ongoing improvements
 
 ## Types of Changes

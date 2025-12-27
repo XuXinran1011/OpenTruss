@@ -3,6 +3,8 @@
 'use client';
 
 import { useState, ReactNode } from 'react';
+import { Preview3DPanel } from '@/components/canvas/Preview3DPanel';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
 interface WorkbenchLayoutProps {
   leftSidebar: ReactNode;
@@ -19,6 +21,7 @@ export function WorkbenchLayout({
 }: WorkbenchLayoutProps) {
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [preview3DCollapsed, setPreview3DCollapsed] = useState(true); // 默认折叠
 
   return (
     <div className="h-screen w-screen flex flex-col bg-white overflow-hidden">
@@ -105,6 +108,12 @@ export function WorkbenchLayout({
             <div className="flex-1 overflow-auto">{rightPanel}</div>
           </div>
         </aside>
+        
+        {/* 3D 预览面板（可折叠） */}
+        <Preview3DPanel
+          collapsed={preview3DCollapsed}
+          onToggle={() => setPreview3DCollapsed(!preview3DCollapsed)}
+        />
       </div>
     </div>
   );

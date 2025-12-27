@@ -109,6 +109,9 @@ export async function apiGet<T>(endpoint: string): Promise<T> {
 export async function apiPost<T>(endpoint: string, body?: any): Promise<T> {
   return apiFetch<T>(endpoint, {
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
 }
@@ -119,6 +122,19 @@ export async function apiPost<T>(endpoint: string, body?: any): Promise<T> {
 export async function apiPatch<T>(endpoint: string, body?: any): Promise<T> {
   return apiFetch<T>(endpoint, {
     method: 'PATCH',
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
+/**
+ * PUT 请求
+ */
+export async function apiPut<T>(endpoint: string, body?: any): Promise<T> {
+  return apiFetch<T>(endpoint, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
 }

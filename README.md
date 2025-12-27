@@ -3,8 +3,11 @@
 > 面向建筑施工行业的生成式 BIM 中间件
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/your-org/opentruss/releases/tag/v1.0.0)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
+
+**Latest Release**: v1.0.0 (January 1, 2025)
 
 ## 目录
 
@@ -72,27 +75,50 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-3. **前端设置**
+4. **前端设置**
 ```bash
 cd frontend
 npm install
+
+# 配置前端环境变量
+cp .env.example .env.local
+# 编辑 .env.local，设置 NEXT_PUBLIC_API_URL
 ```
 
-4. **启动 Memgraph**
+5. **启动 Memgraph**
 ```bash
 docker run -it -p 7687:7687 memgraph/memgraph
 ```
 
-5. **启动服务**
+6. **启动服务**
+
+使用 Makefile（推荐）：
+```bash
+# 启动所有服务
+make dev
+
+# 或分别启动
+make start-memgraph  # 启动数据库
+make start-backend   # 启动后端
+make start-frontend  # 启动前端
+```
+
+或手动启动：
 ```bash
 # 后端
 cd backend
+source venv/bin/activate  # Windows: venv\Scripts\activate
 uvicorn app.main:app --reload
 
-# 前端
+# 前端（新终端）
 cd frontend
 npm run dev
 ```
+
+访问地址：
+- 前端: http://localhost:3000
+- 后端 API: http://localhost:8000
+- API 文档: http://localhost:8000/docs
 
 详细安装指南请参考 [开发环境搭建文档](docs/DEVELOPMENT.md)。
 
@@ -225,9 +251,9 @@ make dev     # 启动开发环境
 ## 开发路线图
 
 - [x] Phase 1: Foundation & Hierarchy (基础架构)
-- [ ] Phase 2: Ingestion & Editor (数据清洗)
-- [ ] Phase 3: The Approver's Tool (检验批策划)
-- [ ] Phase 4: Workflow & Export (交付)
+- [x] Phase 2: Ingestion & Editor (数据清洗)
+- [x] Phase 3: The Approver's Tool (检验批策划)
+- [x] Phase 4: Workflow & Export (交付)
 
 详细路线图请参考 [PRD.md](PRD.md)。
 

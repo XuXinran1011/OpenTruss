@@ -205,9 +205,9 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
 {
   "id": "element_001",
   "speckle_type": "Wall",
-  "geometry_2d": {
+  "geometry": {
     "type": "Polyline",
-    "coordinates": [[0, 0], [10, 0], [10, 5], [0, 5], [0, 0]]
+    "coordinates": [[0, 0, 0], [10, 0, 0], [10, 5, 0], [0, 5, 0], [0, 0, 0]]
   },
   "height": 3.0,
   "base_offset": 0.0,
@@ -216,10 +216,20 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
   "inspection_lot_id": "lot_001",
   "status": "Draft",
   "confidence": 0.85,
+  "mep_system_type": "gravity_drainage",
+  "routing_status": "PLANNING",
+  "coordination_status": "PENDING",
+  "original_route_room_ids": ["room_001", "room_002"],
   "created_at": "2024-01-01T00:00:00Z",
   "updated_at": "2024-01-01T00:00:00Z"
 }
 ```
+
+**字段说明**：
+- `original_route_room_ids`（可选）：原始路由经过的Room ID列表，用于路由规划约束验证。**注意**：此字段存储的是Room ID，不是Space ID。详见[MEP路由规划文档](./MEP_ROUTING_DETAILED.md#4-原始路由约束)。
+- `routing_status`（可选）：路由规划状态，可选值：`PLANNING`、`COMPLETED`
+- `coordination_status`（可选）：管线综合排布状态，可选值：`PENDING`、`IN_PROGRESS`、`COMPLETED`
+- `mep_system_type`（可选）：MEP系统类型，如：`gravity_drainage`、`pressure_water`、`power_cable`
 
 ### 3.2 InspectionLot (检验批)
 
@@ -310,7 +320,7 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
     "code": "VALIDATION_ERROR",
     "message": "请求参数验证失败",
     "details": {
-      "elements[0].geometry_2d": "几何数据格式错误"
+      "elements[0].geometry": "几何数据格式错误"
     }
   }
 }
@@ -434,7 +444,7 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
   "data": {
     "id": "element_001",
     "speckle_type": "Wall",
-    "geometry_2d": { ... },
+    "geometry": { ... },
     "height": 3.0,
     "base_offset": 0.0,
     "material": "concrete",
@@ -781,55 +791,111 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
 }
 ```
 
-#### POST /api/v1/inspection-lots/{lot_id}/approve
+#### POST /api/v1/lots/{lot_id}/approve
 
-审批通过检验批（Approver 权限）。
+审批通过检验批（Approver 权限）。将检验批状态从 `SUBMITTED` 变为 `APPROVED`。
+
+**权限要求**: 需要 `APPROVER` 或 `ADMIN` 角色
 
 **请求体**:
 ```json
 {
-  "comment": "验收通过"
+  "comment": "验收通过"  // 可选
 }
 ```
 
-**响应**:
+**响应** (200 OK):
 ```json
 {
   "status": "success",
   "data": {
     "lot_id": "lot_001",
-    "status": "APPROVED"
+    "status": "APPROVED",
+    "approved_by": "user_001",
+    "approved_at": "2025-01-01T12:00:00",
+    "comment": "验收通过"
   }
 }
 ```
 
-#### POST /api/v1/inspection-lots/{lot_id}/reject
+**错误响应** (400 Bad Request):
+```json
+{
+  "detail": "Cannot approve lot lot_001: current status is IN_PROGRESS, must be SUBMITTED to approve"
+}
+```
 
-驳回检验批。
+#### POST /api/v1/lots/{lot_id}/reject
+
+驳回检验批。可以将检验批状态从 `SUBMITTED` 或 `APPROVED` 驳回至 `IN_PROGRESS` 或 `PLANNING`。
+
+**权限要求**: 需要 `APPROVER` 或 `PM` 或 `ADMIN` 角色
 
 **请求体**:
 ```json
 {
-  "reason": "数据质量问题",
-  "reject_level": "IN_PROGRESS"
+  "reason": "数据质量问题",  // 必需
+  "reject_level": "IN_PROGRESS"  // 必需，值为 "IN_PROGRESS" 或 "PLANNING"
 }
 ```
 
-**响应**:
+**响应** (200 OK):
 ```json
 {
   "status": "success",
   "data": {
     "lot_id": "lot_001",
     "status": "IN_PROGRESS",
-    "reason": "数据质量问题"
+    "rejected_by": "user_001",
+    "rejected_at": "2025-01-01T12:00:00",
+    "reason": "数据质量问题",
+    "reject_level": "IN_PROGRESS"
   }
 }
 ```
 
 **权限说明**:
-- Approver 可驳回至 `IN_PROGRESS`
-- PM 可驳回至 `IN_PROGRESS` 或 `PLANNING`
+- `APPROVER`: 只能驳回 `SUBMITTED` 状态的检验批，只能驳回至 `IN_PROGRESS`
+- `PM` 或 `ADMIN`: 可以驳回 `SUBMITTED` 或 `APPROVED` 状态的检验批，可以驳回至 `IN_PROGRESS` 或 `PLANNING`
+
+**错误响应** (400 Bad Request):
+```json
+{
+  "detail": "Cannot reject lot lot_001: current status is PLANNING, Approver can only reject SUBMITTED lots"
+}
+```
+
+#### GET /api/v1/lots/{lot_id}/approval-history
+
+获取检验批的审批历史记录。
+
+**响应** (200 OK):
+```json
+{
+  "status": "success",
+  "data": {
+    "lot_id": "lot_001",
+    "history": [
+      {
+        "action": "APPROVE",
+        "user_id": "user_001",
+        "comment": "验收通过",
+        "old_status": "SUBMITTED",
+        "new_status": "APPROVED",
+        "timestamp": "2025-01-01T12:00:00"
+      },
+      {
+        "action": "REJECT",
+        "user_id": "user_002",
+        "comment": "数据质量问题",
+        "old_status": "APPROVED",
+        "new_status": "IN_PROGRESS",
+        "timestamp": "2025-01-01T11:00:00"
+      }
+    ]
+  }
+}
+```
 
 #### PATCH /api/v1/lots/{lot_id}/status
 
@@ -880,7 +946,7 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
 或（完整性验证失败）:
 ```json
 {
-  "detail": "Cannot submit lot: 5 elements are missing required data (height, material, or geometry_2d)"
+  "detail": "Cannot submit lot: 5 elements are missing required data (height, material, or geometry)"
 }
 ```
 
@@ -890,24 +956,60 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
 
 #### GET /api/v1/export/ifc
 
-导出 IFC 模型。
+导出 IFC 模型。支持导出单个检验批、多个检验批（批量）或整个项目。
 
 **查询参数**:
-- `inspection_lot_id`: 检验批 ID（可选，不指定则导出整个项目）
-- `format`: 导出格式（默认: ifc）
+- `inspection_lot_id` (可选): 检验批 ID，导出单个检验批
+- `project_id` (可选): 项目 ID，导出整个项目的所有检验批
+
+**注意**: `inspection_lot_id` 和 `project_id` 不能同时指定，必须指定其中一个。
 
 **响应** (200 OK):
 - Content-Type: `application/octet-stream`
-- Content-Disposition: `attachment; filename="project_001.ifc"`
+- Content-Disposition: `attachment; filename="lot_{inspection_lot_id}.ifc"` 或 `attachment; filename="project_{project_id}.ifc"`
 
-**错误响应** (422 Validation Error):
+**要求**:
+- 检验批必须处于 `APPROVED` 状态才能导出
+- 检验批下的所有构件必须具有完整的几何信息（geometry_2d, height, base_offset）
+
+**错误响应** (400 Bad Request):
 ```json
 {
-  "status": "error",
-  "error": {
-    "code": "EXPORT_ERROR",
-    "message": "检验批状态必须为 APPROVED 才能导出"
-  }
+  "detail": "Cannot export lot lot_001: status is SUBMITTED, must be APPROVED to export"
+}
+```
+
+或（参数错误）:
+```json
+{
+  "detail": "Must specify either inspection_lot_id or project_id"
+}
+```
+
+#### POST /api/v1/export/ifc/batch
+
+批量导出多个检验批为单个 IFC 文件（合并导出）。
+
+**请求体**:
+```json
+{
+  "lot_ids": ["lot_001", "lot_002", "lot_003"]
+}
+```
+
+**响应** (200 OK):
+- Content-Type: `application/octet-stream`
+- Content-Disposition: `attachment; filename="batch_{count}_lots.ifc"`
+
+**要求**:
+- 所有检验批必须处于 `APPROVED` 状态
+- 所有检验批必须属于同一个项目
+- 所有检验批下的构件必须具有完整的几何信息
+
+**错误响应** (400 Bad Request):
+```json
+{
+  "detail": "Lot lot_002 status is SUBMITTED, must be APPROVED to export"
 }
 ```
 
@@ -1338,6 +1440,13 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
 
 **注意**: 响应只包含路径点，不包含具体配件信息（弯头、三通等）。配件生成作为独立功能，在导出或高精度模式时实现。
 
+**Room和Space约束说明**：
+- 原始路由约束仅针对Room（房间）：新路由不能经过原始路由未经过的房间
+- 非房间Space（走廊、大厅等）：即使原始路由未经过，也可以作为更短路由使用
+- 所有Space都受 `forbid_horizontal_mep`/`forbid_vertical_mep` 设置限制
+- 如果Element的 `original_route_room_ids` 字段存在，系统将使用该字段验证Room约束
+- 详见 [MEP_ROUTING_DETAILED.md](./MEP_ROUTING_DETAILED.md#4-原始路由约束)
+
 ### 4.12.2 验证路径
 
 **POST** `/api/v1/routing/validate`
@@ -1415,9 +1524,9 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
       {
         "id": "space_001",
         "type": "Space",
-        "geometry_2d": {
+        "geometry": {
           "type": "Polyline",
-          "coordinates": [[5, 5], [15, 5], [15, 15], [5, 15], [5, 5]]
+          "coordinates": [[5, 5, 0], [15, 5, 0], [15, 15, 0], [5, 15, 0], [5, 5, 0]]
         },
         "forbid_horizontal_mep": true,
         "forbid_vertical_mep": false

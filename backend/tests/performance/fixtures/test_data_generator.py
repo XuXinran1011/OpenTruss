@@ -14,7 +14,7 @@ from app.utils.memgraph import MemgraphClient
 from app.services.schema import initialize_schema
 from app.services.ingestion import IngestionService
 from app.models.speckle.architectural import Wall, Floor, Column
-from app.models.speckle.base import Geometry2D, Point2D
+from app.models.speckle.base import Geometry
 
 logger = logging.getLogger(__name__)
 
@@ -37,23 +37,23 @@ class TestDataGenerator:
         """生成测试构件数据"""
         element_id = f"test_element_{uuid.uuid4().hex[:8]}"
         
-        # 生成随机2D几何
+        # 生成随机3D几何（z=0.0）
         base_x = random.uniform(0, 100)
         base_y = random.uniform(0, 100)
         width = random.uniform(5, 20)
         height = random.uniform(5, 20)
         
         coordinates = [
-            [base_x, base_y],
-            [base_x + width, base_y],
-            [base_x + width, base_y + height],
-            [base_x, base_y + height],
+            [base_x, base_y, 0.0],
+            [base_x + width, base_y, 0.0],
+            [base_x + width, base_y + height, 0.0],
+            [base_x, base_y + height, 0.0],
         ]
         
         element_data = {
             "speckle_id": f"speckle_{element_id}",
             "speckle_type": speckle_type,
-            "geometry_2d": {
+            "geometry": {
                 "type": "Polyline",
                 "coordinates": coordinates,
                 "closed": True,

@@ -4,23 +4,65 @@
 只返回路径点，不生成具体配件
 """
 
-import math
 import logging
-from typing import List, Tuple, Optional, Dict, Any
+import math
+from typing import Any, Dict, List, Optional, Tuple
 
-from app.core.mep_routing_config import get_mep_routing_config
 from app.core.brick_validator import get_brick_validator
-from app.models.speckle.base import Geometry2D
+from app.core.exceptions import RoutingServiceError
+from app.core.mep_routing_config import get_mep_routing_config
+from app.models.speckle.base import Geometry
+from app.services.spatial import SpatialService
+from app.utils.memgraph import MemgraphClient
 
 logger = logging.getLogger(__name__)
 
 
 class FlexibleRouter:
-    """灵活的 MEP 路径规划器（支持系统特定约束）"""
+    """灵活的 MEP 路径规划器（支持系统特定约束）
     
-    def __init__(self):
+    该类提供轻量级的 MEP 路径规划功能，支持不同系统类型的特定约束（如重力排水系统的双45°弯头模式）。
+    只返回路径点，不生成具体配件信息。
+    
+    主要功能：
+    - 支持多种 MEP 元素类型：管道（Pipe）、风管（Duct）、电缆桥架（CableTray）、导管（Conduit）、线缆（Wire）
+    - 支持系统特定约束配置（转弯半径、允许角度、禁止角度等）
+    - Brick Schema 语义验证
+    - Room 和 Space 空间约束验证
+    - 坡度约束验证（用于重力流管道）
+    
+    使用示例：
+        ```python
+        router = FlexibleRouter()
+        result = router.route(
+            start=(0.0, 0.0),
+            end=(10.0, 10.0),
+            element_type="Pipe",
+            element_properties={"diameter": 100},
+            system_type="gravity_drainage",
+            validate_semantic=True,
+            validate_room_constraints=True,
+            validate_slope=True
+        )
+        ```
+    
+    Attributes:
+        config_loader: MEP路由配置加载器
+        brick_validator: Brick Schema验证器
+        spatial_service: 空间查询服务
+    """
+    
+    def __init__(self, spatial_service: Optional[SpatialService] = None, client: Optional[MemgraphClient] = None):
+        """初始化路径规划器
+        
+        Args:
+            spatial_service: 空间查询服务实例（可选，如果为None则创建新实例）
+            client: Memgraph客户端实例（可选，如果为None则创建新实例）
+        """
         self.config_loader = get_mep_routing_config()
         self.brick_validator = get_brick_validator()
+        self.spatial_service = spatial_service or SpatialService()
+        self.client = client or MemgraphClient()
     
     def route(
         self,
@@ -29,10 +71,14 @@ class FlexibleRouter:
         element_type: str,  # "Pipe", "Duct", "CableTray", "Wire"
         element_properties: Dict[str, Any],  # diameter, width, height 等
         system_type: Optional[str] = None,  # "gravity_drainage", "pressure_water" 等
-        obstacles: Optional[List[Geometry2D]] = None,
+        obstacles: Optional[List[Geometry]] = None,
         validate_semantic: bool = True,
         source_element_type: Optional[str] = None,
-        target_element_type: Optional[str] = None
+        target_element_type: Optional[str] = None,
+        element_id: Optional[str] = None,  # 元素ID（用于获取原始路由Room列表）
+        level_id: Optional[str] = None,  # 楼层ID（用于查询Space）
+        validate_room_constraints: bool = True,  # 是否验证Room约束
+        validate_slope: bool = True  # 是否验证坡度约束
     ) -> Dict[str, Any]:
         """
         计算符合约束的路径
@@ -56,8 +102,69 @@ class FlexibleRouter:
                 "errors": List[str]  # 错误信息
             }
         """
+        # 参数验证
+        if not start or not end:
+            raise RoutingServiceError("起点和终点不能为空")
+        
+        if len(start) != 2 or len(end) != 2:
+            raise RoutingServiceError("起点和终点必须包含2个坐标值: [x, y]")
+        
+        if start == end:
+            raise RoutingServiceError("起点和终点不能相同")
+        
         errors = []
         warnings = []
+        
+        logger.info(f"Calculating route: start={start}, end={end}, element_type={element_type}, system_type={system_type}")
+        
+        # 0. 对于电缆/电线，检查是否依赖桥架/线管
+        if element_type in ["Wire", "Cable"]:
+            container_info = self._find_container_element(element_id)
+            if container_info:
+                container_id, container_type = container_info
+                # 如果是桥架，验证容量
+                if container_type == "CableTray":
+                    from app.core.cable_capacity_validator import CableCapacityValidator
+                    validator = CableCapacityValidator(self.client)
+                    capacity_result = validator.validate_cable_tray_capacity(
+                        container_id, element_id
+                    )
+                    if not capacity_result["valid"]:
+                        errors.extend(capacity_result["errors"])
+                        return {
+                            "path_points": [],
+                            "constraints": {},
+                            "warnings": capacity_result.get("warnings", []),
+                            "errors": errors
+                        }
+                    warnings.extend(capacity_result.get("warnings", []))
+                
+                # 使用容器元素的路由
+                container_route = self._get_element_route(container_id)
+                if container_route:
+                    return {
+                        "path_points": container_route,
+                        "constraints": {},
+                        "warnings": warnings + ["路由继承自桥架/线管"],
+                        "errors": errors
+                    }
+                else:
+                    errors.append("关联的桥架/线管尚未完成路由规划")
+                    return {
+                        "path_points": [],
+                        "constraints": {},
+                        "warnings": warnings,
+                        "errors": errors
+                    }
+            else:
+                # 如果没有关联的容器，返回错误
+                errors.append("电缆/电线必须首先指定关联的桥架/线管")
+                return {
+                    "path_points": [],
+                    "constraints": {},
+                    "warnings": warnings,
+                    "errors": errors
+                }
         
         # 1. Brick Schema 语义验证（如果提供了源和目标元素类型）
         if validate_semantic and source_element_type and target_element_type:
@@ -78,15 +185,42 @@ class FlexibleRouter:
         if constraints.get("requires_double_45"):
             # 重力排水系统：使用双45°路径点模式
             result = self._route_with_double_45(start, end, constraints, obstacles)
-            result["errors"].extend(errors)
-            result["warnings"].extend(warnings)
-            return result
         else:
             # 普通系统：使用标准路径规划
             result = self._route_standard(start, end, constraints, obstacles)
-            result["errors"].extend(errors)
-            result["warnings"].extend(warnings)
-            return result
+        
+        # 4. 验证坡度约束（仅管道）
+        if validate_slope and element_type == "Pipe" and system_type:
+            slope_validation = self._validate_slope(
+                result["path_points"],
+                system_type,
+                element_properties.get("slope")
+            )
+            if not slope_validation["valid"]:
+                errors.extend(slope_validation["errors"])
+            warnings.extend(slope_validation.get("warnings", []))
+        
+        # 5. 验证Room和Space约束
+        if validate_room_constraints and level_id and len(result["path_points"]) >= 2:
+            # 获取原始路由经过的Room ID列表
+            original_route_room_ids = []
+            if element_id:
+                original_route_room_ids = self._get_original_route_rooms(element_id)
+            
+            # 验证路径是否穿过有效的Space和Room
+            room_space_validation = self._validate_room_constraints(
+                result["path_points"],
+                original_route_room_ids,
+                level_id,
+                element_type
+            )
+            if not room_space_validation["valid"]:
+                errors.extend(room_space_validation["errors"])
+            warnings.extend(room_space_validation.get("warnings", []))
+        
+        result["errors"].extend(errors)
+        result["warnings"].extend(warnings)
+        return result
     
     def _get_constraints(
         self,
@@ -127,7 +261,7 @@ class FlexibleRouter:
         start: Tuple[float, float],
         end: Tuple[float, float],
         constraints: Dict[str, Any],
-        obstacles: Optional[List[Geometry2D]]
+        obstacles: Optional[List[Geometry]]
     ) -> Dict[str, Any]:
         """
         重力排水系统路径规划：使用双45°路径点
@@ -241,7 +375,7 @@ class FlexibleRouter:
         start: Tuple[float, float],
         end: Tuple[float, float],
         constraints: Dict[str, Any],
-        obstacles: Optional[List[Geometry2D]]
+        obstacles: Optional[List[Geometry]]
     ) -> Dict[str, Any]:
         """标准路径规划（支持转弯半径约束）"""
         # 计算基础曼哈顿路径
@@ -266,7 +400,7 @@ class FlexibleRouter:
         self,
         start: Tuple[float, float],
         end: Tuple[float, float],
-        obstacles: Optional[List[Geometry2D]]
+        obstacles: Optional[List[Geometry]]
     ) -> List[Tuple[float, float]]:
         """
         计算基础曼哈顿路径（仅水平和垂直移动）
@@ -391,4 +525,286 @@ class FlexibleRouter:
             points.append(point)
         
         return points
+    
+    def _get_original_route_rooms(self, element_id: str) -> List[str]:
+        """获取原始路由经过的Room ID列表
+        
+        Args:
+            element_id: 元素ID
+            
+        Returns:
+            Room ID列表（不是Space ID）
+        """
+        return self.spatial_service.get_original_route_rooms(element_id)
+    
+    def _validate_room_constraints(
+        self,
+        path_points: List[Tuple[float, float]],
+        original_route_room_ids: List[str],
+        level_id: str,
+        element_type: str
+    ) -> Dict[str, Any]:
+        """验证Room和Space约束
+        
+        Args:
+            path_points: 路径点列表
+            original_route_room_ids: 原始路由经过的Room ID列表
+            level_id: 楼层ID
+            element_type: 元素类型（用于判断是否为水平MEP）
+            
+        Returns:
+            验证结果字典
+        """
+        # 判断是否为水平MEP（简化：根据element_type判断）
+        # 实际的竖向管线判定应该在路径规划之前完成
+        forbid_horizontal = element_type in ["Pipe", "Duct", "CableTray", "Conduit", "Wire"]
+        
+        return self.spatial_service.validate_path_through_rooms_and_spaces(
+            path_points,
+            original_route_room_ids,
+            level_id,
+            forbid_horizontal=forbid_horizontal
+        )
+    
+    def _validate_slope(
+        self,
+        path_points: List[Tuple[float, float]],
+        system_type: str,
+        slope: Optional[float]
+    ) -> Dict[str, Any]:
+        """验证坡度约束（仅重力流管道）
+        
+        Args:
+            path_points: 路径点列表
+            system_type: 系统类型
+            slope: 坡度（百分比%）
+            
+        Returns:
+            验证结果字典
+        """
+        errors = []
+        warnings = []
+        
+        # 检查是否为重力流系统
+        gravity_flow_systems = ["gravity_drainage", "gravity_rainwater", "condensate"]
+        if system_type not in gravity_flow_systems:
+            # 非重力流系统，不需要验证坡度
+            return {
+                "valid": True,
+                "errors": [],
+                "warnings": []
+            }
+        
+        # 重力流管道必须slope > 0（不能倒坡）
+        if slope is None:
+            errors.append(f"重力流系统 {system_type} 必须设置坡度（slope）属性")
+            return {
+                "valid": False,
+                "errors": errors,
+                "warnings": warnings
+            }
+        
+        if slope <= 0:
+            errors.append(f"重力流系统 {system_type} 的坡度必须大于0（当前值: {slope}%），不能倒坡")
+            return {
+                "valid": False,
+                "errors": errors,
+                "warnings": warnings
+            }
+        
+        # 验证路径方向是否符合坡度要求（简化：只检查路径是否向下）
+        if len(path_points) >= 2:
+            # 注意：这里的path_points是2D路径，不包含Z坐标
+            # 实际的坡度验证应该在3D空间中完成
+            # 这里只做基本的坡度值验证
+            pass
+        
+        return {
+            "valid": True,
+            "errors": [],
+            "warnings": warnings
+        }
+    
+    def _find_container_element(self, element_id: Optional[str]) -> Optional[Tuple[str, str]]:
+        """查找包含该元素的容器元素（用于 Wire/Cable）
+        
+        Args:
+            element_id: 元素ID（Wire 或 Cable）
+            
+        Returns:
+            如果找到容器，返回 (container_id, container_type) 元组，否则返回 None
+        """
+        if not element_id:
+            return None
+        
+        try:
+            # 查询 CONTAINED_IN 关系，找到包含该元素的容器
+            query = """
+            MATCH (wire:Element {id: $element_id})-[:CONTAINED_IN]->(container:Element)
+            WHERE container.speckle_type IN ['CableTray', 'Conduit']
+            RETURN container.id as container_id, container.speckle_type as container_type
+            LIMIT 1
+            """
+            result = self.client.execute_query(query, {"element_id": element_id})
+            if result:
+                row = result[0]
+                return (row["container_id"], row["container_type"])
+        except Exception as e:
+            logger.warning(f"Error finding container element for {element_id}: {e}")
+        
+        return None
+    
+    def _get_element_route(self, element_id: str) -> Optional[List[Tuple[float, float]]]:
+        """获取元素的路由路径
+        
+        Args:
+            element_id: 元素ID
+            
+        Returns:
+            路径点列表 [(x1, y1), (x2, y2), ...]，如果元素不存在或没有路由信息则返回 None
+        """
+        try:
+            # 查询元素的 geometry，从中提取路径点
+            query = """
+            MATCH (e:Element {id: $element_id})
+            RETURN e.geometry as geometry
+            """
+            result = self.client.execute_query(query, {"element_id": element_id})
+            if not result:
+                return None
+            
+            geometry_data = result[0].get("geometry")
+            if not geometry_data:
+                return None
+            
+            # 解析 geometry 数据
+            if isinstance(geometry_data, str):
+                import json
+                try:
+                    geometry_data = json.loads(geometry_data)
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse geometry JSON for element {element_id}")
+                    return None
+            
+            if not isinstance(geometry_data, dict):
+                return None
+            
+            coordinates = geometry_data.get("coordinates", [])
+            if not coordinates:
+                return None
+            
+            # 提取 2D 坐标点（只取 x, y，忽略 z）
+            path_points = []
+            for coord in coordinates:
+                if len(coord) >= 2:
+                    path_points.append((float(coord[0]), float(coord[1])))
+            
+            return path_points if len(path_points) >= 2 else None
+            
+        except Exception as e:
+            logger.warning(f"Error getting element route for {element_id}: {e}")
+            return None
+
+
+class RoutingService:
+    """路由规划服务
+    
+    处理路由规划状态管理和批量路由规划操作
+    """
+    
+    def __init__(self, client: Optional[MemgraphClient] = None):
+        """初始化服务
+        
+        Args:
+            client: Memgraph 客户端实例（如果为 None，将创建新实例）
+        """
+        self.client = client or MemgraphClient()
+        self.router = FlexibleRouter()
+    
+    def complete_routing_planning(
+        self,
+        element_ids: List[str],
+        original_route_room_ids: Optional[Dict[str, List[str]]] = None
+    ) -> Dict[str, Any]:
+        """完成路由规划，标记路由规划完成
+        
+        将指定元素的routing_status设置为COMPLETED，并保存original_route_room_ids
+        
+        Args:
+            element_ids: 元素ID列表
+            original_route_room_ids: 元素ID到Room ID列表的映射（可选）
+            
+        Returns:
+            更新结果字典
+        """
+        updated_count = 0
+        
+        for element_id in element_ids:
+            # 构建更新字段
+            update_fields = ["e.routing_status = 'COMPLETED'"]
+            update_params: Dict[str, Any] = {"element_id": element_id}
+            
+            # 如果有原始路由Room ID列表，保存它
+            if original_route_room_ids and element_id in original_route_room_ids:
+                room_ids = original_route_room_ids[element_id]
+                update_fields.append("e.original_route_room_ids = $original_route_room_ids")
+                update_params["original_route_room_ids"] = room_ids
+            
+            # 执行更新
+            update_query = f"""
+            MATCH (e:Element {{id: $element_id}})
+            SET {', '.join(update_fields)}, e.updated_at = datetime()
+            RETURN e.id as id
+            """
+            
+            try:
+                self.client.execute_write(update_query, update_params)
+                updated_count += 1
+            except Exception as e:
+                logger.error(f"Failed to update routing status for element {element_id}: {e}")
+                continue
+        
+        return {
+            "updated_count": updated_count,
+            "total_count": len(element_ids),
+            "element_ids": element_ids
+        }
+    
+    def revert_to_routing_planning(
+        self,
+        element_ids: List[str]
+    ) -> Dict[str, Any]:
+        """退回路由规划阶段
+        
+        将指定元素的routing_status设置为PLANNING，coordination_status设置为PENDING
+        
+        Args:
+            element_ids: 元素ID列表
+            
+        Returns:
+            更新结果字典
+        """
+        updated_count = 0
+        
+        for element_id in element_ids:
+            update_query = """
+            MATCH (e:Element {id: $element_id})
+            SET e.routing_status = 'PLANNING',
+                e.coordination_status = 'PENDING',
+                e.updated_at = datetime()
+            RETURN e.id as id
+            """
+            
+            try:
+                self.client.execute_write(update_query, {"element_id": element_id})
+                updated_count += 1
+            except Exception as e:
+                logger.error(f"Failed to revert routing status for element {element_id}: {e}")
+                continue
+        
+        return {
+            "updated_count": updated_count,
+            "total_count": len(element_ids),
+            "element_ids": element_ids
+        }
 

@@ -1,0 +1,147 @@
+{
+  "version": "1.0",
+  "description": "支吊架布置规则（基于标准图集）",
+  
+  "standards": {
+    "03s402": {
+      "name": "室内管道支架及吊架",
+      "description": "适用于室内管道支吊架",
+      "element_types": ["Pipe"],
+      "spacing_rules": {
+        "horizontal": {
+          "DN15-DN25": {"max_spacing": 2.5, "unit": "meters"},
+          "DN32-DN40": {"max_spacing": 3.0, "unit": "meters"},
+          "DN50-DN80": {"max_spacing": 4.0, "unit": "meters"},
+          "DN100-DN150": {"max_spacing": 5.0, "unit": "meters"},
+          "DN200+": {"max_spacing": 6.0, "unit": "meters"}
+        },
+        "vertical": {
+          "default": {"max_spacing": 3.0, "unit": "meters"}
+        }
+      },
+      "detail_codes": {
+        "支架": ["03s402-1", "03s402-2", "03s402-3"],
+        "吊架": ["03s402-4", "03s402-5"]
+      }
+    },
+    
+    "08k132": {
+      "name": "金属、非金属风管支吊架",
+      "description": "适用于风管支吊架",
+      "element_types": ["Duct"],
+      "spacing_rules": {
+        "horizontal": {
+          "矩形_小截面": {"max_spacing": 3.0, "width_threshold": 400},
+          "矩形_中截面": {"max_spacing": 3.75, "width_threshold": 1250},
+          "矩形_大截面": {"max_spacing": 4.5, "width_threshold": 2000},
+          "圆形_DN200-DN400": {"max_spacing": 3.0},
+          "圆形_DN400-DN630": {"max_spacing": 3.75},
+          "圆形_DN630+": {"max_spacing": 4.5}
+        },
+        "vertical": {
+          "default": {"max_spacing": 4.0, "unit": "meters"}
+        }
+      },
+      "detail_codes": {
+        "支架": ["08k132-A1", "08k132-A2"],
+        "吊架": ["08k132-B1", "08k132-B2"]
+      }
+    },
+    
+    "04D701-3": {
+      "name": "电缆桥架安装",
+      "description": "适用于电缆桥架支吊架",
+      "element_types": ["CableTray"],
+      "spacing_rules": {
+        "horizontal": {
+          "宽度_50-100": {"max_spacing": 1.5, "width_range": [50, 100]},
+          "宽度_100-200": {"max_spacing": 2.0, "width_range": [100, 200]},
+          "宽度_200-400": {"max_spacing": 2.5, "width_range": [200, 400]},
+          "宽度_400+": {"max_spacing": 3.0, "width_range": [400, 9999]}
+        },
+        "vertical": {
+          "default": {"max_spacing": 2.0, "unit": "meters"}
+        }
+      },
+      "detail_codes": {
+        "支架": ["04D701-3-1", "04D701-3-2"],
+        "吊架": ["04D701-3-3", "04D701-3-4"]
+      }
+    }
+  },
+  
+  "seismic_requirements": {
+    "GB50981-2014": {
+      "name": "建筑机电工程抗震设计规范",
+      "description": "抗震支吊架要求",
+      "seismic_grades": ["6度", "7度", "8度", "9度"],
+      "requirements": {
+        "6度": {
+          "requires_seismic_hanger": false,
+          "additional_spacing_reduction": 0.0
+        },
+        "7度": {
+          "requires_seismic_hanger": true,
+          "additional_spacing_reduction": 0.2,
+          "seismic_detail_codes": {
+            "03s402": "03s402-抗震1",
+            "08k132": "08k132-抗震1",
+            "04D701-3": "04D701-3-抗震1"
+          }
+        },
+        "8度": {
+          "requires_seismic_hanger": true,
+          "additional_spacing_reduction": 0.3,
+          "seismic_detail_codes": {
+            "03s402": "03s402-抗震2",
+            "08k132": "08k132-抗震2",
+            "04D701-3": "04D701-3-抗震2"
+          }
+        },
+        "9度": {
+          "requires_seismic_hanger": true,
+          "additional_spacing_reduction": 0.4,
+          "seismic_detail_codes": {
+            "03s402": "03s402-抗震3",
+            "08k132": "08k132-抗震3",
+            "04D701-3": "04D701-3-抗震3"
+          }
+        }
+      }
+    }
+  },
+  
+  "placement_rules": {
+    "mandatory_positions": {
+      "near_fittings": {
+        "distance": 0.3,
+        "unit": "meters",
+        "description": "弯头、三通等配件附近必须布置支吊架"
+      },
+      "near_valves": {
+        "distance": 0.2,
+        "unit": "meters",
+        "description": "阀门附近必须布置支吊架"
+      }
+    },
+    "avoid_positions": {
+      "near_joints": {
+        "distance": 0.1,
+        "unit": "meters",
+        "description": "避免在接头处布置支吊架"
+      }
+    }
+  },
+  
+  "integrated_hanger": {
+    "min_elements": 2,
+    "description": "综合支吊架最少需要2根管线",
+    "spatial_proximity_threshold": 0.5,
+    "unit": "meters",
+    "description_proximity": "在同一空间内，管线间距小于此值时可以考虑使用综合支吊架",
+    "size_compatibility": {
+      "max_size_ratio": 2.0,
+      "description": "使用综合支吊架的管线，最大尺寸与最小尺寸的比值不应超过此值"
+    }
+  }
+}

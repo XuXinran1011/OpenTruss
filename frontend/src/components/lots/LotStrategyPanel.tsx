@@ -6,11 +6,12 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useCreateLotsByRule } from '@/hooks/useLotStrategy';
 import { useItemDetailForLots } from '@/hooks/useLotStrategy';
 import { getElements, ElementListItem } from '@/services/elements';
+import { getRules, previewRule, type RulePreviewResponse } from '@/services/rules';
 import { cn } from '@/lib/utils';
 
 interface LotStrategyPanelProps {
@@ -30,15 +31,42 @@ export function LotStrategyPanel({ itemId, onCreated }: LotStrategyPanelProps) {
   const { data: itemDetail, isLoading: isLoadingItem } = useItemDetailForLots(itemId);
   const createLotsMutation = useCreateLotsByRule();
 
-  // 获取该分项下的所有构件（用于预览统计）
-  const { data: elementsData } = useQuery({
-    queryKey: ['elements', 'for-preview', itemId],
-    queryFn: () => getElements({ item_id: itemId || undefined, page: 1, page_size: 1000 }),
+  // 获取规则列表
+  const { data: rulesData } = useQuery({
+    queryKey: ['rules'],
+    queryFn: getRules,
+  });
+
+  // 预览规则（使用规则API）
+  const { data: rulePreview, isLoading: isLoadingPreview } = useQuery({
+    queryKey: ['rule-preview', itemId, selectedRuleType],
+    queryFn: () => previewRule({ rule_type: selectedRuleType, item_id: itemId! }),
     enabled: !!itemId,
   });
 
-  // 计算预览信息：未分配的构件统计
+  // 获取该分项下的所有构件（用于预览统计，作为备用）
+  const { data: elementsData } = useQuery({
+    queryKey: ['elements', 'for-preview', itemId],
+    queryFn: () => getElements({ item_id: itemId || undefined, page: 1, page_size: 1000 }),
+    enabled: !!itemId && !rulePreview, // 如果规则预览可用，则不加载元素数据
+  });
+
+  // 计算预览信息：使用规则预览API的结果，如果不可用则使用本地计算
   const previewInfo = useMemo(() => {
+    // 优先使用规则预览API的结果
+    if (rulePreview) {
+      return {
+        unassignedCount: rulePreview.groups.reduce((sum, g) => sum + g.count, 0),
+        estimatedLots: rulePreview.estimated_lots,
+        groups: rulePreview.groups.map(g => ({
+          key: g.key,
+          count: g.count,
+          label: g.label,
+        })),
+      };
+    }
+    
+    // 备用：使用本地计算（原有逻辑）
     if (!elementsData?.items) {
       return {
         unassignedCount: 0,

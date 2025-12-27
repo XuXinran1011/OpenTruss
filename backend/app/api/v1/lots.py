@@ -3,11 +3,14 @@
 提供检验批创建、管理和操作接口
 """
 
-from typing import List
+import logging
+import logging
+from typing import List, Dict, Any
 from fastapi import APIRouter, HTTPException, status, Depends
 
 from app.services.lot_strategy import LotStrategyService, RuleType
 from app.services.hierarchy import HierarchyService
+from app.core.exceptions import NotFoundError, ConflictError, ValidationError
 from app.models.api.lots import (
     CreateLotsByRuleRequest,
     CreateLotsResponse,
@@ -23,6 +26,8 @@ from app.models.api.lots import (
 )
 from app.utils.memgraph import get_memgraph_client, MemgraphClient, convert_neo4j_datetime
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/lots", tags=["lots"])
 
@@ -52,7 +57,7 @@ def get_hierarchy_service(
 async def create_lots_by_rule(
     request: CreateLotsByRuleRequest,
     service: LotStrategyService = Depends(get_lot_strategy_service),
-) -> dict:
+) -> Dict[str, Any]:
     """根据规则批量创建检验批"""
     # 验证规则类型
     try:
@@ -92,12 +97,18 @@ async def create_lots_by_rule(
             "data": response.model_dump()
         }
         
-    except ValueError as e:
+    except NotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(e)
+            detail=e.message
+        )
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=e.message
         )
     except Exception as e:
+        logger.error(f"Failed to create lots by rule: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create lots: {str(e)}"
@@ -114,7 +125,7 @@ async def assign_elements_to_lot(
     lot_id: str,
     request: AssignElementsRequest,
     service: LotStrategyService = Depends(get_lot_strategy_service),
-) -> dict:
+) -> Dict[str, Any]:
     """分配构件到检验批"""
     try:
         assigned_count = service.assign_elements_to_lot(
@@ -132,10 +143,17 @@ async def assign_elements_to_lot(
             "status": "success",
             "data": response.model_dump()
         }
+    except (NotFoundError, ValidationError) as e:
+        status_code = status.HTTP_404_NOT_FOUND if isinstance(e, NotFoundError) else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(
+            status_code=status_code,
+            detail=e.message
+        )
     except Exception as e:
+        logger.error(f"Failed to assign elements to lot {lot_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to assign elements: {str(e)}"
+            detail="分配构件到检验批时发生意外错误，请稍后重试或联系技术支持"
         )
 
 
@@ -149,7 +167,7 @@ async def remove_elements_from_lot(
     lot_id: str,
     request: RemoveElementsRequest,
     service: LotStrategyService = Depends(get_lot_strategy_service),
-) -> dict:
+) -> Dict[str, Any]:
     """从检验批移除构件"""
     try:
         removed_count = service.remove_elements_from_lot(
@@ -167,10 +185,17 @@ async def remove_elements_from_lot(
             "status": "success",
             "data": response.model_dump()
         }
+    except (NotFoundError, ValidationError) as e:
+        status_code = status.HTTP_404_NOT_FOUND if isinstance(e, NotFoundError) else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(
+            status_code=status_code,
+            detail=e.message
+        )
     except Exception as e:
+        logger.error(f"Failed to remove elements from lot {lot_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to remove elements: {str(e)}"
+            detail="从检验批移除构件时发生意外错误，请稍后重试或联系技术支持"
         )
 
 
@@ -189,7 +214,7 @@ async def update_lot_status(
     request: UpdateLotStatusRequest,
     service: LotStrategyService = Depends(get_lot_strategy_service),
     hierarchy_service = Depends(get_hierarchy_service),
-) -> dict:
+) -> Dict[str, Any]:
     """更新检验批状态"""
     try:
         # 验证检验批存在
@@ -227,19 +252,19 @@ async def update_lot_status(
             elements_query = """
             MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
             RETURN e.id as id, e.speckle_type as speckle_type, e.height as height, 
-                   e.base_offset as base_offset, e.material as material, e.geometry_2d as geometry_2d
+                   e.base_offset as base_offset, e.material as material, e.geometry as geometry
             """
             elements = service.client.execute_query(elements_query, {"lot_id": lot_id})
             
             incomplete_elements = []
             for elem in elements:
-                if not elem.get("height") or not elem.get("material") or not elem.get("geometry_2d"):
+                if not elem.get("height") or not elem.get("material") or not elem.get("geometry"):
                     incomplete_elements.append(elem.get("id"))
             
             if incomplete_elements:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Cannot submit lot: {len(incomplete_elements)} elements are missing required data (height, material, or geometry_2d)"
+                    detail=f"Cannot submit lot: {len(incomplete_elements)} elements are missing required data (height, material, or geometry)"
                 )
             
             # 2. 执行规则引擎校验（构造校验和拓扑校验）
@@ -412,7 +437,7 @@ async def get_lot_elements(
     lot_id: str,
     service: LotStrategyService = Depends(get_lot_strategy_service),
     hierarchy_service = Depends(get_hierarchy_service),
-) -> dict:
+) -> Dict[str, Any]:
     """获取检验批下的构件列表"""
     try:
         # 验证检验批存在

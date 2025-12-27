@@ -73,13 +73,13 @@ export function ExportPanel({
             </button>
 
             {exportLotMutation.isError && (
-              <div className="text-sm text-red-600">
-                导出失败: {exportLotMutation.error?.message || '未知错误'}
+              <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
+                导出失败: {exportLotMutation.error?.message || '未知错误，请稍后重试'}
               </div>
             )}
 
             {exportLotMutation.isSuccess && (
-              <div className="text-sm text-emerald-600">
+              <div className="text-sm text-emerald-600 bg-emerald-50 p-3 rounded-md">
                 导出成功！文件已开始下载。
               </div>
             )}

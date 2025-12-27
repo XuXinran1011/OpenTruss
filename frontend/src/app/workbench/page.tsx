@@ -8,6 +8,7 @@ import { WorkbenchLayout } from '@/components/layout/WorkbenchLayout';
 import { TopToolbar } from '@/components/toolbar/TopToolbar';
 import { HierarchyTree } from '@/components/hierarchy/HierarchyTree';
 import { TriageQueue } from '@/components/triage/TriageQueue';
+import { KeyboardShortcutsPanel } from '@/components/workbench/KeyboardShortcutsPanel';
 import { Canvas, CanvasHandle } from '@/components/canvas/Canvas';
 import { RightPanel } from '@/components/panel/RightPanel';
 import { ToastProvider } from '@/providers/ToastProvider';
@@ -16,8 +17,10 @@ import { DragProvider } from '@/contexts/DragContext';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { getProjects } from '@/services/hierarchy';
 import { useHierarchyStore } from '@/stores/hierarchy';
+import { useWorkbenchStore } from '@/stores/workbench';
 
 export default function WorkbenchPage() {
+  const { mode } = useWorkbenchStore();
   const { currentProjectId, setCurrentProjectId } = useHierarchyStore();
   const [projectId, setProjectId] = useState<string | null>(null);
   const canvasRef = useRef<CanvasHandle>(null);
@@ -88,6 +91,8 @@ export default function WorkbenchPage() {
           />
         </CanvasProvider>
       </DragProvider>
+      {/* 快捷键提示面板 */}
+      <KeyboardShortcutsPanel mode={mode} />
     </ToastProvider>
     </AuthGuard>
   );

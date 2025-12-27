@@ -10,7 +10,7 @@ from datetime import datetime
 
 from app.utils.memgraph import MemgraphClient
 from app.models.speckle import SpeckleBuiltElement
-from app.models.speckle.base import Geometry2D
+from app.models.speckle.base import Geometry, normalize_coordinates
 from app.models.gb50300.element import ElementNode
 from app.models.gb50300.relationships import (
     PHYSICALLY_CONTAINS,
@@ -58,8 +58,8 @@ class IngestionService:
         # 1. 生成 Element ID
         element_id = self._generate_element_id()
         
-        # 2. 提取 geometry_2d
-        geometry_2d = self._extract_geometry_2d(speckle_element)
+        # 2. 提取 geometry（3D 原生）
+        geometry = self._extract_geometry(speckle_element)
         
         # 3. 提取 level_id（确保存在）
         level_id = self._extract_level_id(speckle_element, project_id)
@@ -76,7 +76,7 @@ class IngestionService:
             id=element_id,
             speckle_id=speckle_element.speckle_id,
             speckle_type=speckle_element.speckle_type,
-            geometry_2d=geometry_2d,
+            geometry=geometry,
             height=getattr(speckle_element, 'height', None),
             base_offset=getattr(speckle_element, 'base_offset', None),
             material=getattr(speckle_element, 'material', None),
@@ -96,6 +96,10 @@ class IngestionService:
         # 7. 建立关系
         self._create_relationships(element, project_id)
         
+        # 8. 语义验证（软检查，仅记录警告）
+        # 注意：Ingestion 阶段不创建 Element 之间的连接关系，连接关系在 workbench 中创建
+        # 如果将来需要处理连接关系，可以在这里添加软检查
+        
         logger.info(f"Ingested element: {element_id} (type: {element.speckle_type})")
         
         return element
@@ -111,30 +115,43 @@ class IngestionService:
         timestamp = datetime.now().strftime("%Y%m%d")
         return f"element_{timestamp}_{unique_id}"
     
-    def _extract_geometry_2d(self, speckle_element: SpeckleBuiltElement) -> Geometry2D:
-        """提取 geometry_2d
+    def _extract_geometry(self, speckle_element: SpeckleBuiltElement) -> Geometry:
+        """提取 geometry（3D 原生）
         
-        从 Speckle 元素中提取 2D 几何数据
+        从 Speckle 元素中提取几何数据，支持 2D 和 3D 输入
+        - 2D 输入（只有 x, y）：自动补 z=0.0
+        - 3D 输入（x, y, z）：无损保存
+        - null z 值：默认转换为 0.0
         
         Args:
             speckle_element: Speckle 元素
             
         Returns:
-            Geometry2D: 2D 几何数据
+            Geometry: 3D 原生几何数据（坐标已规范化）
             
         Raises:
             ValueError: 如果无法提取几何数据
         """
-        # 检查是否有 geometry_2d 字段
-        if hasattr(speckle_element, 'geometry_2d') and speckle_element.geometry_2d:
-            return speckle_element.geometry_2d
+        # 检查是否有 geometry 字段（3D 原生）
+        if hasattr(speckle_element, 'geometry') and speckle_element.geometry:
+            geo = speckle_element.geometry
+            # 确保坐标已规范化（2D→3D 转换）
+            if geo.coordinates:
+                normalized_coords = normalize_coordinates(geo.coordinates)
+                # 如果坐标被规范化，创建新的 Geometry 对象
+                if normalized_coords != geo.coordinates:
+                    return Geometry(
+                        type=geo.type,
+                        coordinates=normalized_coords,
+                        closed=geo.closed
+                    )
+            return geo
         
-        # 如果没有 geometry_2d，尝试从其他字段提取
-        # 这通常不应该发生，因为 Speckle 模型应该有 geometry_2d
+        # 如果都没有，报错
         element_type = getattr(speckle_element, 'speckle_type', 'Unknown')
         raise ValueError(
-            f"无法从 Speckle 元素提取 geometry_2d: {element_type}. "
-            f"元素必须包含有效的 2D 几何数据（geometry_2d 字段）。"
+            f"无法从 Speckle 元素提取 geometry: {element_type}. "
+            f"元素必须包含有效的几何数据（geometry 字段）。"
         )
     
     def _extract_level_id(
@@ -224,12 +241,12 @@ class IngestionService:
         # 转换为属性字典
         props = element.to_cypher_properties()
         
-        # 序列化 geometry_2d
-        if isinstance(props.get("geometry_2d"), dict):
+        # 序列化 geometry
+        if isinstance(props.get("geometry"), dict):
             # 已经是字典，直接使用
             pass
-        elif hasattr(props["geometry_2d"], "model_dump"):
-            props["geometry_2d"] = props["geometry_2d"].model_dump()
+        elif hasattr(props.get("geometry"), "model_dump"):
+            props["geometry"] = props["geometry"].model_dump()
         
         # 创建节点
         self.client.create_node("Element", props)
