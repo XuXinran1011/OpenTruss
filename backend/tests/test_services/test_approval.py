@@ -2,7 +2,9 @@
 
 import pytest
 from datetime import datetime
-from app.services.approval import ApprovalService, ApprovalRole
+from app.services.approval import ApprovalService
+from app.services.approval import ApprovalRole
+from app.core.exceptions import NotFoundError
 from app.utils.memgraph import MemgraphClient
 from app.models.gb50300.nodes import InspectionLotNode, ApprovalHistoryNode
 from app.models.gb50300.relationships import HAS_APPROVAL_HISTORY

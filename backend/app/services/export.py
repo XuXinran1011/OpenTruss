@@ -20,6 +20,7 @@ except ImportError:
 
 from app.utils.memgraph import MemgraphClient
 from app.models.speckle.base import Geometry
+from app.core.exceptions import NotFoundError, ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -74,13 +75,17 @@ class ExportService:
         result = self.client.execute_query(lot_query, {"lot_id": lot_id})
         
         if not result:
-            raise ValueError(f"InspectionLot not found: {lot_id}")
+            raise NotFoundError(
+                f"InspectionLot not found: {lot_id}",
+                {"lot_id": lot_id, "resource_type": "InspectionLot"}
+            )
         
         lot_data = result[0]
         if lot_data["status"] != "APPROVED":
-            raise ValueError(
+            raise ValidationError(
                 f"Cannot export lot {lot_id} (status: '{lot_data['status']}'): "
-                "lot must be APPROVED to export. Please approve the lot first."
+                "lot must be APPROVED to export. Please approve the lot first.",
+                {"lot_id": lot_id, "current_status": lot_data["status"], "required_status": "APPROVED"}
             )
         
         # 获取检验批下的所有构件（只返回完整的元素）
@@ -346,13 +351,17 @@ class ExportService:
             found_ids = {lot["id"] for lot in lots_data}
             missing_ids = set(lot_ids) - found_ids
             if missing_ids:  # 只有当确实有缺失的检验批时才抛出异常
-                raise ValueError(f"Some inspection lots not found: {missing_ids}")
+                raise NotFoundError(
+                    f"Some inspection lots not found: {missing_ids}",
+                    {"missing_lot_ids": list(missing_ids), "resource_type": "InspectionLot"}
+                )
         
         for lot_data in lots_data:
             if lot_data["status"] != "APPROVED":
-                raise ValueError(
+                raise ValidationError(
                     f"Lot {lot_data['id']} status is {lot_data['status']}, "
-                    "must be APPROVED to export"
+                    "must be APPROVED to export",
+                    {"lot_id": lot_data['id'], "current_status": lot_data['status'], "required_status": "APPROVED"}
                 )
         
         # 步骤2：获取所有检验批的层级信息（验证它们属于同一个项目）

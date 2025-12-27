@@ -242,7 +242,7 @@ def test_export_ifc_nonexistent_lot():
     """测试导出不存在的检验批"""
     response = client.get("/api/v1/export/ifc?inspection_lot_id=nonexistent_lot")
     
-    assert response.status_code == 400  # API 对 ValueError 返回 400，而不是 404
+    assert response.status_code == 404  # API 对 NotFoundError 返回 404
 
 
 @pytest.mark.skipif(not IFC_AVAILABLE, reason="ifcopenshell not available")
@@ -362,7 +362,7 @@ def test_export_ifc_batch_nonexistent_lots():
         json={"lot_ids": ["nonexistent_lot_1", "nonexistent_lot_2"]}
     )
     
-    assert response.status_code == 400
+    assert response.status_code == 404  # NotFoundError returns 404
     assert "not found" in response.json()["detail"].lower()
 
 
