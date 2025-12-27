@@ -11,7 +11,7 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera, Grid } from '@react-three/drei';
 import { ElementDetail } from '@/services/elements';
 import { geometryTo3d, Point3D, calculate3dBoundingBox } from '@/utils/geometry3d';
-import { Group } from 'three';
+import { Group, StaticDrawUsage } from 'three';
 
 interface Preview3DProps {
   elements: ElementDetail[];
@@ -200,7 +200,7 @@ function ElementMesh({
               count={geometry.points.length}
               array={new Float32Array(geometry.points.flatMap(p => [p.x, p.y, p.z]))}
               itemSize={3}
-              usage={1}  // StaticDrawUsage
+              usage={StaticDrawUsage}
             />
           </bufferGeometry>
           <lineBasicMaterial color={color} />
