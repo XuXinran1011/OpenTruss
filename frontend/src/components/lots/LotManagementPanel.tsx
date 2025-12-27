@@ -136,8 +136,7 @@ export function LotManagementPanel({ itemId }: LotManagementPanelProps) {
     return Array.from(selectedLotIds).filter(id => submittedLotIds.includes(id));
   }, [selectedLotIds, submittedLotIds]);
 
-  const handleToggleLotSelection = (lotId: string, event: React.MouseEvent) => {
-    event.stopPropagation();
+  const handleToggleLotSelection = (lotId: string) => {
     const newSelected = new Set(selectedLotIds);
     if (newSelected.has(lotId)) {
       newSelected.delete(lotId);
@@ -276,7 +275,7 @@ export function LotManagementPanel({ itemId }: LotManagementPanelProps) {
                         checked={isSelected}
                         onChange={(e) => {
                           e.stopPropagation();
-                          handleToggleLotSelection(lot.id, e);
+                          handleToggleLotSelection(lot.id);
                         }}
                         onClick={(e) => e.stopPropagation()}
                         className="w-4 h-4 text-orange-600 border-zinc-300 rounded focus:ring-orange-500"
