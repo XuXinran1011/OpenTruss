@@ -13,6 +13,7 @@ except ImportError:
     IFC_AVAILABLE = False
 
 from app.services.export import ExportService
+from app.core.exceptions import NotFoundError, ValidationError
 from app.utils.memgraph import MemgraphClient
 from app.models.gb50300.nodes import (
     ProjectNode, BuildingNode, DivisionNode, SubDivisionNode,
@@ -270,7 +271,7 @@ def test_ifc_element_mapping(export_service):
 @pytest.mark.skipif(not IFC_AVAILABLE, reason="ifcopenshell not available")
 def test_export_nonexistent_lot(export_service):
     """测试导出不存在的检验批"""
-    with pytest.raises(ValueError, match="InspectionLot.*not found"):
+    with pytest.raises(NotFoundError, match="InspectionLot.*not found"):
         export_service.export_lot_to_ifc("nonexistent_lot")
 
 
@@ -291,7 +292,7 @@ def test_export_lot_not_approved(export_service, memgraph_client):
     memgraph_client.create_node("InspectionLot", lot_node.model_dump(exclude_none=True))
     
     try:
-        with pytest.raises(ValueError, match="must be APPROVED"):
+        with pytest.raises(ValidationError, match="must be APPROVED"):
             export_service.export_lot_to_ifc(lot_id)
     finally:
         # 清理
