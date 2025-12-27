@@ -279,7 +279,8 @@ export function MEPRoutingPanel({
         {/* 桥架容量指示器 */}
         {elementType === 'CableTray' && containerTrayId && (
           <div className="border border-zinc-200 rounded-md p-3">
-            <CableTrayCapacityIndicator trayId={containerTrayId} />
+            {/* TODO: Implement CableTrayCapacityIndicator component */}
+            <div className="text-sm text-zinc-600">Cable tray capacity indicator (to be implemented)</div>
           </div>
         )}
 
