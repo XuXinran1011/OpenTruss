@@ -983,6 +983,7 @@ function renderElementPlaceholder(
   g: Selection<SVGGElement, unknown, null, undefined>,
   element: ElementListItem,
   isSelected: boolean,
+  isColliding: boolean,
   mode: WorkbenchMode,
   liftMode: { showZMissing: boolean },
   onElementDragStart?: (elementIds: string[]) => void,
