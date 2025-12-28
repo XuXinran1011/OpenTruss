@@ -8,10 +8,13 @@ import logging
 import tempfile
 from typing import List, Dict, Any, Optional
 from pathlib import Path
+import numpy as np
 
 try:
     import ifcopenshell
     import ifcopenshell.api
+    import ifcopenshell.api.context
+    import ifcopenshell.api.geometry
     from ifcopenshell.api import run
     IFC_AVAILABLE = True
 except ImportError:
@@ -654,12 +657,21 @@ class ExportService:
             base_offset: 基础偏移
         """
         # 1. 获取或创建上下文（用于几何表示）
-        # 注意：ifcopenshell 0.8.4 使用 context.get_context 而不是 geometry.get_context
         try:
-            model_context = run("context.get_context", ifc_file, context="Model")
-        except Exception:
-            # 如果获取失败，创建新的上下文
-            model_context = run("context.add_context", ifc_file, context_type="Model")
+            # 尝试获取现有的Model上下文
+            model_contexts = [ctx for ctx in ifc_file.by_type("IfcGeometricRepresentationContext") 
+                            if hasattr(ctx, 'ContextType') and ctx.ContextType == "Model"]
+            if model_contexts:
+                model_context = model_contexts[0]
+            else:
+                # 创建新的Model上下文
+                model_context = ifcopenshell.api.context.add_context(ifc_file, context_type="Model")
+        except Exception as e:
+            logger.warning(f"Failed to get/create Model context: {e}")
+            # 如果失败，使用第一个可用的上下文
+            model_context = ifc_file.by_type("IfcGeometricRepresentationContext")[0] if ifc_file.by_type("IfcGeometricRepresentationContext") else None
+            if not model_context:
+                raise RuntimeError("No geometric representation context available")
         
         # 2. 处理 3D 坐标（如果坐标已有 Z 值，使用坐标的 Z；否则使用 base_offset）
         coordinates_3d = []
@@ -728,37 +740,63 @@ class ExportService:
         
         # 8. 获取或创建 Body 上下文
         try:
-            body_context = run("context.get_context", ifc_file, context="Body")
-        except Exception:
-            # 如果获取失败，创建新的上下文
-            body_context = run("context.add_context", ifc_file, context_type="Body")
+            # 尝试获取现有的Body上下文
+            body_contexts = [ctx for ctx in ifc_file.by_type("IfcGeometricRepresentationContext") 
+                           if hasattr(ctx, 'ContextIdentifier') and ctx.ContextIdentifier == "Body"]
+            if body_contexts:
+                body_context = body_contexts[0]
+            else:
+                # 创建Model上下文（如果不存在）
+                model_contexts = [ctx for ctx in ifc_file.by_type("IfcGeometricRepresentationContext") 
+                                if hasattr(ctx, 'ContextType') and ctx.ContextType == "Model"]
+                if not model_contexts:
+                    model_context = ifcopenshell.api.context.add_context(ifc_file, context_type="Model")
+                else:
+                    model_context = model_contexts[0]
+                # 创建Body子上下文
+                body_context = ifcopenshell.api.context.add_context(
+                    ifc_file,
+                    context_type="Model",
+                    context_identifier="Body",
+                    target_view="MODEL_VIEW",
+                    parent=model_context
+                )
+        except Exception as e:
+            logger.warning(f"Failed to get/create Body context: {e}, using first context as fallback")
+            body_context = ifc_file.by_type("IfcGeometricRepresentationContext")[0] if ifc_file.by_type("IfcGeometricRepresentationContext") else None
+            if not body_context:
+                raise RuntimeError("No geometric representation context available")
         
-        # 创建形状表示
-        representation = run(
-            "geometry.add_shape_representation",
-            ifc_file,
-            context=body_context,
-            representation="SweptSolid",
-            items=[body]
+        # 创建形状表示（直接使用ifc_file API）
+        representation = ifc_file.createIfcShapeRepresentation(
+            body_context,  # ContextOfItems
+            "Body",  # RepresentationIdentifier
+            "SweptSolid",  # RepresentationType
+            [body]  # Items
         )
         
-        # 9. 创建产品定义形状并关联到元素
-        product_shape = run(
-            "geometry.assign_representation",
-            ifc_file,
-            product=ifc_element,
-            representation=representation
-        )
+        # 9. 创建产品定义形状并关联到元素（直接使用ifc_file API）
+        if not ifc_element.Representation:
+            product_shape = ifc_file.createIfcProductDefinitionShape(None, None, [representation])
+            ifc_element.Representation = product_shape
+        else:
+            # 如果已有表示，添加新的表示到列表中
+            existing_reps = list(ifc_element.Representation.Representations) if ifc_element.Representation.Representations else []
+            existing_reps.append(representation)
+            ifc_element.Representation.Representations = existing_reps
         
         # 10. 设置元素位置（放置）
-        run(
-            "geometry.edit_object_placement",
+        placement_matrix = np.array([
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, base_offset],
+            [0.0, 0.0, 0.0, 1.0]
+        ])
+        ifcopenshell.api.geometry.edit_object_placement(
             ifc_file,
             product=ifc_element,
-            matrix=[[1.0, 0.0, 0.0, 0.0],
-                    [0.0, 1.0, 0.0, 0.0],
-                    [0.0, 0.0, 1.0, base_offset],
-                    [0.0, 0.0, 0.0, 1.0]]
+            matrix=placement_matrix,
+            is_si=True
         )
         
         logger.debug(f"Created geometry for element {ifc_element.GlobalId}")
