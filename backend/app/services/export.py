@@ -685,17 +685,15 @@ class ExportService:
                 coordinates_3d.append(coordinates_3d[0])
         
         # 4. 创建 IfcPolyline
-        # 使用 ifc_file.createIfcCartesianPoint 直接创建点，而不是使用已废弃的 run() 函数
+        # 使用 ifc_file.createIfcCartesianPoint 和 createIfcPolyline 直接创建，而不是使用已废弃的 run() 函数
         polyline_points = []
         for coord in coordinates_3d:
             point = ifc_file.createIfcCartesianPoint(list(coord))
             polyline_points.append(point)
         
-        polyline = run(
-            "geometry.add_polyline",
-            ifc_file,
-            points=polyline_points
-        )
+        # 直接使用 ifc_file.createIfcPolyline 而不是 run("geometry.add_polyline", ...)
+        # createIfcPolyline 接受 Points 列表作为位置参数或命名参数
+        polyline = ifc_file.createIfcPolyline(polyline_points)
         
         # 5. 创建轮廓曲线（IfcIndexedPolyCurve 或 IfcPolyline）
         profile = run(

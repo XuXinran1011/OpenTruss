@@ -83,6 +83,9 @@ backend/PHASE_2_SUMMARY.md
 backend/MEMGRAPH_SETUP.md
 backend/README_TESTING.md
 
+# AI 训练数据标注格式文档
+AI_TRAINING_DATA_FORMAT.md
+
 # 性能测试脚本
 run_*.sh
 run_*.ps1
