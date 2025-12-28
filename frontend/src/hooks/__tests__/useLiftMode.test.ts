@@ -110,9 +110,11 @@ describe('useLiftMode', () => {
       
       const { result } = renderHook(() => useLiftMode(), { wrapper: TestWrapper })
       
-      await act(async () => {
+      act(() => {
         result.current.batchLift(3.5)
-        // 立即检查状态应该为true
+      })
+      
+      await waitFor(() => {
         expect(result.current.isLifting).toBe(true)
       })
       
