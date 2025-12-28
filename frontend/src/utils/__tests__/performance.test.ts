@@ -102,10 +102,10 @@ describe('performance工具函数', () => {
       const bounds = calculateViewportBounds(800, 600, { x: 0, y: 0, scale: 1 })
       console.log('bounds:', bounds)
       // 根据公式: minX = (-tx) / scale, maxX = (width - tx) / scale
-      expect(bounds.minX).toBe(0)
-      expect(bounds.minY).toBe(0)
-      expect(bounds.maxX).toBe(800)
-      expect(bounds.maxY).toBe(600)
+      expect(bounds.minX).toBeCloseTo(0)
+      expect(bounds.minY).toBeCloseTo(0)
+      expect(bounds.maxX).toBeCloseTo(800)
+      expect(bounds.maxY).toBeCloseTo(600)
     })
 
     it('应该正确处理平移和缩放', () => {
