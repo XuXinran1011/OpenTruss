@@ -7,8 +7,26 @@ import { loginAsEditor } from './helpers/auth';
 
 test.describe('Workbench基础功能', () => {
   test.beforeEach(async ({ page }) => {
+    // 收集失败的API请求（在页面加载前设置）
+    const failedRequests: string[] = [];
+    page.on('response', (response) => {
+      if (!response.ok() && response.url().includes('/api/v1/hierarchy/')) {
+        failedRequests.push(`${response.url()}: ${response.status()} ${response.statusText()}`);
+      }
+    });
+    
     await loginAsEditor(page);
+    
     await page.goto('/workbench');
+    
+    // 等待项目列表API请求完成
+    await page.waitForResponse(
+      (response) => response.url().includes('/api/v1/hierarchy/projects') && 
+                   (response.url().endsWith('/projects') || response.url().includes('/projects?')),
+      { timeout: 15000 }
+    ).catch(() => {
+      console.warn('项目列表API请求未完成或超时');
+    });
     
     // 等待项目选择完成和页面加载
     await page.waitForLoadState('networkidle', { timeout: 15000 });
@@ -16,15 +34,39 @@ test.describe('Workbench基础功能', () => {
     // 如果显示项目选择界面，等待并选择第一个项目
     const projectSelectionTitle = page.locator('text=/选择项目/i').first();
     if (await projectSelectionTitle.isVisible({ timeout: 5000 }).catch(() => false)) {
-      // 等待项目列表加载
-      await page.waitForSelector('button:has-text(/项目|Project/)', { timeout: 10000 }).catch(() => {});
-      // 选择第一个项目
-      const firstProjectButton = page.locator('button').filter({ hasText: /.+/ }).first();
-      if (await firstProjectButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+      // 等待项目列表按钮加载
+      await page.waitForSelector('button', { timeout: 10000 }).catch(() => {});
+      // 选择第一个项目按钮（排除可能的"登录"等其他按钮）
+      const projectButtons = page.locator('button').filter({ 
+        hasText: /.+/,
+        hasNotText: /登录|登录|Login/i 
+      });
+      const firstProjectButton = projectButtons.first();
+      
+      if (await firstProjectButton.count() > 0 && await firstProjectButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+        // 点击项目前，监听层级树API请求
+        const hierarchyApiAfterClick = page.waitForResponse(
+          (response) => response.url().includes('/api/v1/hierarchy/projects/') && 
+                       response.url().includes('/hierarchy'),
+          { timeout: 15000 }
+        ).catch(() => null);
+        
         await firstProjectButton.click();
+        
+        // 等待层级树API请求完成
+        await hierarchyApiAfterClick;
         await page.waitForLoadState('networkidle', { timeout: 15000 });
       }
     }
+    
+    // 等待层级树API请求完成（如果没有通过项目选择触发）
+    await page.waitForResponse(
+      (response) => response.url().includes('/api/v1/hierarchy/projects/') && 
+                   response.url().includes('/hierarchy'),
+      { timeout: 20000 }
+    ).catch(() => {
+      console.warn('层级树API请求未完成或超时');
+    });
     
     // 等待WorkbenchLayout渲染 - 检查工具栏区域是否存在
     await page.waitForSelector('div.h-12.bg-white.border-b, aside', { timeout: 15000 }).catch(() => {});
@@ -50,6 +92,9 @@ test.describe('Workbench基础功能', () => {
         }
         if (asideContent) {
           diagnosticInfo += `\n左侧边栏内容: ${asideContent.substring(0, 200)}`;
+        }
+        if (failedRequests.length > 0) {
+          diagnosticInfo += `\n失败的API请求: ${failedRequests.join(', ')}`;
         }
         
         // 获取DOM快照用于调试
@@ -77,9 +122,13 @@ test.describe('Workbench基础功能', () => {
       console.error('页面标题:', pageTitle);
       console.error('左侧边栏内容:', hierarchyContainer?.substring(0, 200) || '未找到左侧边栏');
       console.error('DOM快照（前1000字符）:', domDump.substring(0, 1000));
+      if (failedRequests.length > 0) {
+        console.error('失败的API请求:', failedRequests);
+      }
       
       throw new Error(
         `层级树未加载（超时）。页面标题: ${pageTitle}。` +
+        (failedRequests.length > 0 ? `失败的API请求: ${failedRequests.join(', ')}。` : '') +
         `请检查：1) API是否正常响应 2) 测试环境是否有项目数据 3) 网络请求是否完成`
       );
     }
