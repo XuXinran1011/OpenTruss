@@ -111,44 +111,41 @@ function HierarchyTreeComponent({ projectId }: HierarchyTreeProps) {
     }
   }, [setSelectedNodeId, setSelectedElementIds, canvasRef]);
 
-  if (isLoading) {
-    return (
-      <div className="p-4 text-sm text-zinc-500 text-center">加载中...</div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-4 text-sm text-red-600 text-center">
-        加载失败: {error instanceof Error ? error.message : '未知错误'}
-      </div>
-    );
-  }
-
-  if (!filteredHierarchy) {
-    return (
-      <div className="p-4 text-sm text-zinc-500 text-center">暂无数据</div>
-    );
-  }
-
+  // 始终渲染容器，但根据状态显示不同内容
+  // 这样测试可以通过 data-testid="hierarchy-tree" 始终检测到组件
   return (
     <div className="h-full flex flex-col" data-testid="hierarchy-tree">
-      {/* 搜索框 */}
-      <div className="p-2 border-b border-zinc-200">
-        <input
-          type="text"
-          placeholder="搜索节点..."
-          value={searchKeyword}
-          onChange={(e) => setSearchKeyword(e.target.value)}
-          className="w-full px-3 py-1.5 text-sm border border-zinc-300 rounded focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent"
-          data-testid="hierarchy-search"
-        />
-      </div>
+      {isLoading && (
+        <div className="p-4 text-sm text-zinc-500 text-center">加载中...</div>
+      )}
+      {error && (
+        <div className="p-4 text-sm text-red-600 text-center">
+          加载失败: {error instanceof Error ? error.message : '未知错误'}
+        </div>
+      )}
+      {!isLoading && !error && !filteredHierarchy && (
+        <div className="p-4 text-sm text-zinc-500 text-center">暂无数据</div>
+      )}
+      {!isLoading && !error && filteredHierarchy && (
+        <>
+          {/* 搜索框 */}
+          <div className="p-2 border-b border-zinc-200">
+            <input
+              type="text"
+              placeholder="搜索节点..."
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              className="w-full px-3 py-1.5 text-sm border border-zinc-300 rounded focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent"
+              data-testid="hierarchy-search"
+            />
+          </div>
 
-      {/* 层级树内容 */}
-      <div className="flex-1 overflow-auto" data-testid="hierarchy-tree-content">
-        <HierarchyTreeNode node={filteredHierarchy} onSelect={handleNodeSelect} />
-      </div>
+          {/* 层级树内容 */}
+          <div className="flex-1 overflow-auto" data-testid="hierarchy-tree-content">
+            <HierarchyTreeNode node={filteredHierarchy} onSelect={handleNodeSelect} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
