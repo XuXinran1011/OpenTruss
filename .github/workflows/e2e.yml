@@ -65,6 +65,48 @@ jobs:
           sleep 10
           curl -f http://localhost:8000/docs || exit 1
       
+      - name: Verify test data via API
+        working-directory: ./backend
+        run: |
+          # 等待API完全就绪
+          for i in {1..30}; do
+            if curl -f -s http://localhost:8000/api/v1/hierarchy/projects?page=1&page_size=1 > /dev/null 2>&1; then
+              echo "API is ready"
+              break
+            fi
+            echo "Waiting for API... ($i/30)"
+            sleep 1
+          done
+          
+          # 验证项目数据存在（使用Python脚本）
+          python3 << 'PYEOF'
+          import sys
+          import json
+          import urllib.request
+          
+          try:
+              url = "http://localhost:8000/api/v1/hierarchy/projects?page=1&page_size=10"
+              with urllib.request.urlopen(url, timeout=10) as response:
+                  data = json.loads(response.read().decode('utf-8'))
+                  items = data.get("data", {}).get("items", [])
+                  if not items:
+                      print("Error: No projects found in API response")
+                      print(f"Response: {json.dumps(data, indent=2)}")
+                      sys.exit(1)
+                  print(f"✓ Test data verified: Found {len(items)} project(s) via API")
+                  for item in items:
+                      print(f"  - Project ID: {item.get('id')}, Name: {item.get('name')}")
+          except urllib.error.URLError as e:
+              print(f"Error: Failed to fetch projects from API: {e}")
+              sys.exit(1)
+          except json.JSONDecodeError as e:
+              print(f"Error: Invalid JSON response: {e}")
+              sys.exit(1)
+          except Exception as e:
+              print(f"Error: {e}")
+              sys.exit(1)
+          PYEOF
+      
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:

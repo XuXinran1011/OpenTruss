@@ -163,6 +163,9 @@ class DemoDataGenerator:
         elements = self._create_demo_elements(lot_id, level_id, count=5)
         logger.info(f"✓ 创建 {len(elements)} 个构件")
         
+        # 10. 验证数据是否正确创建
+        self._verify_demo_project(project_id, building_id, level_id, division_id, subdivision_id, item_id, lot_id, elements)
+        
         return {
             "project_id": project_id,
             "building_id": building_id,
@@ -273,6 +276,85 @@ class DemoDataGenerator:
             )
             return True
         return False
+    
+    def _verify_demo_project(
+        self,
+        project_id: str,
+        building_id: str,
+        level_id: str,
+        division_id: str,
+        subdivision_id: str,
+        item_id: str,
+        lot_id: str,
+        element_ids: List[str]
+    ) -> None:
+        """验证演示项目数据是否正确创建
+        
+        Raises:
+            ValueError: 如果验证失败
+        """
+        logger.info("验证演示数据...")
+        errors = []
+        
+        # 验证项目是否存在
+        query = "MATCH (p:Project {id: $id}) RETURN p.id as id"
+        result = self.client.execute_query(query, {"id": project_id})
+        if not result:
+            errors.append(f"项目 {project_id} 不存在")
+        else:
+            logger.info(f"✓ 验证项目存在: {project_id}")
+        
+        # 验证单体是否存在
+        query = "MATCH (b:Building {id: $id}) RETURN b.id as id"
+        result = self.client.execute_query(query, {"id": building_id})
+        if not result:
+            errors.append(f"单体 {building_id} 不存在")
+        else:
+            logger.info(f"✓ 验证单体存在: {building_id}")
+        
+        # 验证楼层是否存在
+        query = "MATCH (l:Level {id: $id}) RETURN l.id as id"
+        result = self.client.execute_query(query, {"id": level_id})
+        if not result:
+            errors.append(f"楼层 {level_id} 不存在")
+        else:
+            logger.info(f"✓ 验证楼层存在: {level_id}")
+        
+        # 验证检验批是否存在
+        query = "MATCH (lot:InspectionLot {id: $id}) RETURN lot.id as id"
+        result = self.client.execute_query(query, {"id": lot_id})
+        if not result:
+            errors.append(f"检验批 {lot_id} 不存在")
+        else:
+            logger.info(f"✓ 验证检验批存在: {lot_id}")
+        
+        # 验证关系是否存在：Project -> Building
+        query = f"""
+        MATCH (p:Project {{id: $project_id}})-[r:PHYSICALLY_CONTAINS]->(b:Building {{id: $building_id}})
+        RETURN r
+        """
+        result = self.client.execute_query(query, {"project_id": project_id, "building_id": building_id})
+        if not result:
+            errors.append(f"关系 Project -> Building 不存在")
+        else:
+            logger.info(f"✓ 验证关系: Project -> Building")
+        
+        # 验证构件数量
+        query = "MATCH (e:Element) WHERE e.id STARTS WITH 'demo_element_' RETURN count(e) as count"
+        result = self.client.execute_query(query)
+        actual_count = result[0].get("count", 0) if result else 0
+        if actual_count < len(element_ids):
+            errors.append(f"构件数量不足: 期望至少 {len(element_ids)} 个，实际 {actual_count} 个")
+        else:
+            logger.info(f"✓ 验证构件数量: {actual_count} 个")
+        
+        # 如果有错误，抛出异常
+        if errors:
+            error_msg = "数据验证失败:\n" + "\n".join(f"  - {e}" for e in errors)
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        
+        logger.info("✓ 所有数据验证通过")
 
 
 def main():
