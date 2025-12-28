@@ -86,7 +86,8 @@ class ApprovalService:
         # 验证检验批完整性（轻量级验证，确保基本的几何信息完整）
         # 注意：提交时已经做了完整的验证，这里只做基本的完整性检查
         elements_query = """
-        MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
+        MATCH (lot:InspectionLot {id: $lot_id})-[r]->(e:Element)
+        WHERE type(r) = 'MANAGEMENT_CONTAINS'
         RETURN count(e) as element_count,
                count(CASE WHEN e.geometry IS NOT NULL THEN 1 END) as elements_with_geometry,
                count(CASE WHEN e.height IS NOT NULL AND e.base_offset IS NOT NULL THEN 1 END) as elements_with_height
@@ -142,10 +143,12 @@ class ApprovalService:
             relationship_types_str = "['" + "', '".join(all_relationship_types) + "']"
             
             connections_query = f"""
-            MATCH (lot:InspectionLot {{id: $lot_id}})-[:MANAGEMENT_CONTAINS]->(e1:Element)
+            MATCH (lot:InspectionLot {{id: $lot_id}})-[r1]->(e1:Element)
+            WHERE type(r1) = 'MANAGEMENT_CONTAINS'
             MATCH (e1)-[r]->(e2:Element)
             WHERE type(r) IN {relationship_types_str}
-            MATCH (lot)-[:MANAGEMENT_CONTAINS]->(e2)
+            MATCH (lot)-[r2]->(e2)
+            WHERE type(r2) = 'MANAGEMENT_CONTAINS'
             RETURN e1.id as source_id, e1.speckle_type as source_type,
                    e2.id as target_id, e2.speckle_type as target_type,
                    type(r) as relationship_type
@@ -154,7 +157,8 @@ class ApprovalService:
             
             # 获取所有元素数据用于验证
             elements_query = """
-            MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
+            MATCH (lot:InspectionLot {id: $lot_id})-[r]->(e:Element)
+            WHERE type(r) = 'MANAGEMENT_CONTAINS'
             RETURN e
             """
             elements_result = self.client.execute_query(elements_query, {"lot_id": lot_id})

@@ -2,6 +2,7 @@
  * performance 工具函数测试
  */
 
+import { act } from '@testing-library/react'
 import { debounce, throttle, calculateViewportBounds, isPointInViewport, isGeometryInViewport } from '../performance'
 
 // 使用fake timers
@@ -24,7 +25,9 @@ describe('performance工具函数', () => {
       debouncedFn()
       expect(fn).not.toHaveBeenCalled()
 
-      jest.advanceTimersByTime(100)
+      act(() => {
+        jest.advanceTimersByTime(100)
+      })
       expect(fn).toHaveBeenCalledTimes(1)
     })
 
@@ -36,7 +39,9 @@ describe('performance工具函数', () => {
       debouncedFn(2)
       debouncedFn(3)
 
-      jest.advanceTimersByTime(100)
+      act(() => {
+        jest.advanceTimersByTime(100)
+      })
       expect(fn).toHaveBeenCalledTimes(1)
       expect(fn).toHaveBeenCalledWith(3)
     })
@@ -46,7 +51,9 @@ describe('performance工具函数', () => {
       const debouncedFn = debounce(fn, 100)
 
       debouncedFn('arg1', 'arg2')
-      jest.advanceTimersByTime(100)
+      act(() => {
+        jest.advanceTimersByTime(100)
+      })
 
       expect(fn).toHaveBeenCalledWith('arg1', 'arg2')
     })
@@ -63,7 +70,9 @@ describe('performance工具函数', () => {
 
       expect(fn).toHaveBeenCalledTimes(1)
 
-      jest.advanceTimersByTime(100)
+      act(() => {
+        jest.advanceTimersByTime(100)
+      })
       throttledFn()
       expect(fn).toHaveBeenCalledTimes(2)
     })
@@ -73,9 +82,13 @@ describe('performance工具函数', () => {
       const throttledFn = throttle(fn, 100)
 
       throttledFn(1)
-      jest.advanceTimersByTime(50)
+      act(() => {
+        jest.advanceTimersByTime(50)
+      })
       throttledFn(2) // 应该被忽略
-      jest.advanceTimersByTime(50)
+      act(() => {
+        jest.advanceTimersByTime(50)
+      })
       throttledFn(3) // 应该执行
 
       expect(fn).toHaveBeenCalledTimes(2)

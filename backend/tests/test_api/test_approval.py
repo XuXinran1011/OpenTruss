@@ -229,7 +229,8 @@ def test_approval_status_transitions(approver_token, pm_token, memgraph_client):
     
     memgraph_client.execute_write(
         """
-        MATCH (lot:InspectionLot {id: $lot_id})-[r:MANAGEMENT_CONTAINS]->(e:Element)
+        MATCH (lot:InspectionLot {id: $lot_id})-[r]->(e:Element)
+        WHERE type(r) = 'MANAGEMENT_CONTAINS'
         DELETE r
         """,
         {"lot_id": lot_id}

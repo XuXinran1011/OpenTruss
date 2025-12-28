@@ -73,7 +73,8 @@ class LotStrategyService:
         unassigned_elements_query = """
         MATCH (e:Element)
         WHERE (e.inspection_lot_id IS NULL OR e.inspection_lot_id = "")
-        OPTIONAL MATCH (item:Item {id: $item_id})-[:HAS_LOT]->(existing_lot:InspectionLot)-[:MANAGEMENT_CONTAINS]->(e)
+        OPTIONAL MATCH (item:Item {id: $item_id})-[:HAS_LOT]->(existing_lot:InspectionLot)-[r]->(e)
+        WHERE type(r) = 'MANAGEMENT_CONTAINS'
         WITH e
         WHERE existing_lot IS NULL
         RETURN e.id as element_id, e.level_id as level_id, e.zone_id as zone_id, e.speckle_type as speckle_type
@@ -160,7 +161,8 @@ class LotStrategyService:
             Optional[Dict]: Building 信息，如果不存在则返回 None
         """
         query = """
-        MATCH (item:Item {id: $item_id})-[:MANAGEMENT_CONTAINS*]->(div:Division)-[:MANAGEMENT_CONTAINS]->(bld:Building)
+        MATCH path = (item:Item {id: $item_id})-[:MANAGEMENT_CONTAINS*]->(div:Division)-[:MANAGEMENT_CONTAINS]->(bld:Building)
+        WHERE ALL(r in relationships(path) WHERE type(r) = 'MANAGEMENT_CONTAINS')
         RETURN bld.id as id, bld.name as name
         LIMIT 1
         """

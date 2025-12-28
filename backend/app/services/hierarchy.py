@@ -197,7 +197,8 @@ class HierarchyService:
         elif label == "InspectionLot":
             # 查询构件数量
             element_count_query = """
-            MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
+            MATCH (lot:InspectionLot {id: $lot_id})-[r]->(e:Element)
+            WHERE type(r) = 'MANAGEMENT_CONTAINS'
             RETURN count(e) as count
             """
             count_result = self.client.execute_query(element_count_query, {"lot_id": node_id})
@@ -271,7 +272,8 @@ class HierarchyService:
             batch_query = f"""
             MATCH (c:{child_label})
             WHERE c.id IN $child_ids
-            OPTIONAL MATCH (c)-[:MANAGEMENT_CONTAINS]->(e:Element)
+            OPTIONAL MATCH (c)-[r]->(e:Element)
+            WHERE type(r) = 'MANAGEMENT_CONTAINS'
             WITH c, count(DISTINCT e) as element_count
             RETURN c.id as id, c.name as name, element_count
             ORDER BY c.name, c.id
@@ -390,7 +392,8 @@ class HierarchyService:
         """获取检验批详情"""
         query = """
         MATCH (lot:InspectionLot {id: $lot_id})
-        OPTIONAL MATCH (lot)-[:MANAGEMENT_CONTAINS]->(e:Element)
+        OPTIONAL MATCH (lot)-[r]->(e:Element)
+        WHERE type(r) = 'MANAGEMENT_CONTAINS'
         WITH lot, count(DISTINCT e) as element_count
         RETURN lot, element_count
         """

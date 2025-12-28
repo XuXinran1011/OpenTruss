@@ -159,7 +159,8 @@ def test_remove_elements_from_lot(
     
     # 获取检验批的构件列表
     query = """
-    MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
+    MATCH (lot:InspectionLot {id: $lot_id})-[r]->(e:Element)
+    WHERE type(r) = 'MANAGEMENT_CONTAINS'
     RETURN e.id as element_id
     LIMIT 1
     """

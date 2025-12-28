@@ -264,7 +264,8 @@ async def validate_collisions(
         if request.lot_id:
             # 从检验批获取元素
             query = """
-            MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
+            MATCH (lot:InspectionLot {id: $lot_id})-[r]->(e:Element)
+            WHERE type(r) = 'MANAGEMENT_CONTAINS'
             RETURN e.id as element_id
             """
             result = validator.client.execute_query(query, {"lot_id": request.lot_id})

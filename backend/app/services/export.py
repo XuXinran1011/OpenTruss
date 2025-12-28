@@ -91,8 +91,9 @@ class ExportService:
         # 获取检验批下的所有构件（只返回完整的元素）
         # 在查询时就过滤掉不完整的元素，避免返回大量数据后再验证
         elements_query = """
-        MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
-        WHERE e.geometry IS NOT NULL 
+        MATCH (lot:InspectionLot {id: $lot_id})-[r]->(e:Element)
+        WHERE type(r) = 'MANAGEMENT_CONTAINS'
+          AND e.geometry IS NOT NULL 
           AND e.height IS NOT NULL 
           AND e.base_offset IS NOT NULL
         OPTIONAL MATCH (e)-[:LOCATED_AT]->(level:Level)
@@ -107,10 +108,12 @@ class ExportService:
         if not elements:
             # 优化：合并查询，一次性获取总数和完整元素数量
             check_query = """
-            MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
-            WITH count(e) as total_count
-            MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
-            WHERE e.geometry IS NOT NULL 
+            MATCH (lot:InspectionLot {id: $lot_id})-[r1]->(e1:Element)
+            WHERE type(r1) = 'MANAGEMENT_CONTAINS'
+            WITH count(e1) as total_count
+            MATCH (lot:InspectionLot {id: $lot_id})-[r2]->(e:Element)
+            WHERE type(r2) = 'MANAGEMENT_CONTAINS'
+              AND e.geometry IS NOT NULL 
               AND e.height IS NOT NULL 
               AND e.base_offset IS NOT NULL
             WITH total_count, count(e) as complete_count
@@ -392,8 +395,9 @@ class ExportService:
         
         # 批量查询所有检验批的元素
         elements_query = """
-        MATCH (lot:InspectionLot)-[:MANAGEMENT_CONTAINS]->(e:Element)
-        WHERE lot.id IN $lot_ids
+        MATCH (lot:InspectionLot)-[r]->(e:Element)
+        WHERE type(r) = 'MANAGEMENT_CONTAINS'
+          AND lot.id IN $lot_ids
           AND e.geometry IS NOT NULL 
           AND e.height IS NOT NULL 
           AND e.base_offset IS NOT NULL
@@ -695,13 +699,9 @@ class ExportService:
         # createIfcPolyline 接受 Points 列表作为位置参数或命名参数
         polyline = ifc_file.createIfcPolyline(polyline_points)
         
-        # 5. 创建轮廓曲线（IfcIndexedPolyCurve 或 IfcPolyline）
-        profile = run(
-            "geometry.add_profile",
-            ifc_file,
-            profile=polyline,
-            profile_type="CURVE"
-        )
+        # 5. 创建轮廓曲线（IfcArbitraryClosedProfileDef）
+        # 直接使用 createIfcArbitraryClosedProfileDef 而不是 run("geometry.add_profile", ...)
+        profile = ifc_file.createIfcArbitraryClosedProfileDef("AREA", None, polyline)
         
         # 6. 创建拉伸方向（沿 Z 轴向上）
         extrusion_direction = (0.0, 0.0, 1.0)

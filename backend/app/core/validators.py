@@ -583,7 +583,8 @@ class TopologyValidator:
         
         # 1. 获取检验批内的所有元素
         elements_query = """
-        MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
+        MATCH (lot:InspectionLot {id: $lot_id})-[r]->(e:Element)
+        WHERE type(r) = 'MANAGEMENT_CONTAINS'
         RETURN e.id as element_id
         """
         elements_result = self.client.execute_query(elements_query, {"lot_id": lot_id})

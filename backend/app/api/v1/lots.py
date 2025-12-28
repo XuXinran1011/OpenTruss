@@ -250,7 +250,8 @@ async def update_lot_status(
         if new_status == "SUBMITTED":
             # 1. 获取检验批下的所有构件
             elements_query = """
-            MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
+            MATCH (lot:InspectionLot {id: $lot_id})-[r]->(e:Element)
+            WHERE type(r) = 'MANAGEMENT_CONTAINS'
             RETURN e.id as id, e.speckle_type as speckle_type, e.height as height, 
                    e.base_offset as base_offset, e.material as material, e.geometry as geometry
             """
@@ -314,9 +315,12 @@ async def update_lot_status(
                 
                 # 获取检验批内所有构件的连接关系
                 connections_query = f"""
-                MATCH (lot:InspectionLot {{id: $lot_id}})-[:MANAGEMENT_CONTAINS]->(e1:Element)
-                MATCH (e1)-[r:{CONNECTED_TO}]-(e2:Element)
-                MATCH (lot)-[:MANAGEMENT_CONTAINS]->(e2)
+                MATCH (lot:InspectionLot {{id: $lot_id}})-[r1]->(e1:Element)
+                WHERE type(r1) = 'MANAGEMENT_CONTAINS'
+                MATCH (e1)-[r]-(e2:Element)
+                WHERE type(r) = '{CONNECTED_TO.value}'
+                MATCH (lot)-[r2]->(e2)
+                WHERE type(r2) = 'MANAGEMENT_CONTAINS'
                 RETURN e1.id as source_id, e1.speckle_type as source_type,
                        e2.id as target_id, e2.speckle_type as target_type
                 """
@@ -450,7 +454,8 @@ async def get_lot_elements(
         
         # 查询构件列表
         query = """
-        MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
+        MATCH (lot:InspectionLot {id: $lot_id})-[r]->(e:Element)
+        WHERE type(r) = 'MANAGEMENT_CONTAINS'
         RETURN e.id as id, e.speckle_type as speckle_type, e.level_id as level_id,
                e.zone_id as zone_id, e.status as status, e.height as height, e.material as material
         ORDER BY e.id

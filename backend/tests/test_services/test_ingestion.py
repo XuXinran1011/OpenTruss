@@ -202,7 +202,8 @@ def test_ingest_element_with_inspection_lot(ingestion_service, sample_wall):
     
     # 验证 MANAGEMENT_CONTAINS 关系
     query = """
-    MATCH (lot:InspectionLot {id: $lot_id})-[r:MANAGEMENT_CONTAINS]->(e:Element {id: $element_id})
+    MATCH (lot:InspectionLot {id: $lot_id})-[r]->(e:Element {id: $element_id})
+    WHERE type(r) = 'MANAGEMENT_CONTAINS'
     RETURN e.id as element_id
     """
     result = ingestion_service.client.execute_query(query, {

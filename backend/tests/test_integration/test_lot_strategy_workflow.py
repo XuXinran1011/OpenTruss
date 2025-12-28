@@ -100,7 +100,8 @@ def test_lot_strategy_workflow(
         
         # 验证构件已分配
         query = """
-        MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
+        MATCH (lot:InspectionLot {id: $lot_id})-[r]->(e:Element)
+        WHERE type(r) = 'MANAGEMENT_CONTAINS'
         RETURN count(e) as element_count
         """
         count_result = lot_strategy_service.client.execute_query(query, {"lot_id": lot_id})
@@ -134,7 +135,8 @@ def test_lot_strategy_with_element_operations(
     
     # 4. 移除一个构件
     query = """
-    MATCH (lot:InspectionLot {id: $lot_id})-[:MANAGEMENT_CONTAINS]->(e:Element)
+    MATCH (lot:InspectionLot {id: $lot_id})-[r]->(e:Element)
+    WHERE type(r) = 'MANAGEMENT_CONTAINS'
     RETURN e.id as element_id
     LIMIT 1
     """
