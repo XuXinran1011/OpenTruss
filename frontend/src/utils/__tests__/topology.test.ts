@@ -128,7 +128,7 @@ describe('topology工具函数', () => {
         { x: 0, y: 0 },
         { x: 10, y: 0 }
       )
-      expect(result).toEqual({ x: 5, y: 0 })
+      expect(result).toEqual({ x: 5, y: 0, distance: 5 })
     })
   })
 

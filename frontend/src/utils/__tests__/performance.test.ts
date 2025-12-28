@@ -121,8 +121,8 @@ describe('performance工具函数', () => {
     it('应该正确判断几何图形是否在视口内', () => {
       const viewport = { minX: 0, minY: 0, maxX: 100, maxY: 100 }
       const coordinates = [[10, 10], [20, 20]]
-      expect(isGeometryInViewport(coordinates, viewport)).toBe(true)
-      expect(isGeometryInViewport([[200, 200], [300, 300]], viewport)).toBe(false)
+      expect(isGeometryInViewport(coordinates, viewport, 0)).toBe(true)
+      expect(isGeometryInViewport([[200, 200], [300, 300]], viewport, 0)).toBe(false)
     })
   })
 })

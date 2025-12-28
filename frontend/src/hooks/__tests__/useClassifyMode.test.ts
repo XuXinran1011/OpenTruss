@@ -95,11 +95,11 @@ describe('useClassifyMode', () => {
         wrapper: TestWrapper,
       })
       
-      act(() => {
+      await act(async () => {
         result.current.classify('item-1', ['element-1'])
+        // 立即检查状态应该为true
+        expect(result.current.isClassifying).toBe(true)
       })
-      
-      expect(result.current.isClassifying).toBe(true)
       
       await act(async () => {
         resolveClassify!({ element_id: 'element-1', item_id: 'item-1' })

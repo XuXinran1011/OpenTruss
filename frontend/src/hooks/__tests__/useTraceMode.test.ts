@@ -110,16 +110,16 @@ describe('useTraceMode', () => {
         wrapper: TestWrapper,
       })
       
-      act(() => {
+      await act(async () => {
         result.current.updateTopology('element-1', {
           geometry: {
             type: 'Polyline',
             coordinates: [[0, 0], [10, 0]],
           },
         })
+        // 立即检查状态应该为true
+        expect(result.current.isUpdating).toBe(true)
       })
-      
-      expect(result.current.isUpdating).toBe(true)
       
       await act(async () => {
         resolveUpdate!({ id: 'element-1', updated: true })

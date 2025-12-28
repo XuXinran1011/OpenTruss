@@ -110,11 +110,11 @@ describe('useLiftMode', () => {
       
       const { result } = renderHook(() => useLiftMode(), { wrapper: TestWrapper })
       
-      act(() => {
+      await act(async () => {
         result.current.batchLift(3.5)
+        // 立即检查状态应该为true
+        expect(result.current.isLifting).toBe(true)
       })
-      
-      expect(result.current.isLifting).toBe(true)
       
       await act(async () => {
         resolveLift!({ updated_count: 1, element_ids: ['element-1'] })

@@ -108,7 +108,7 @@ describe('LotManagementPanel', () => {
       isPending: false,
     })
 
-    render(<LotManagementPanel itemId="test_item_001" />, { wrapper: createWrapper() })
+    render(<LotManagementPanel itemId="test_item_001" />, { wrapper: TestWrapper })
 
     expect(screen.getByText('加载中...')).toBeInTheDocument()
   })
@@ -135,7 +135,7 @@ describe('LotManagementPanel', () => {
       isPending: false,
     })
 
-    render(<LotManagementPanel itemId="test_item_001" />, { wrapper: createWrapper() })
+    render(<LotManagementPanel itemId="test_item_001" />, { wrapper: TestWrapper })
 
     expect(screen.getByText('Test Lot')).toBeInTheDocument()
   })
@@ -177,7 +177,7 @@ describe('LotManagementPanel', () => {
       },
     })
 
-    render(<LotManagementPanel itemId="test_item_001" />, { wrapper: createWrapper() })
+    render(<LotManagementPanel itemId="test_item_001" />, { wrapper: TestWrapper })
 
     expect(screen.getByText('暂无检验批')).toBeInTheDocument()
   })
