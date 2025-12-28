@@ -1,18 +1,30 @@
-FROM node:18-alpine
+# 构建阶段
+FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+# 复制依赖文件
 COPY package*.json ./
 
-# Install dependencies
+# 安装所有依赖（包括devDependencies，用于构建）
 RUN npm ci
 
-# Copy application code
+# 复制源代码并构建
 COPY . .
-
-# Build the application
 RUN npm run build
+
+# 运行阶段
+FROM node:18-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# 复制必要的文件
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/node_modules ./node_modules
 
 # Expose port
 EXPOSE 3000

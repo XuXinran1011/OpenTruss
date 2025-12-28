@@ -42,6 +42,9 @@ export async function loginAsEditor(page: Page): Promise<void> {
   // 等待跳转到工作台
   await page.waitForURL('/workbench', { timeout: 10000 });
   
+  // 等待页面加载完成
+  await page.waitForLoadState('networkidle', { timeout: 15000 });
+  
   // 验证登录成功
   await expect(page).toHaveURL('/workbench');
 }
@@ -57,6 +60,9 @@ export async function loginAsApprover(page: Page): Promise<void> {
   
   // 等待跳转到工作台
   await page.waitForURL('/workbench', { timeout: 10000 });
+  
+  // 等待页面加载完成
+  await page.waitForLoadState('networkidle', { timeout: 15000 });
   
   // 验证登录成功
   await expect(page).toHaveURL('/workbench');
@@ -74,6 +80,9 @@ export async function loginAsPM(page: Page): Promise<void> {
   // 等待跳转到工作台
   await page.waitForURL('/workbench', { timeout: 10000 });
   
+  // 等待页面加载完成
+  await page.waitForLoadState('networkidle', { timeout: 15000 });
+  
   // 验证登录成功
   await expect(page).toHaveURL('/workbench');
 }
@@ -89,6 +98,9 @@ export async function loginAsAdmin(page: Page): Promise<void> {
   
   // 等待跳转到工作台
   await page.waitForURL('/workbench', { timeout: 10000 });
+  
+  // 等待页面加载完成
+  await page.waitForLoadState('networkidle', { timeout: 15000 });
   
   // 验证登录成功
   await expect(page).toHaveURL('/workbench');
@@ -108,7 +120,9 @@ export async function login(
   await page.click('button[type="submit"], button:has-text("登录")');
   
   // 等待跳转或错误提示
-  await page.waitForTimeout(2000);
+  await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {
+    // 如果等待超时，至少等待一下DOM更新
+  });
 }
 
 /**

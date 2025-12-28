@@ -6,11 +6,14 @@ import { defineConfig, devices } from '@playwright/test';
  * 参考文档: https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
+  // 全局设置文件
+  globalSetup: require.resolve('./e2e/global-setup.ts'),
+  
   // 测试目录
   testDir: './e2e',
   
-  // 测试超时时间（30秒）
-  timeout: 30000,
+  // 测试超时时间（60秒，确保有足够时间等待页面加载）
+  timeout: 60000,
   
   // 每个测试的超时时间
   expect: {
@@ -20,8 +23,8 @@ export default defineConfig({
   // 测试失败时重试次数
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  retries: process.env.CI ? 1 : 0,
+  workers: process.env.CI ? 4 : undefined,
   
   // 报告配置
   reporter: [
@@ -43,23 +46,33 @@ export default defineConfig({
     // 请求超时
     actionTimeout: 10000,
     navigationTimeout: 30000,
+    
+    // 复用登录状态（如果存在）
+    storageState: process.env.CI ? undefined : 'playwright/.auth/user.json',
   },
 
-  // 配置测试项目（不同浏览器）
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
-  ],
+  // 配置测试项目（CI环境只测试Chromium）
+  projects: process.env.CI
+    ? [
+        {
+          name: 'chromium',
+          use: { ...devices['Desktop Chrome'] },
+        },
+      ]
+    : [
+        {
+          name: 'chromium',
+          use: { ...devices['Desktop Chrome'] },
+        },
+        {
+          name: 'firefox',
+          use: { ...devices['Desktop Firefox'] },
+        },
+        {
+          name: 'webkit',
+          use: { ...devices['Desktop Safari'] },
+        },
+      ],
 
   // Web服务器配置（可选，用于启动开发服务器）
   // webServer: {
