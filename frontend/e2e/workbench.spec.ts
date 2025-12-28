@@ -51,66 +51,18 @@ test.describe('Workbench基础功能', () => {
     // 等待页面加载完成
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     
-    // 检查是否显示项目选择界面
-    const projectSelectionTitle = page.locator('text=/选择项目/i').first();
-    const isProjectSelectionVisible = await projectSelectionTitle.isVisible({ timeout: 5000 }).catch(() => false);
+    // 等待WorkbenchLayout渲染（前端会自动选择第一个项目，所以直接等待渲染）
+    // 如果显示项目选择界面（没有项目数据的情况），前面的API检查应该已经失败了
+    await page.waitForSelector('aside, div.h-12.bg-white.border-b', { timeout: 15000 });
     
-    if (isProjectSelectionVisible) {
-      console.log('检测到项目选择界面，准备选择项目...');
-      
-      // 等待项目列表按钮加载
-      await page.waitForSelector('button', { timeout: 10000 }).catch(() => {});
-      
-      // 选择第一个项目按钮（排除可能的"登录"等其他按钮）
-      const projectButtons = page.locator('button').filter({ 
-        hasText: /.+/,
-        hasNotText: /登录|登录|Login/i 
-      });
-      const firstProjectButton = projectButtons.first();
-      
-      if (await firstProjectButton.count() > 0 && await firstProjectButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-        // 点击项目前，监听层级树API请求和WorkbenchLayout渲染
-        const hierarchyApiAfterClick = page.waitForResponse(
-          (response) => response.url().includes('/api/v1/hierarchy/projects/') && 
-                       response.url().includes('/hierarchy'),
-          { timeout: 15000 }
-        ).catch(() => null);
-        
-        const workbenchLayoutPromise = page.waitForSelector('aside', { timeout: 15000 }).catch(() => null);
-        
-        console.log('点击第一个项目按钮...');
-        await firstProjectButton.click();
-        
-        // 等待WorkbenchLayout渲染（左侧边栏出现）
-        await workbenchLayoutPromise;
-        console.log('✓ WorkbenchLayout已渲染，左侧边栏已出现');
-        
-        // 等待层级树API请求完成
-        await hierarchyApiAfterClick;
-        console.log('✓ 层级树API请求完成');
-        
-        // 等待项目选择后的页面更新
-        await page.waitForLoadState('networkidle', { timeout: 15000 });
-      } else {
-        console.warn('警告：未找到可点击的项目按钮');
-      }
-    } else {
-      console.log('未显示项目选择界面，等待WorkbenchLayout自动渲染...');
-      
-      // 等待WorkbenchLayout渲染（通过检查aside元素或工具栏）
-      await page.waitForSelector('aside, div.h-12.bg-white.border-b', { timeout: 15000 }).catch(() => {
-        console.warn('警告：WorkbenchLayout可能未渲染');
-      });
-      
-      // 等待层级树API请求完成（如果项目已自动选择）
-      await page.waitForResponse(
-        (response) => response.url().includes('/api/v1/hierarchy/projects/') && 
-                     response.url().includes('/hierarchy'),
-        { timeout: 20000 }
-      ).catch(() => {
-        console.warn('层级树API请求未完成或超时');
-      });
-    }
+    // 等待层级树API请求完成（项目已自动选择）
+    await page.waitForResponse(
+      (response) => response.url().includes('/api/v1/hierarchy/projects/') && 
+                   response.url().includes('/hierarchy'),
+      { timeout: 20000 }
+    ).catch(() => {
+      console.warn('层级树API请求未完成或超时');
+    });
     
     // 确保左侧边栏已渲染
     const asideElement = page.locator('aside').first();
@@ -132,29 +84,13 @@ test.describe('Workbench基础功能', () => {
     
     console.log('✓ 左侧边栏已渲染');
     
-    // 等待层级树容器出现（无论状态如何）
-    // 使用更灵活的等待策略：等待容器出现，然后检查其内容
+    // 等待层级树容器出现（waitForSelector会自动等待元素出现）
     try {
-      console.log('等待层级树容器出现...');
       await page.waitForSelector('[data-testid="hierarchy-tree"]', { timeout: 20000 });
-      console.log('✓ 层级树容器已出现');
       
-      // 检查层级树是否处于错误或加载状态
+      // 检查层级树是否处于错误状态（仅检查错误，不检查加载中，因为waitForSelector已经等待了）
       const hierarchyTree = page.locator('[data-testid="hierarchy-tree"]').first();
       const treeContent = await hierarchyTree.textContent({ timeout: 5000 }).catch(() => '');
-      
-      if (treeContent?.includes('加载中')) {
-        console.log('层级树正在加载，等待加载完成...');
-        // 等待加载完成（检查层级树内容不再包含"加载中"文本）
-        await page.waitForFunction(
-          () => {
-            const element = document.querySelector('[data-testid="hierarchy-tree"]');
-            return element && !element.textContent?.includes('加载中');
-          },
-          { timeout: 10000 }
-        ).catch(() => {});
-        console.log('✓ 层级树加载完成');
-      }
       
       if (treeContent?.includes('加载失败') || treeContent?.includes('暂无数据')) {
         // 记录诊断信息
@@ -162,7 +98,7 @@ test.describe('Workbench基础功能', () => {
         const apiErrors = failedRequests.length > 0 ? failedRequests.join(', ') : '无';
         console.error(`层级树状态异常: ${errorText}, API错误: ${apiErrors}`);
         
-        // 获取层级树API响应状态
+        // 获取层级树API响应状态用于诊断
         const hierarchyApiResponse = await page.waitForResponse(
           (response) => response.url().includes('/api/v1/hierarchy/projects/') && 
                        response.url().includes('/hierarchy'),
@@ -175,8 +111,6 @@ test.describe('Workbench基础功能', () => {
         }
         
         // 不抛出错误，让测试继续执行，测试用例本身会验证层级树是否可见
-      } else {
-        console.log('✓ 层级树状态正常');
       }
     } catch (error) {
       // 如果层级树容器都没有出现，提供详细诊断
