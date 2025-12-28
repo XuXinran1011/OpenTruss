@@ -100,12 +100,19 @@ describe('performance工具函数', () => {
   describe('calculateViewportBounds', () => {
     it('应该正确计算视口边界框', () => {
       const bounds = calculateViewportBounds(800, 600, { x: 0, y: 0, scale: 1 })
-      expect(bounds).toEqual({
-        minX: 0,
-        minY: 0,
-        maxX: 800,
-        maxY: 600,
-      })
+      // 根据公式: minX = (-tx) / scale, maxX = (width - tx) / scale
+      expect(bounds.minX).toBe(0)
+      expect(bounds.minY).toBe(0)
+      expect(bounds.maxX).toBe(800)
+      expect(bounds.maxY).toBe(600)
+    })
+
+    it('应该正确处理平移和缩放', () => {
+      const bounds = calculateViewportBounds(800, 600, { x: 100, y: 50, scale: 2 })
+      expect(bounds.minX).toBe(-50)
+      expect(bounds.minY).toBe(-25)
+      expect(bounds.maxX).toBe(350)
+      expect(bounds.maxY).toBe(275)
     })
   })
 
@@ -123,6 +130,39 @@ describe('performance工具函数', () => {
       const coordinates = [[10, 10], [20, 20]]
       expect(isGeometryInViewport(coordinates, viewport, 0)).toBe(true)
       expect(isGeometryInViewport([[200, 200], [300, 300]], viewport, 0)).toBe(false)
+    })
+
+    it('应该考虑padding参数', () => {
+      const viewport = { minX: 0, minY: 0, maxX: 100, maxY: 100 }
+      const coordinates = [[105, 105], [110, 110]]
+      // 在padding内，应该返回true
+      expect(isGeometryInViewport(coordinates, viewport, 10)).toBe(true)
+      // 没有padding，应该返回false
+      expect(isGeometryInViewport(coordinates, viewport, 0)).toBe(false)
+    })
+
+    it('应该处理部分在视口内的几何图形', () => {
+      const viewport = { minX: 0, minY: 0, maxX: 100, maxY: 100 }
+      const coordinates = [[50, 50], [150, 150]]
+      expect(isGeometryInViewport(coordinates, viewport, 0)).toBe(true)
+    })
+
+    it('应该处理空坐标数组', () => {
+      const viewport = { minX: 0, minY: 0, maxX: 100, maxY: 100 }
+      expect(isGeometryInViewport([], viewport, 0)).toBe(false)
+    })
+  })
+
+  describe('isPointInViewport', () => {
+    it('应该处理边界点', () => {
+      const viewport = { minX: 0, minY: 0, maxX: 100, maxY: 100 }
+      expect(isPointInViewport(0, 0, viewport)).toBe(true)
+      expect(isPointInViewport(100, 100, viewport)).toBe(true)
+      expect(isPointInViewport(50, 50, viewport)).toBe(true)
+      expect(isPointInViewport(-1, 0, viewport)).toBe(false)
+      expect(isPointInViewport(0, -1, viewport)).toBe(false)
+      expect(isPointInViewport(101, 50, viewport)).toBe(false)
+      expect(isPointInViewport(50, 101, viewport)).toBe(false)
     })
   })
 })

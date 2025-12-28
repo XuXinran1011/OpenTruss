@@ -141,18 +141,14 @@ describe('useClassifyMode', () => {
       })
       
       await act(async () => {
-        try {
-          result.current.classify('item-1', ['element-1'])
-        } catch (err) {
-          // Expected to throw
-        }
+        result.current.classify('item-1', ['element-1'])
       })
       
       await waitFor(() => {
         expect(result.current.error).not.toBeNull()
       })
       
-      act(() => {
+      await act(async () => {
         result.current.clearError()
       })
       
@@ -174,7 +170,7 @@ describe('useClassifyMode', () => {
         expect(result.current.successCount).toBeGreaterThan(0)
       })
       
-      act(() => {
+      await act(async () => {
         result.current.clearError()
       })
       

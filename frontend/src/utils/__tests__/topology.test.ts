@@ -102,7 +102,6 @@ describe('topology工具函数', () => {
   describe('findNearestSnapPoint', () => {
     it('应该找到最近的吸附点', () => {
       const snapPoints = [
-        { x: 0, y: 0 },
         { x: 10, y: 10 },
         { x: 100, y: 100 },
       ]
@@ -118,6 +117,23 @@ describe('topology工具函数', () => {
       ]
       const result = findNearestSnapPoint({ x: 0, y: 0 }, snapPoints, 20)
       expect(result).toBeNull()
+    })
+
+    it('应该处理空数组', () => {
+      const result = findNearestSnapPoint({ x: 0, y: 0 }, [], 20)
+      expect(result).toBeNull()
+    })
+
+    it('应该选择距离最近的点', () => {
+      const snapPoints = [
+        { x: 50, y: 50 },
+        { x: 10, y: 10 },
+        { x: 30, y: 30 },
+      ]
+      const result = findNearestSnapPoint({ x: 5, y: 5 }, snapPoints, 100)
+      expect(result).not.toBeNull()
+      expect(result?.x).toBe(10)
+      expect(result?.y).toBe(10)
     })
   })
 
@@ -159,6 +175,34 @@ describe('topology工具函数', () => {
       const rect = { x: 0, y: 0, width: 10, height: 10 }
       expect(pointInRectangle({ x: 5, y: 5 }, rect)).toBe(true)
       expect(pointInRectangle({ x: 15, y: 15 }, rect)).toBe(false)
+    })
+  })
+
+  describe('findNearestSnapPointWithElement', () => {
+    it('应该找到最近的吸附点并包含元素信息', () => {
+      const snapPoints = [
+        { x: 10, y: 10, elementId: 'elem1', element: { id: 'elem1' } },
+        { x: 100, y: 100, elementId: 'elem2', element: { id: 'elem2' } },
+      ]
+      const result = findNearestSnapPointWithElement({ x: 5, y: 5 }, snapPoints, 20)
+      expect(result).not.toBeNull()
+      expect(result?.x).toBe(10)
+      expect(result?.y).toBe(10)
+      expect(result?.elementId).toBe('elem1')
+      expect(result?.element?.id).toBe('elem1')
+    })
+
+    it('应该在距离外时返回null', () => {
+      const snapPoints = [
+        { x: 100, y: 100, elementId: 'elem1', element: { id: 'elem1' } },
+      ]
+      const result = findNearestSnapPointWithElement({ x: 0, y: 0 }, snapPoints, 20)
+      expect(result).toBeNull()
+    })
+
+    it('应该处理空数组', () => {
+      const result = findNearestSnapPointWithElement({ x: 0, y: 0 }, [], 20)
+      expect(result).toBeNull()
     })
   })
 

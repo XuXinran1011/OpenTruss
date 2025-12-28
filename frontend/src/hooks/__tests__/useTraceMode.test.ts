@@ -141,23 +141,19 @@ describe('useTraceMode', () => {
       })
       
       await act(async () => {
-        try {
-          await result.current.updateTopology('element-1', {
-            geometry: {
-              type: 'Polyline',
-              coordinates: [[0, 0], [10, 0]],
-            },
-          })
-        } catch (err) {
-          // Expected to throw
-        }
+        result.current.updateTopology('element-1', {
+          geometry: {
+            type: 'Polyline',
+            coordinates: [[0, 0], [10, 0]],
+          },
+        })
       })
       
       await waitFor(() => {
         expect(result.current.error).not.toBeNull()
       })
       
-      act(() => {
+      await act(async () => {
         result.current.clearError()
       })
       
