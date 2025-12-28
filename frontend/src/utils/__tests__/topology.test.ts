@@ -134,7 +134,7 @@ describe('topology工具函数', () => {
 
   describe('createRectangle', () => {
     it('应该正确创建矩形', () => {
-      const rect = createRectangle({ x: 0, y: 0 }, { x: 10, y: 10 })
+      const rect = createRectangle(0, 0, 10, 10)
       expect(rect).toEqual({
         x: 0,
         y: 0,
@@ -144,7 +144,7 @@ describe('topology工具函数', () => {
     })
 
     it('应该处理反向坐标', () => {
-      const rect = createRectangle({ x: 10, y: 10 }, { x: 0, y: 0 })
+      const rect = createRectangle(10, 10, 0, 0)
       expect(rect).toEqual({
         x: 0,
         y: 0,

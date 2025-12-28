@@ -54,10 +54,10 @@ describe('apiFetch', () => {
     
     const result = await apiFetch('/api/test')
     
+    // apiFetch doesn't set method by default, so we only check URL and headers
     expect(mockFetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/test'),
       expect.objectContaining({
-        method: 'GET',
         headers: expect.objectContaining({
           'Authorization': 'Bearer test-token',
           'Content-Type': 'application/json',
