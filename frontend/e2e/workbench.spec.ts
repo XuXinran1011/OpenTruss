@@ -16,18 +16,20 @@ test.describe('Workbench基础功能', () => {
     // 等待WorkbenchLayout渲染 - 检查工具栏区域是否存在
     await page.waitForSelector('div.h-12.bg-white.border-b, aside', { timeout: 15000 }).catch(() => {});
     
-    // 等待层级树容器出现（可能还在加载中，所以使用aside作为后备）
-    await page.waitForSelector('aside, [data-testid="hierarchy-tree"]', { timeout: 15000 });
-    
-    // 等待层级树数据加载完成（等待"加载中..."消失或层级树出现）
-    await page.waitForFunction(
-      () => {
-        const tree = document.querySelector('[data-testid="hierarchy-tree"]');
-        const loadingText = document.querySelector('text=/加载中/i');
-        return tree !== null || loadingText === null;
-      },
-      { timeout: 20000 }
-    ).catch(() => {});
+    // 等待层级树加载完成 - 直接等待hierarchy-tree出现，因为它的出现就意味着加载完成
+    // HierarchyTree组件只有在数据加载完成后才会渲染带有data-testid="hierarchy-tree"的元素
+    try {
+      await page.waitForSelector('[data-testid="hierarchy-tree"]', { timeout: 20000 });
+    } catch (error) {
+      // 如果层级树没有出现，检查是否有错误消息或"暂无数据"，提供更清晰的错误信息
+      const errorLocator = page.locator('text=/加载失败|暂无数据|暂无项目/i').first();
+      const errorText = await errorLocator.textContent().catch(() => null);
+      if (errorText) {
+        throw new Error(`层级树加载失败: ${errorText}`);
+      }
+      // 如果没有找到明确的错误消息，抛出原始错误
+      throw error;
+    }
   });
 
   test('应该正确加载Workbench页面', async ({ page }) => {
@@ -48,25 +50,15 @@ test.describe('Workbench基础功能', () => {
   });
 
   test('应该显示层级树', async ({ page }) => {
-    // 等待层级树容器加载完成
-    await page.waitForSelector('[data-testid="hierarchy-tree"]', { timeout: 15000 }).catch(() => {});
+    // 等待层级树加载完成 - 直接等待hierarchy-tree出现，因为它的出现就意味着加载完成
+    // HierarchyTree组件只有在数据加载完成后才会渲染带有data-testid="hierarchy-tree"的元素
+    await page.waitForSelector('[data-testid="hierarchy-tree"]', { timeout: 20000 });
     
-    // 等待层级树数据加载完成（检查是否不再显示"加载中..."）
-    try {
-      await page.waitForFunction(
-        () => {
-          const tree = document.querySelector('[data-testid="hierarchy-tree"]');
-          const allText = document.body.innerText || document.body.textContent || '';
-          const hasLoadingText = allText.includes('加载中');
-          return tree !== null && !hasLoadingText;
-        },
-        { timeout: 20000 }
-      );
-    } catch {
-      // 如果waitForFunction失败，继续尝试查找节点
-    }
+    // 验证层级树可见
+    const hierarchyTree = page.locator('[data-testid="hierarchy-tree"]').first();
+    await expect(hierarchyTree).toBeVisible({ timeout: 10000 });
     
-    // 等待层级树节点加载
+    // 等待层级树节点加载（树节点可能稍后才渲染）
     await page.waitForSelector('[role="treeitem"], [data-node-label]', { timeout: 15000 }).catch(() => {});
     
     // 查找项目节点 - 优先使用data-node-label属性，后备使用文本匹配
