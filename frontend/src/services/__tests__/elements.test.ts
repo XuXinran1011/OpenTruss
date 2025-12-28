@@ -34,6 +34,7 @@ const mockApiPatch = apiPatch as jest.MockedFunction<typeof apiPatch>
 const mockApiPost = apiPost as jest.MockedFunction<typeof apiPost>
 const mockApiDelete = apiDelete as jest.MockedFunction<typeof apiDelete>
 
+
 describe('elements Service', () => {
   beforeEach(() => {
     jest.clearAllMocks()
@@ -41,7 +42,7 @@ describe('elements Service', () => {
 
   describe('getElements', () => {
     it('应该成功获取构件列表', async () => {
-      const mockResponse = {
+      const mockResponseData = {
         items: [
           { id: 'element-1', speckle_type: 'Wall' },
           { id: 'element-2', speckle_type: 'Column' },
@@ -49,7 +50,8 @@ describe('elements Service', () => {
         total: 2,
       }
       
-      mockApiGet.mockResolvedValue(mockResponse)
+      // apiGet returns ApiResponse<T>, and getElements returns response.data
+      mockApiGet.mockResolvedValue({ data: mockResponseData } as any)
       
       const result = await getElements({
         page: 1,
@@ -57,11 +59,11 @@ describe('elements Service', () => {
       })
       
       expect(mockApiGet).toHaveBeenCalledWith('/api/v1/elements?page=1&page_size=20')
-      expect(result).toEqual(mockResponse)
+      expect(result).toEqual(mockResponseData)
     })
 
     it('应该支持查询参数', async () => {
-      mockApiGet.mockResolvedValue({ items: [], total: 0 })
+      mockApiGet.mockResolvedValue({ data: { items: [], total: 0 } } as any)
       
       await getElements({
         page: 2,
@@ -82,40 +84,42 @@ describe('elements Service', () => {
 
   describe('getUnassignedElements', () => {
     it('应该成功获取未分配构件列表', async () => {
-      const mockResponse = {
+      const mockResponseData = {
         items: [{ id: 'element-1' }],
         total: 1,
       }
       
-      mockApiGet.mockResolvedValue(mockResponse)
+      // apiGet returns ApiResponse<T>, and getUnassignedElements returns response.data
+      mockApiGet.mockResolvedValue({ data: mockResponseData } as any)
       
       const result = await getUnassignedElements(1, 20)
       
       expect(mockApiGet).toHaveBeenCalledWith('/api/v1/elements/unassigned?page=1&page_size=20')
-      expect(result).toEqual(mockResponse)
+      expect(result).toEqual(mockResponseData)
     })
   })
 
   describe('getElementDetail', () => {
     it('应该成功获取构件详情', async () => {
-      const mockResponse = {
+      const mockResponseData = {
         id: 'element-1',
         speckle_type: 'Wall',
         geometry: { type: 'Polyline', coordinates: [] },
       }
       
-      mockApiGet.mockResolvedValue(mockResponse)
+      // apiGet returns ApiResponse<T>, and getElementDetail returns response.data
+      mockApiGet.mockResolvedValue({ data: mockResponseData } as any)
       
       const result = await getElementDetail('element-1')
       
       expect(mockApiGet).toHaveBeenCalledWith('/api/v1/elements/element-1')
-      expect(result).toEqual(mockResponse)
+      expect(result).toEqual(mockResponseData)
     })
   })
 
   describe('updateElementTopology', () => {
     it('应该成功更新构件拓扑', async () => {
-      const mockResponse = { id: 'element-1', updated: true }
+      const mockResponseData = { id: 'element-1', topology_updated: true }
       const request = {
         geometry: {
           type: 'Polyline',
@@ -123,35 +127,37 @@ describe('elements Service', () => {
         },
       }
       
-      mockApiPatch.mockResolvedValue(mockResponse)
+      // apiPatch returns ApiResponse<T>, and updateElementTopology returns response.data
+      mockApiPatch.mockResolvedValue({ data: mockResponseData } as any)
       
       const result = await updateElementTopology('element-1', request)
       
       expect(mockApiPatch).toHaveBeenCalledWith('/api/v1/elements/element-1/topology', request)
-      expect(result).toEqual(mockResponse)
+      expect(result).toEqual(mockResponseData)
     })
   })
 
   describe('updateElement', () => {
     it('应该成功更新构件', async () => {
-      const mockResponse = { id: 'element-1', updated: true }
+      const mockResponseData = { id: 'element-1', updated_fields: ['height', 'base_offset'] }
       const request = {
         height: 3.5,
         base_offset: 0.1,
       }
       
-      mockApiPatch.mockResolvedValue(mockResponse)
+      // apiPatch returns ApiResponse<T>, and updateElement returns response.data
+      mockApiPatch.mockResolvedValue({ data: mockResponseData } as any)
       
       const result = await updateElement('element-1', request)
       
       expect(mockApiPatch).toHaveBeenCalledWith('/api/v1/elements/element-1', request)
-      expect(result).toEqual(mockResponse)
+      expect(result).toEqual(mockResponseData)
     })
   })
 
   describe('batchLiftElements', () => {
     it('应该成功批量更新Z轴参数', async () => {
-      const mockResponse = {
+      const mockResponseData = {
         updated_count: 2,
         element_ids: ['element-1', 'element-2'],
       }
@@ -160,18 +166,19 @@ describe('elements Service', () => {
         height: 3.5,
       }
       
-      mockApiPost.mockResolvedValue(mockResponse)
+      // apiPost returns ApiResponse<T>, and batchLiftElements returns response.data
+      mockApiPost.mockResolvedValue({ data: mockResponseData } as any)
       
       const result = await batchLiftElements(request)
       
       expect(mockApiPost).toHaveBeenCalledWith('/api/v1/elements/batch-lift', request)
-      expect(result).toEqual(mockResponse)
+      expect(result).toEqual(mockResponseData)
     })
   })
 
   describe('classifyElement', () => {
     it('应该成功归类构件', async () => {
-      const mockResponse = {
+      const mockResponseData = {
         element_id: 'element-1',
         item_id: 'item-1',
       }
@@ -179,28 +186,30 @@ describe('elements Service', () => {
         item_id: 'item-1',
       }
       
-      mockApiPost.mockResolvedValue(mockResponse)
+      // apiPost returns ApiResponse<T>, and classifyElement returns response.data
+      mockApiPost.mockResolvedValue({ data: mockResponseData } as any)
       
       const result = await classifyElement('element-1', request)
       
       expect(mockApiPost).toHaveBeenCalledWith('/api/v1/elements/element-1/classify', request)
-      expect(result).toEqual(mockResponse)
+      expect(result).toEqual(mockResponseData)
     })
   })
 
   describe('deleteElement', () => {
     it('应该成功删除构件', async () => {
-      const mockResponse = {
+      const mockResponseData = {
         id: 'element-1',
         deleted: true,
       }
       
-      mockApiDelete.mockResolvedValue(mockResponse)
+      // apiDelete returns ApiResponse<T>, and deleteElement returns response.data
+      mockApiDelete.mockResolvedValue({ data: mockResponseData } as any)
       
       const result = await deleteElement('element-1')
       
       expect(mockApiDelete).toHaveBeenCalledWith('/api/v1/elements/element-1')
-      expect(result).toEqual(mockResponse)
+      expect(result).toEqual(mockResponseData)
     })
   })
 
@@ -213,4 +222,3 @@ describe('elements Service', () => {
     })
   })
 })
-

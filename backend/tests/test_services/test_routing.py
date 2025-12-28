@@ -338,25 +338,22 @@ class TestFlexibleRouter:
         assert len(result["path_points"]) >= 2
     
     def test_route_wire(self):
-        """测试线缆路径规划"""
+        """测试线缆路径规划（没有容器时应抛出异常）"""
+        from app.core.exceptions import RoutingServiceError
+        
         router = FlexibleRouter()
         
-        # Wire 类型需要关联容器（CableTray 或 Conduit），如果没有关联容器会返回错误
-        # 这个测试验证在没有容器的情况下会返回错误
-        result = router.route(
-            start=(0.0, 0.0),
-            end=(10.0, 10.0),
-            element_type="Wire",
-            element_properties={"cable_bend_radius": 100},
-            system_type=None,
-            element_id=None  # 没有 element_id，无法查找容器
-        )
-        
-        # Wire 类型必须关联容器，所以应该有错误
-        assert "path_points" in result
-        assert len(result["path_points"]) == 0  # 没有路径点
-        assert len(result["errors"]) > 0  # 应该有错误信息
-        assert any("桥架" in err or "线管" in err or "容器" in err for err in result["errors"])
+        # Wire 类型需要关联容器（CableTray 或 Conduit），如果没有关联容器会抛出异常
+        # 这个测试验证在没有容器的情况下会抛出RoutingServiceError
+        with pytest.raises(RoutingServiceError, match="桥架|线管"):
+            router.route(
+                start=(0.0, 0.0),
+                end=(10.0, 10.0),
+                element_type="Wire",
+                element_properties={"cable_bend_radius": 100},
+                system_type=None,
+                element_id=None  # 没有 element_id，无法查找容器
+            )
     
     def test_calculate_turn_angle_45_degrees(self):
         """测试45度转弯角度计算"""

@@ -128,7 +128,7 @@ class TestRoutingAPI:
         assert "path_points" in data["data"]
     
     def test_calculate_route_wire(self):
-        """测试线缆路径计算"""
+        """测试线缆路径计算（没有容器时应返回400错误）"""
         response = client.post(
             "/api/v1/routing/calculate",
             json={
@@ -140,10 +140,11 @@ class TestRoutingAPI:
             }
         )
         
-        assert response.status_code == 200
+        # Wire类型必须关联容器，没有容器时应返回400错误
+        assert response.status_code == 400
         data = response.json()
-        assert data["status"] == "success"
-        assert "path_points" in data["data"]
+        assert "detail" in data
+        assert any(keyword in data["detail"] for keyword in ["桥架", "线管", "容器", "tray", "conduit"])
     
     def test_calculate_route_invalid_request(self):
         """测试无效请求（缺少必填字段）"""
