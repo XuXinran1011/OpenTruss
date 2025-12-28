@@ -707,12 +707,23 @@ class ExportService:
         extrusion_direction = (0.0, 0.0, 1.0)
         
         # 7. 创建 Extruded Area Solid
-        body = run(
-            "geometry.add_extruded_area_solid",
-            ifc_file,
-            profile=profile,
-            extrusion_direction=extrusion_direction,
-            depth=height
+        # 直接使用 ifc_file API 而不是 run("geometry.add_extruded_area_solid", ...)
+        # 创建拉伸方向（IfcDirection）
+        direction = ifc_file.createIfcDirection(extrusion_direction)
+        
+        # 创建放置位置（IfcAxis2Placement3D），默认在原点
+        placement = ifc_file.createIfcAxis2Placement3D(
+            ifc_file.createIfcCartesianPoint([0.0, 0.0, 0.0]),
+            ifc_file.createIfcDirection([0.0, 0.0, 1.0]),  # Z轴
+            ifc_file.createIfcDirection([1.0, 0.0, 0.0])   # X轴（RefDirection）
+        )
+        
+        # 直接创建IfcExtrudedAreaSolid
+        body = ifc_file.createIfcExtrudedAreaSolid(
+            profile,
+            placement,
+            direction,
+            height
         )
         
         # 8. 获取或创建 Body 上下文

@@ -43,14 +43,14 @@ export function useTraceMode() {
       setError(null);
       // 注意：成功提示由组件通过 useEffect 监听 error 的变化来处理
     },
-    onError: (err: unknown) => {
+    onError: (err: unknown, variables: { elementId: string; request: TopologyUpdateRequest }) => {
       let errorMessage = '拓扑更新失败';
       if (err instanceof ApiError) {
         errorMessage = err.message || `拓扑更新失败: ${err.statusCode || '未知错误'}`;
       } else if (err instanceof Error) {
         errorMessage = err.message;
       }
-      setError({ message: errorMessage });
+      setError({ message: errorMessage, elementId: variables.elementId });
     },
   });
 
