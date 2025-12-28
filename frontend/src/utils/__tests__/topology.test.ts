@@ -188,18 +188,22 @@ describe('topology工具函数', () => {
         { x: 10, y: 10, elementId: 'elem1', element: { id: 'elem1' } },
         { x: 100, y: 100, elementId: 'elem2', element: { id: 'elem2' } },
       ]
+      // 从点(5,5)到(10,10)的距离是√50≈7.07，小于阈值20
       const result = findNearestSnapPointWithElement({ x: 5, y: 5 }, snapPoints, 20)
       expect(result).not.toBeNull()
-      expect(result?.x).toBe(10)
-      expect(result?.y).toBe(10)
-      expect(result?.elementId).toBe('elem1')
-      expect(result?.element?.id).toBe('elem1')
+      if (result) {
+        expect(result.x).toBe(10)
+        expect(result.y).toBe(10)
+        expect(result.elementId).toBe('elem1')
+        expect(result.element?.id).toBe('elem1')
+      }
     })
 
     it('应该在距离外时返回null', () => {
       const snapPoints = [
         { x: 100, y: 100, elementId: 'elem1', element: { id: 'elem1' } },
       ]
+      // 从点(0,0)到(100,100)的距离是√(100²+100²)=√20000≈141.42，大于阈值20
       const result = findNearestSnapPointWithElement({ x: 0, y: 0 }, snapPoints, 20)
       expect(result).toBeNull()
     })
