@@ -477,7 +477,8 @@ class LotStrategyService:
             try:
                 # 删除关系
                 delete_rel_query = """
-                MATCH (lot:InspectionLot {id: $lot_id})-[r:MANAGEMENT_CONTAINS]->(e:Element {id: $element_id})
+                MATCH (lot:InspectionLot {id: $lot_id})-[r]->(e:Element {id: $element_id})
+                WHERE type(r) = 'MANAGEMENT_CONTAINS'
                 DELETE r
                 RETURN e.id as id
                 """
