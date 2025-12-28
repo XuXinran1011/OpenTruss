@@ -1,6 +1,0 @@
-修复测试和代码质量问题
-
-- 修复React测试中的act()包装问题：在useToast.test.ts和performance.test.ts中包装所有timer操作
-- 修复ifcopenshell API使用：将run('geometry.add_profile')替换为createIfcArbitraryClosedProfileDef直接API调用
-- 修复Cypher查询语法：将所有-[:MANAGEMENT_CONTAINS]->改为-[r]-> WHERE type(r) = 'MANAGEMENT_CONTAINS'以符合Memgraph限制
-- 修复Cypher查询中的关系类型枚举使用：使用.value获取枚举字符串值

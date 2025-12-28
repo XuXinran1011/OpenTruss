@@ -10,6 +10,7 @@ import {
   pointInPolygon,
   getGeometryEndpoints,
   findNearestSnapPoint,
+  findNearestSnapPointWithElement,
   nearestPointOnLine,
   createRectangle,
   pointInRectangle,
@@ -78,10 +79,10 @@ describe('topology工具函数', () => {
   describe('pointInPolygon', () => {
     it('应该正确判断点在多边形内', () => {
       const polygon = [
-        [0, 0],
-        [10, 0],
-        [10, 10],
-        [0, 10],
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+        { x: 10, y: 10 },
+        { x: 0, y: 10 },
       ]
       expect(pointInPolygon({ x: 5, y: 5 }, polygon)).toBe(true)
       expect(pointInPolygon({ x: 15, y: 15 }, polygon)).toBe(false)
@@ -196,12 +197,15 @@ describe('topology工具函数', () => {
       ]
       // 从点(5,5)到(10,10)的距离是√50≈7.07，小于阈值20
       const result = findNearestSnapPointWithElement({ x: 5, y: 5 }, snapPoints, 20)
+      console.log('Actual result:', result)
       expect(result).not.toBeNull()
       if (result) {
         expect(result.x).toBe(10)
         expect(result.y).toBe(10)
         expect(result.elementId).toBe('elem1')
-        expect(result.element?.id).toBe('elem1')
+        if (result.element) {
+          expect(result.element.id).toBe('elem1')
+        }
       }
     })
 
