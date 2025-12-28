@@ -9,15 +9,19 @@ test.describe('Lift Mode', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsEditor(page);
     await page.goto('/workbench');
+    
+    // 等待项目选择完成和页面加载
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     
+    // 等待WorkbenchLayout渲染 - 检查工具栏区域
+    await page.waitForSelector('div.h-12.bg-white.border-b, [data-testid="lift-mode"]', { timeout: 15000 }).catch(() => {});
+    
     // 切换到Lift Mode - 使用data-testid
-    await page.waitForSelector('[data-testid="lift-mode"]', { timeout: 10000 }).catch(() => {});
+    await page.waitForSelector('[data-testid="lift-mode"]', { timeout: 15000 });
     const liftButton = page.locator('[data-testid="lift-mode"]').first();
-    if (await liftButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await liftButton.click();
-      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
-    }
+    await liftButton.waitFor({ state: 'visible', timeout: 10000 });
+    await liftButton.click();
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   });
 
   test('应该能够切换到Lift Mode', async ({ page }) => {

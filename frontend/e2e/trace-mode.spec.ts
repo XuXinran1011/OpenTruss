@@ -9,15 +9,21 @@ test.describe('Trace Mode', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsEditor(page);
     await page.goto('/workbench');
+    
+    // 等待项目选择完成（如果显示项目选择界面，等待其消失）
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     
-    // 切换到Trace Mode - 优先使用data-testid
-    await page.waitForSelector('[data-testid="trace-mode"]', { timeout: 10000 }).catch(() => {});
+    // 等待WorkbenchLayout渲染完成 - 检查是否有工具栏区域
+    await page.waitForSelector('div.h-12.bg-white.border-b, [data-testid="trace-mode"], aside', { timeout: 15000 }).catch(() => {});
+    
+    // 等待TopToolbar中的模式按钮出现 - 优先使用data-testid
+    await page.waitForSelector('[data-testid="trace-mode"]', { timeout: 15000 });
+    
+    // 切换到Trace Mode
     const traceButton = page.locator('[data-testid="trace-mode"]').first();
-    if (await traceButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await traceButton.click();
-      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
-    }
+    await traceButton.waitFor({ state: 'visible', timeout: 10000 });
+    await traceButton.click();
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   });
 
   test('应该能够切换到Trace Mode', async ({ page }) => {

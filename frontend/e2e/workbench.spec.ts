@@ -9,43 +9,72 @@ test.describe('Workbench基础功能', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsEditor(page);
     await page.goto('/workbench');
-    // 等待页面完全加载
+    
+    // 等待项目选择完成和页面加载
     await page.waitForLoadState('networkidle', { timeout: 15000 });
-    // 等待关键元素出现
-    await page.waitForSelector('[data-testid="hierarchy-tree"], .hierarchy-tree, aside', { timeout: 10000 }).catch(() => {
-      // 如果找不到特定选择器，至少等待DOM加载完成
-    });
+    
+    // 等待WorkbenchLayout渲染 - 检查工具栏区域是否存在
+    await page.waitForSelector('div.h-12.bg-white.border-b, aside', { timeout: 15000 }).catch(() => {});
+    
+    // 等待层级树容器出现（可能还在加载中，所以使用aside作为后备）
+    await page.waitForSelector('aside, [data-testid="hierarchy-tree"]', { timeout: 15000 });
+    
+    // 等待层级树数据加载完成（等待"加载中..."消失或层级树出现）
+    await page.waitForFunction(
+      () => {
+        const tree = document.querySelector('[data-testid="hierarchy-tree"]');
+        const loadingText = document.querySelector('text=/加载中/i');
+        return tree !== null || loadingText === null;
+      },
+      { timeout: 20000 }
+    ).catch(() => {});
   });
 
   test('应该正确加载Workbench页面', async ({ page }) => {
     await expect(page).toHaveURL('/workbench');
     
     // 验证页面主要元素存在
-    // 左侧层级树 - 先等待元素出现
-    await page.waitForSelector('[data-testid="hierarchy-tree"], .hierarchy-tree, aside', { timeout: 10000 });
-    const hierarchyTree = page.locator('[data-testid="hierarchy-tree"], .hierarchy-tree, aside').first();
-    await expect(hierarchyTree).toBeVisible();
+    // 左侧层级树 - 优先使用data-testid，后备使用aside
+    let hierarchyTree = page.locator('[data-testid="hierarchy-tree"]').first();
+    if (await hierarchyTree.count() === 0) {
+      hierarchyTree = page.locator('aside').first();
+    }
+    await expect(hierarchyTree).toBeVisible({ timeout: 10000 });
     
     // 中间画布区域
-    await page.waitForSelector('[data-testid="canvas"], .canvas, canvas, svg', { timeout: 10000 });
-    const canvas = page.locator('[data-testid="canvas"], .canvas, canvas, svg').first();
-    await expect(canvas).toBeVisible();
+    await page.waitForSelector('canvas, svg, [data-testid="canvas"]', { timeout: 15000 });
+    const canvas = page.locator('canvas, svg, [data-testid="canvas"]').first();
+    await expect(canvas).toBeVisible({ timeout: 10000 });
   });
 
   test('应该显示层级树', async ({ page }) => {
-    // 等待层级树加载完成 - 使用data-testid
-    await page.waitForSelector('[data-testid="hierarchy-tree"]', { timeout: 10000 });
+    // 等待层级树容器加载完成
+    await page.waitForSelector('[data-testid="hierarchy-tree"]', { timeout: 15000 }).catch(() => {});
     
-    // 等待层级树内容加载 - 等待树节点出现
+    // 等待层级树数据加载完成（检查是否不再显示"加载中..."）
+    try {
+      await page.waitForFunction(
+        () => {
+          const tree = document.querySelector('[data-testid="hierarchy-tree"]');
+          const allText = document.body.innerText || document.body.textContent || '';
+          const hasLoadingText = allText.includes('加载中');
+          return tree !== null && !hasLoadingText;
+        },
+        { timeout: 20000 }
+      );
+    } catch {
+      // 如果waitForFunction失败，继续尝试查找节点
+    }
+    
+    // 等待层级树节点加载
     await page.waitForSelector('[role="treeitem"], [data-node-label]', { timeout: 15000 }).catch(() => {});
     
-    // 查找项目节点 - 使用data-node-label属性查找Project节点
-    const projectNode = page.locator('[data-node-label="Project"]').first();
-    // 如果找不到，尝试使用文本匹配作为后备方案
-    const projectNodeFallback = projectNode.count() === 0 
-      ? page.locator('[role="treeitem"]').filter({ hasText: /Project|项目/i }).first()
-      : projectNode;
-    await expect(projectNodeFallback).toBeVisible({ timeout: 10000 });
+    // 查找项目节点 - 优先使用data-node-label属性，后备使用文本匹配
+    let projectNode = page.locator('[data-node-label="Project"]').first();
+    if (await projectNode.count() === 0) {
+      projectNode = page.locator('[role="treeitem"]').filter({ hasText: /Project|项目/i }).first();
+    }
+    await expect(projectNode).toBeVisible({ timeout: 10000 });
   });
 
   test('应该能够展开和折叠层级树节点', async ({ page }) => {
@@ -82,31 +111,30 @@ test.describe('Workbench基础功能', () => {
 
   test('应该能够切换模式（Trace/Lift/Classify）', async ({ page }) => {
     // 等待页面加载完成
-    await page.waitForLoadState('networkidle', { timeout: 10000 });
+    await page.waitForLoadState('networkidle', { timeout: 15000 });
     
-    // 查找模式切换按钮 - 使用data-testid
-    await page.waitForSelector('[data-testid="trace-mode"]', { timeout: 10000 }).catch(() => {});
+    // 等待工具栏区域出现
+    await page.waitForSelector('div.h-12.bg-white.border-b', { timeout: 15000 }).catch(() => {});
+    
+    // 等待模式切换按钮出现 - 使用data-testid
+    await page.waitForSelector('[data-testid="trace-mode"]', { timeout: 15000 });
     
     const traceButton = page.locator('[data-testid="trace-mode"]').first();
     const liftButton = page.locator('[data-testid="lift-mode"]').first();
     const classifyButton = page.locator('[data-testid="classify-mode"]').first();
     
-    // 如果按钮存在，测试切换
-    if (await traceButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await traceButton.click();
-      // 等待UI更新
-      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
-    }
+    // 验证按钮可见并测试切换
+    await traceButton.waitFor({ state: 'visible', timeout: 10000 });
+    await traceButton.click();
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     
-    if (await liftButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await liftButton.click();
-      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
-    }
+    await liftButton.waitFor({ state: 'visible', timeout: 10000 });
+    await liftButton.click();
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     
-    if (await classifyButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await classifyButton.click();
-      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
-    }
+    await classifyButton.waitFor({ state: 'visible', timeout: 10000 });
+    await classifyButton.click();
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   });
 
   test('应该能够使用快捷键切换模式', async ({ page }) => {

@@ -9,15 +9,19 @@ test.describe('Classify Mode', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsEditor(page);
     await page.goto('/workbench');
+    
+    // 等待项目选择完成和页面加载
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     
+    // 等待WorkbenchLayout渲染 - 检查工具栏区域
+    await page.waitForSelector('div.h-12.bg-white.border-b, [data-testid="classify-mode"]', { timeout: 15000 }).catch(() => {});
+    
     // 切换到Classify Mode - 使用data-testid
-    await page.waitForSelector('[data-testid="classify-mode"]', { timeout: 10000 }).catch(() => {});
+    await page.waitForSelector('[data-testid="classify-mode"]', { timeout: 15000 });
     const classifyButton = page.locator('[data-testid="classify-mode"]').first();
-    if (await classifyButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await classifyButton.click();
-      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
-    }
+    await classifyButton.waitFor({ state: 'visible', timeout: 10000 });
+    await classifyButton.click();
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
   });
 
   test('应该能够切换到Classify Mode', async ({ page }) => {
