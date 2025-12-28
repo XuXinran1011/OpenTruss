@@ -30,8 +30,6 @@ describe('useKeyboardShortcuts', () => {
   const mockSetMode = jest.fn()
   const mockSetSelectedElementIds = jest.fn()
   const mockSetDwgOpacity = jest.fn()
-  const mockShowToast = jest.fn()
-  const mockInvalidateQueries = jest.fn()
 
   beforeEach(() => {
     jest.clearAllMocks()
@@ -44,9 +42,6 @@ describe('useKeyboardShortcuts', () => {
     mockUseCanvasStore.mockReturnValue({
       dwgOpacity: 0.5,
       setDwgOpacity: mockSetDwgOpacity,
-    } as any)
-    mockUseToastContext.mockReturnValue({
-      showToast: mockShowToast,
     } as any)
   })
 
