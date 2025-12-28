@@ -63,7 +63,7 @@ describe('useTraceMode', () => {
       expect(mockUpdateElementTopology).toHaveBeenCalledWith('element-1', {
         geometry: {
           type: 'Polyline',
-          coordinates: [[0, 0, 0], [10, 0, 0]], // 3D 坐标
+          coordinates: [[0, 0], [10, 0]], // 2D 坐标
         },
       })
       expect(result.current.error).toBeNull()

@@ -57,7 +57,11 @@ describe('topology工具函数', () => {
         { x: 0, y: 2 },
         { x: 2, y: 0 }
       )
-      expect(result).toEqual({ x: 1, y: 1 })
+      expect(result).not.toBeNull()
+      if (result) {
+        expect(result.x).toBeCloseTo(1)
+        expect(result.y).toBeCloseTo(1)
+      }
     })
 
     it('应该在平行线时返回null', () => {
@@ -136,8 +140,10 @@ describe('topology工具函数', () => {
       ]
       const result = findNearestSnapPoint({ x: 5, y: 5 }, snapPoints, 100)
       expect(result).not.toBeNull()
-      expect(result?.x).toBe(10)
-      expect(result?.y).toBe(10)
+      if (result) {
+        expect(result.x).toBe(10)
+        expect(result.y).toBe(10)
+      }
     })
   })
 

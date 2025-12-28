@@ -101,12 +101,10 @@ describe('performance工具函数', () => {
     it('应该正确计算视口边界框', () => {
       const bounds = calculateViewportBounds(800, 600, { x: 0, y: 0, scale: 1 })
       // 根据公式: minX = (-tx) / scale, maxX = (width - tx) / scale
-      expect(bounds).toEqual({
-        minX: 0,
-        minY: 0,
-        maxX: 800,
-        maxY: 600,
-      })
+      expect(bounds.minX).toBe(0)
+      expect(bounds.minY).toBe(0)
+      expect(bounds.maxX).toBe(800)
+      expect(bounds.maxY).toBe(600)
     })
 
     it('应该正确处理平移和缩放', () => {

@@ -55,11 +55,14 @@ describe('useClassifyMode', () => {
         expect(result.current.isClassifying).toBe(false)
       })
       
+      await waitFor(() => {
+        expect(result.current.successCount).toBe(1)
+      })
+      
       expect(mockClassifyElement).toHaveBeenCalledWith('element-1', {
         item_id: 'item-1',
       })
       expect(result.current.error).toBeNull()
-      expect(result.current.successCount).toBe(1)
       expect(result.current.failedCount).toBe(0)
     })
 
