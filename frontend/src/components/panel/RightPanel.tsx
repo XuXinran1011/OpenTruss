@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ParameterPanel } from './ParameterPanel';
 import { LotStrategyPanel } from '@/components/lots/LotStrategyPanel';
 import { LotManagementPanel } from '@/components/lots/LotManagementPanel';
@@ -46,13 +46,16 @@ export function RightPanel() {
   const lotName = selectedNode?.name || '';
   const lotId = selectedNode?.id || null;
 
-  const tabs = [
-    { id: 'parameters' as TabType, label: '参数', show: true },
-    { id: 'lot-strategy' as TabType, label: '检验批策略', show: isItemSelected && isApprover },
-    { id: 'lot-management' as TabType, label: '检验批管理', show: isItemSelected && isApprover },
-    { id: 'approval' as TabType, label: '审批', show: isInspectionLotSelected && lotStatus === 'SUBMITTED' && isApprover },
-    { id: 'export' as TabType, label: '导出', show: isInspectionLotSelected && lotStatus === 'APPROVED' },
-  ].filter(tab => tab.show);
+  // 将tabs数组包装在useMemo中，避免每次渲染都重新创建
+  const tabs = useMemo(() => {
+    return [
+      { id: 'parameters' as TabType, label: '参数', show: true },
+      { id: 'lot-strategy' as TabType, label: '检验批策略', show: isItemSelected && isApprover },
+      { id: 'lot-management' as TabType, label: '检验批管理', show: isItemSelected && isApprover },
+      { id: 'approval' as TabType, label: '审批', show: isInspectionLotSelected && lotStatus === 'SUBMITTED' && isApprover },
+      { id: 'export' as TabType, label: '导出', show: isInspectionLotSelected && lotStatus === 'APPROVED' },
+    ].filter(tab => tab.show);
+  }, [isItemSelected, isInspectionLotSelected, lotStatus, isApprover]);
 
   // 当选中节点或标签页条件变化时，如果当前activeTab不在新的tabs列表中，自动切换到合适的tab
   useEffect(() => {
@@ -65,8 +68,7 @@ export function RightPanel() {
         setActiveTab(availableTabIds[0] || 'parameters');
       }
     }
-    // 依赖项使用实际影响tabs的条件，而不是tabs数组本身
-  }, [selectedNodeId, isItemSelected, isInspectionLotSelected, lotStatus, activeTab]);
+  }, [tabs, lotStatus, activeTab, setActiveTab]);
 
   const renderPanel = () => {
     switch (activeTab) {

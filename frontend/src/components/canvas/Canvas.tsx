@@ -4,6 +4,7 @@
 
 // React / Next.js
 import { useEffect, useRef, useCallback, useImperativeHandle, forwardRef, useState, useMemo } from 'react';
+import Image from 'next/image';
 
 // 第三方库
 import { useQuery } from '@tanstack/react-query';
@@ -169,7 +170,10 @@ export const Canvas = forwardRef<CanvasHandle>((props, ref) => {
     staleTime: 30000,
   });
 
-  const allElementDetailsMap = allElementDetailsQuery.data || new Map<string, ElementDetail>();
+  // 将allElementDetailsMap包装在useMemo中，避免每次渲染都创建新对象
+  const allElementDetailsMap = useMemo(() => {
+    return allElementDetailsQuery.data || new Map<string, ElementDetail>();
+  }, [allElementDetailsQuery.data]);
 
   // 创建空间索引（用于碰撞检测）
   const collisionSpatialIndex = useMemo(() => {
@@ -609,21 +613,23 @@ export const Canvas = forwardRef<CanvasHandle>((props, ref) => {
       }}
     >
       {/* DWG 底图（Trace Mode）- 在SVG下方作为背景层 */}
-      {mode === 'trace' && showDwgBackground && dwgImage && (
-        <img
-          src={dwgImageUrl || undefined}
-          alt="DWG 底图"
-          className="absolute inset-0 object-contain pointer-events-none z-0"
-          style={{
-            opacity: dwgOpacity,
-            filter: xrayMode ? 'grayscale(100%) brightness(1.2)' : 'none',
-            mixBlendMode: xrayMode ? 'multiply' : 'normal',
-          }}
-          onError={(e) => {
-            console.error('Failed to load DWG background image');
-            (e.target as HTMLImageElement).style.display = 'none';
-          }}
-        />
+      {mode === 'trace' && showDwgBackground && dwgImage && dwgImageUrl && (
+        <div 
+          className="absolute inset-0 pointer-events-none z-0" 
+          style={{ opacity: dwgOpacity }}
+        >
+          <Image
+            src={dwgImageUrl}
+            alt="DWG 底图"
+            fill
+            className="object-contain"
+            style={{
+              filter: xrayMode ? 'grayscale(100%) brightness(1.2)' : 'none',
+              mixBlendMode: xrayMode ? 'multiply' : 'normal',
+            }}
+            unoptimized
+          />
+        </div>
       )}
 
       {/* Canvas 渲染器 */}

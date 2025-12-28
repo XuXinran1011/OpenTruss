@@ -178,7 +178,10 @@ export function CanvasRenderer({
     gcTime: 5 * 60 * 1000, // 5分钟后清理缓存（React Query v5）
   });
 
-  const elementDetailsMap = elementDetailsQueries.data || new Map<string, ElementDetail>();
+  // 将elementDetailsMap包装在useMemo中，避免每次渲染都创建新对象
+  const elementDetailsMap = useMemo(() => {
+    return elementDetailsQueries.data || new Map<string, ElementDetail>();
+  }, [elementDetailsQueries.data]);
 
   // 创建空间索引（用于快速查询视口内的元素）
   const spatialIndex = useMemo(() => {
@@ -656,7 +659,7 @@ export function CanvasRenderer({
           .attr('pointer-events', 'none');
       }
     }
-  }, [svgRef, viewportFilteredElements, elementDetailsMap, width, height, viewTransform, selectedElementIds, mode, liftMode, setViewTransform, onElementDragStart, onElementClick, onElementDrag, onElementDragEnd, snapLine, selectionBox, isSelecting, elementsData, onSelectionChange, onSelectionAdd, onSelectionClear, SNAP_DISTANCE, routingPath, previewPath]);
+  }, [svgRef, viewportFilteredElements, elementDetailsMap, width, height, viewTransform, selectedElementIds, mode, liftMode, setViewTransform, onElementDragStart, onElementClick, onElementDrag, onElementDragEnd, snapLine, selectionBox, isSelecting, elementsData, onSelectionChange, onSelectionAdd, onSelectionClear, SNAP_DISTANCE, routingPath, previewPath, collidingElementIds, setDragPosition, setDraggedElementIds, setIsDraggingElement, traceMode.snapEnabled]);
 
   return (
     <svg

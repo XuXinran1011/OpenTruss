@@ -11,9 +11,9 @@ test.describe('Trace Mode', () => {
     await page.goto('/workbench');
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     
-    // 切换到Trace Mode
-    await page.waitForSelector('button:has-text("Trace"), button:has-text("拓扑"), [data-testid="trace-mode"]', { timeout: 10000 }).catch(() => {});
-    const traceButton = page.locator('button:has-text("Trace"), button:has-text("拓扑"), [data-testid="trace-mode"]').first();
+    // 切换到Trace Mode - 优先使用data-testid
+    await page.waitForSelector('[data-testid="trace-mode"]', { timeout: 10000 }).catch(() => {});
+    const traceButton = page.locator('[data-testid="trace-mode"]').first();
     if (await traceButton.isVisible({ timeout: 5000 }).catch(() => false)) {
       await traceButton.click();
       await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
@@ -21,10 +21,9 @@ test.describe('Trace Mode', () => {
   });
 
   test('应该能够切换到Trace Mode', async ({ page }) => {
-    // 验证Trace Mode已激活
-    // 这里可以根据实际UI调整验证逻辑
-    const traceButton = page.locator('button:has-text("Trace"), button:has-text("拓扑")').first();
-    await expect(traceButton).toBeVisible();
+    // 验证Trace Mode已激活 - 使用data-testid
+    const traceButton = page.locator('[data-testid="trace-mode"]').first();
+    await expect(traceButton).toBeVisible({ timeout: 10000 });
   });
 
   test('应该显示Canvas中的构件', async ({ page }) => {
@@ -119,9 +118,9 @@ test.describe('Trace Mode', () => {
     await page.keyboard.press('T');
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     
-    // 验证仍在Trace Mode（可以通过检查按钮状态）
-    const traceButton = page.locator('button:has-text("Trace"), button:has-text("拓扑")').first();
-    await expect(traceButton).toBeVisible();
+    // 验证仍在Trace Mode - 使用data-testid
+    const traceButton = page.locator('[data-testid="trace-mode"]').first();
+    await expect(traceButton).toBeVisible({ timeout: 10000 });
   });
 });
 

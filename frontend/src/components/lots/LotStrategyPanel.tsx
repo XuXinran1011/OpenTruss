@@ -127,7 +127,7 @@ export function LotStrategyPanel({ itemId, onCreated }: LotStrategyPanelProps) {
       estimatedLots: groups.length,
       groups,
     };
-  }, [elementsData, selectedRuleType]);
+  }, [elementsData, selectedRuleType, rulePreview]);
 
   const handleCreate = async () => {
     if (!itemId) return;

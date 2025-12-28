@@ -11,9 +11,9 @@ test.describe('Classify Mode', () => {
     await page.goto('/workbench');
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     
-    // 切换到Classify Mode
-    await page.waitForSelector('button:has-text("Classify"), button:has-text("归类"), [data-testid="classify-mode"]', { timeout: 10000 }).catch(() => {});
-    const classifyButton = page.locator('button:has-text("Classify"), button:has-text("归类"), [data-testid="classify-mode"]').first();
+    // 切换到Classify Mode - 使用data-testid
+    await page.waitForSelector('[data-testid="classify-mode"]', { timeout: 10000 }).catch(() => {});
+    const classifyButton = page.locator('[data-testid="classify-mode"]').first();
     if (await classifyButton.isVisible({ timeout: 5000 }).catch(() => false)) {
       await classifyButton.click();
       await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
@@ -21,9 +21,9 @@ test.describe('Classify Mode', () => {
   });
 
   test('应该能够切换到Classify Mode', async ({ page }) => {
-    // 验证Classify Mode已激活
-    const classifyButton = page.locator('button:has-text("Classify"), button:has-text("归类")').first();
-    await expect(classifyButton).toBeVisible();
+    // 验证Classify Mode已激活 - 使用data-testid
+    const classifyButton = page.locator('[data-testid="classify-mode"]').first();
+    await expect(classifyButton).toBeVisible({ timeout: 10000 });
   });
 
   test('应该显示层级树中的分项节点', async ({ page }) => {
@@ -171,9 +171,9 @@ test.describe('Classify Mode', () => {
     await page.keyboard.press('C');
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     
-    // 验证Classify Mode已激活
-    const classifyButton = page.locator('button:has-text("Classify"), button:has-text("归类")').first();
-    await expect(classifyButton).toBeVisible();
+    // 验证Classify Mode已激活 - 使用data-testid
+    const classifyButton = page.locator('[data-testid="classify-mode"]').first();
+    await expect(classifyButton).toBeVisible({ timeout: 10000 });
   });
 
   test('归类后应该清除选择', async ({ page }) => {

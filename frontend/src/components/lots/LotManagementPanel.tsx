@@ -62,33 +62,39 @@ export function LotManagementPanel({ itemId }: LotManagementPanelProps) {
 
   // 从层级数据中获取检验批列表
   const { hierarchyData } = useHierarchyStore();
-  const lots: Array<{ id: string; name: string; status: InspectionLotStatus; element_count: number }> = [];
   
-  // 从层级树中查找当前Item节点的检验批子节点
-  const findItemNode = (node: any): any => {
-    if (node.id === itemId && node.label === 'Item') {
-      return node;
-    }
-    for (const child of node.children || []) {
-      const found = findItemNode(child);
-      if (found) return found;
-    }
-    return null;
-  };
-  
-  const itemNode = hierarchyData ? findItemNode(hierarchyData) : null;
-  if (itemNode && itemNode.children) {
-    itemNode.children.forEach((child: any) => {
-      if (child.label === 'InspectionLot') {
-        lots.push({
-          id: child.id,
-          name: child.name,
-          status: (child.metadata?.status || 'PLANNING') as InspectionLotStatus,
-          element_count: child.metadata?.element_count || 0,
-        });
+  // 将lots数组包装在useMemo中，避免每次渲染都重新创建
+  const lots = useMemo<Array<{ id: string; name: string; status: InspectionLotStatus; element_count: number }>>(() => {
+    const result: Array<{ id: string; name: string; status: InspectionLotStatus; element_count: number }> = [];
+    
+    // 从层级树中查找当前Item节点的检验批子节点
+    const findItemNode = (node: any): any => {
+      if (node.id === itemId && node.label === 'Item') {
+        return node;
       }
-    });
-  }
+      for (const child of node.children || []) {
+        const found = findItemNode(child);
+        if (found) return found;
+      }
+      return null;
+    };
+    
+    const itemNode = hierarchyData ? findItemNode(hierarchyData) : null;
+    if (itemNode && itemNode.children) {
+      itemNode.children.forEach((child: any) => {
+        if (child.label === 'InspectionLot') {
+          result.push({
+            id: child.id,
+            name: child.name,
+            status: (child.metadata?.status || 'PLANNING') as InspectionLotStatus,
+            element_count: child.metadata?.element_count || 0,
+          });
+        }
+      });
+    }
+    
+    return result;
+  }, [hierarchyData, itemId]);
 
   const handleStatusUpdate = async (newStatus: InspectionLotStatus) => {
     if (!selectedLotId) return;

@@ -71,6 +71,7 @@ export function TopToolbar() {
         {modes.map((m) => (
           <button
             key={m.id}
+            data-testid={`${m.id}-mode`}
             onClick={() => setMode(m.id)}
             className={cn(
               'px-4 py-1.5 text-sm font-medium rounded transition-colors',

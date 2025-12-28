@@ -170,7 +170,7 @@ function HierarchyTreeNodeComponent({ node, level = 0, onSelect }: HierarchyTree
   };
 
   return (
-    <div>
+    <div data-testid={`tree-node-${node.label}-${node.id}`} data-node-label={node.label} data-node-id={node.id}>
       <div
         onClick={handleClick}
         onDragOver={handleDragOver}
@@ -188,6 +188,8 @@ function HierarchyTreeNodeComponent({ node, level = 0, onSelect }: HierarchyTree
           draggedElementIds && draggedElementIds.length > 0 && isDropTarget && !isDragOver && !isInvalidDropTarget && 'bg-orange-50 border border-orange-300'
         )}
         style={{ paddingLeft: `${level * 16 + 8}px` }}
+        role="treeitem"
+        aria-expanded={hasChildren ? isExpanded : undefined}
       >
         {/* 展开/折叠图标 */}
         {hasChildren ? (

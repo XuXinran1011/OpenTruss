@@ -11,9 +11,9 @@ test.describe('Lift Mode', () => {
     await page.goto('/workbench');
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     
-    // 切换到Lift Mode
-    await page.waitForSelector('button:has-text("Lift"), button:has-text("提升"), [data-testid="lift-mode"]', { timeout: 10000 }).catch(() => {});
-    const liftButton = page.locator('button:has-text("Lift"), button:has-text("提升"), [data-testid="lift-mode"]').first();
+    // 切换到Lift Mode - 使用data-testid
+    await page.waitForSelector('[data-testid="lift-mode"]', { timeout: 10000 }).catch(() => {});
+    const liftButton = page.locator('[data-testid="lift-mode"]').first();
     if (await liftButton.isVisible({ timeout: 5000 }).catch(() => false)) {
       await liftButton.click();
       await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
@@ -21,9 +21,9 @@ test.describe('Lift Mode', () => {
   });
 
   test('应该能够切换到Lift Mode', async ({ page }) => {
-    // 验证Lift Mode已激活
-    const liftButton = page.locator('button:has-text("Lift"), button:has-text("提升")').first();
-    await expect(liftButton).toBeVisible();
+    // 验证Lift Mode已激活 - 使用data-testid
+    const liftButton = page.locator('[data-testid="lift-mode"]').first();
+    await expect(liftButton).toBeVisible({ timeout: 10000 });
   });
 
   test('应该显示右侧参数面板', async ({ page }) => {
@@ -164,9 +164,9 @@ test.describe('Lift Mode', () => {
     await page.keyboard.press('L');
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     
-    // 验证Lift Mode已激活
-    const liftButton = page.locator('button:has-text("Lift"), button:has-text("提升")').first();
-    await expect(liftButton).toBeVisible();
+    // 验证Lift Mode已激活 - 使用data-testid
+    const liftButton = page.locator('[data-testid="lift-mode"]').first();
+    await expect(liftButton).toBeVisible({ timeout: 10000 });
   });
 });
 

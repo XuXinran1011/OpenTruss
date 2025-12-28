@@ -132,7 +132,7 @@ function HierarchyTreeComponent({ projectId }: HierarchyTreeProps) {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col" data-testid="hierarchy-tree">
       {/* 搜索框 */}
       <div className="p-2 border-b border-zinc-200">
         <input
@@ -141,11 +141,12 @@ function HierarchyTreeComponent({ projectId }: HierarchyTreeProps) {
           value={searchKeyword}
           onChange={(e) => setSearchKeyword(e.target.value)}
           className="w-full px-3 py-1.5 text-sm border border-zinc-300 rounded focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent"
+          data-testid="hierarchy-search"
         />
       </div>
 
       {/* 层级树内容 */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto" data-testid="hierarchy-tree-content">
         <HierarchyTreeNode node={filteredHierarchy} onSelect={handleNodeSelect} />
       </div>
     </div>

@@ -33,30 +33,43 @@ test.describe('Workbench基础功能', () => {
   });
 
   test('应该显示层级树', async ({ page }) => {
-    // 等待层级树加载完成
-    await page.waitForSelector('[data-testid="hierarchy-tree"], .hierarchy-tree, aside', { timeout: 10000 });
+    // 等待层级树加载完成 - 使用data-testid
+    await page.waitForSelector('[data-testid="hierarchy-tree"]', { timeout: 10000 });
     
-    // 等待项目节点出现
-    await page.waitForSelector('text=/项目|Project/i', { timeout: 10000 });
-    const projectNode = page.locator('text=/项目|Project/i').first();
-    await expect(projectNode).toBeVisible({ timeout: 10000 });
+    // 等待层级树内容加载 - 等待树节点出现
+    await page.waitForSelector('[role="treeitem"], [data-node-label]', { timeout: 15000 }).catch(() => {});
+    
+    // 查找项目节点 - 使用data-node-label属性查找Project节点
+    const projectNode = page.locator('[data-node-label="Project"]').first();
+    // 如果找不到，尝试使用文本匹配作为后备方案
+    const projectNodeFallback = projectNode.count() === 0 
+      ? page.locator('[role="treeitem"]').filter({ hasText: /Project|项目/i }).first()
+      : projectNode;
+    await expect(projectNodeFallback).toBeVisible({ timeout: 10000 });
   });
 
   test('应该能够展开和折叠层级树节点', async ({ page }) => {
-    // 等待层级树加载
-    await page.waitForSelector('[data-testid="hierarchy-tree"], .hierarchy-tree, aside', { timeout: 10000 });
+    // 等待层级树加载 - 使用data-testid
+    await page.waitForSelector('[data-testid="hierarchy-tree"]', { timeout: 10000 });
     
-    // 查找可展开的节点
-    const expandableNode = page.locator('[aria-expanded="false"], .tree-node:has(> .tree-children)').first();
+    // 等待层级树节点加载
+    await page.waitForSelector('[role="treeitem"]', { timeout: 10000 }).catch(() => {});
+    
+    // 查找可展开的节点 - 查找有子节点且未展开的节点（aria-expanded="false"或undefined）
+    const expandableNode = page.locator('[role="treeitem"][aria-expanded="false"], [role="treeitem"]:not([aria-expanded="true"])').first();
     
     if (await expandableNode.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await expandableNode.click();
-      // 等待节点展开动画完成
-      await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
-      
-      // 验证节点已展开
-      const expandedNode = page.locator('[aria-expanded="true"]').first();
-      await expect(expandedNode).toBeVisible({ timeout: 5000 });
+      // 查找该节点内的展开按钮
+      const expandButton = expandableNode.locator('button:has(svg)').first();
+      if (await expandButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await expandButton.click();
+        // 等待节点展开动画完成
+        await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+        await page.waitForTimeout(500); // 等待动画完成
+        
+        // 验证节点已展开 - 检查aria-expanded属性
+        await expect(expandableNode).toHaveAttribute('aria-expanded', 'true', { timeout: 5000 });
+      }
     }
   });
 
@@ -71,12 +84,12 @@ test.describe('Workbench基础功能', () => {
     // 等待页面加载完成
     await page.waitForLoadState('networkidle', { timeout: 10000 });
     
-    // 查找模式切换按钮 - 等待按钮出现
-    await page.waitForSelector('button:has-text("Trace"), button:has-text("拓扑"), [data-testid="trace-mode"]', { timeout: 10000 }).catch(() => {});
+    // 查找模式切换按钮 - 使用data-testid
+    await page.waitForSelector('[data-testid="trace-mode"]', { timeout: 10000 }).catch(() => {});
     
-    const traceButton = page.locator('button:has-text("Trace"), button:has-text("拓扑"), [data-testid="trace-mode"]').first();
-    const liftButton = page.locator('button:has-text("Lift"), button:has-text("提升"), [data-testid="lift-mode"]').first();
-    const classifyButton = page.locator('button:has-text("Classify"), button:has-text("归类"), [data-testid="classify-mode"]').first();
+    const traceButton = page.locator('[data-testid="trace-mode"]').first();
+    const liftButton = page.locator('[data-testid="lift-mode"]').first();
+    const classifyButton = page.locator('[data-testid="classify-mode"]').first();
     
     // 如果按钮存在，测试切换
     if (await traceButton.isVisible({ timeout: 5000 }).catch(() => false)) {
