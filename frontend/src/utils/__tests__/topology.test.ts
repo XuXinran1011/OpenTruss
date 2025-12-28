@@ -105,10 +105,13 @@ describe('topology工具函数', () => {
         { x: 10, y: 10 },
         { x: 100, y: 100 },
       ]
+      // 从点(5,5)到(10,10)的距离是√((10-5)²+(10-5)²)=√50≈7.07，小于阈值20
       const result = findNearestSnapPoint({ x: 5, y: 5 }, snapPoints, 20)
       expect(result).not.toBeNull()
-      expect(result?.x).toBe(10)
-      expect(result?.y).toBe(10)
+      if (result) {
+        expect(result.x).toBe(10)
+        expect(result.y).toBe(10)
+      }
     })
 
     it('应该在距离外时返回null', () => {
