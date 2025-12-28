@@ -30,8 +30,17 @@ test.describe('Workbench基础功能', () => {
     if (projectsResponse) {
       const projectsData = await projectsResponse.json().catch(() => null);
       if (projectsData?.data?.items && projectsData.data.items.length === 0) {
-        console.warn('警告：项目列表为空，层级树可能无法加载');
+        const errorMessage = '错误：项目列表为空，层级树无法加载。请确保测试环境已准备测试数据（运行 python -m scripts.create_demo_data）';
+        console.error(errorMessage);
+        // 在CI环境中，这应该是一个失败条件，因为数据应该在CI中自动准备
+        if (process.env.CI) {
+          throw new Error(errorMessage);
+        } else {
+          console.warn(errorMessage);
+        }
       }
+    } else {
+      console.warn('警告：无法获取项目列表API响应');
     }
     
     // 等待页面加载完成

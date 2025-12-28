@@ -47,6 +47,14 @@ jobs:
         run: |
           python -c "from app.services.schema import initialize_schema; from app.utils.memgraph import MemgraphClient; initialize_schema(MemgraphClient())"
       
+      - name: Create test data
+        working-directory: ./backend
+        env:
+          MEMGRAPH_HOST: localhost
+          MEMGRAPH_PORT: 7687
+        run: |
+          python -m scripts.create_demo_data
+      
       - name: Start backend server
         working-directory: ./backend
         env:

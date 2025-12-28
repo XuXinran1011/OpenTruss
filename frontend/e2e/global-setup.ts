@@ -36,6 +36,30 @@ async function globalSetup(config: FullConfig) {
     await page.context().storageState({ path: path.join(authDir, 'user.json') });
 
     console.log('登录状态已保存到 playwright/.auth/user.json');
+    
+    // 验证项目数据是否存在（可选验证，不阻止测试运行）
+    // 注意：在CI环境中，后端服务器可能在global-setup之后启动，所以这个验证可能会失败
+    // 这是可接受的，因为数据已经在CI步骤中准备了
+    try {
+      const apiBaseUrl = process.env.PLAYWRIGHT_API_BASE_URL || baseURL?.replace(':3000', ':8000') || 'http://localhost:8000';
+      const response = await page.request.get(`${apiBaseUrl}/api/v1/hierarchy/projects?page=1&page_size=1`);
+      
+      if (response.ok()) {
+        const data = await response.json().catch(() => null);
+        if (data?.data?.items && data.data.items.length > 0) {
+          console.log(`✓ 测试数据验证通过：找到 ${data.data.items.length} 个项目`);
+        } else {
+          console.warn('⚠ 警告：测试环境没有项目数据，某些测试可能失败');
+          console.warn('  请确保在测试开始前运行：python -m scripts.create_demo_data');
+        }
+      } else {
+        console.warn(`⚠ 无法验证测试数据：API响应状态 ${response.status()}`);
+      }
+    } catch (error) {
+      // 如果API不可用（例如后端未启动），只记录警告，不阻止测试
+      console.warn('⚠ 无法验证测试数据（API可能未启动或数据未准备）：', error instanceof Error ? error.message : error);
+      console.warn('  在CI环境中，这是正常的，因为数据会在测试开始前准备');
+    }
   } catch (error) {
     console.error('全局设置失败:', error);
     // 如果登录失败，仍然创建目录（测试可能会失败，但至少结构是正确的）
