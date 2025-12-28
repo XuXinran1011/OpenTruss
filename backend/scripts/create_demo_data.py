@@ -34,7 +34,7 @@ from app.models.gb50300.element import ElementNode
 from app.models.gb50300.relationships import (
     PHYSICALLY_CONTAINS, MANAGEMENT_CONTAINS, HAS_LOT, LOCATED_AT
 )
-from app.models.speckle.base import Geometry2D
+from app.models.speckle.base import Geometry
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -192,9 +192,9 @@ class DemoDataGenerator:
             element = ElementNode(
                 id=element_id,
                 speckle_type=config["type"],
-                geometry_2d=Geometry2D(
+                geometry=Geometry(
                     type="Polyline",
-                    coordinates=config["coords"],
+                    coordinates=config["coords"],  # Geometry会自动将2D坐标转换为3D
                     closed=True
                 ),
                 height=config["height"],
@@ -205,10 +205,10 @@ class DemoDataGenerator:
                 status="Draft"
             )
             
-            # 转换geometry_2d为字典
+            # 转换geometry为字典（如果还不是字典）
             element_dict = element.model_dump(exclude_none=True)
-            if isinstance(element_dict["geometry_2d"], Geometry2D):
-                element_dict["geometry_2d"] = element_dict["geometry_2d"].model_dump()
+            if isinstance(element_dict.get("geometry"), Geometry):
+                element_dict["geometry"] = element_dict["geometry"].model_dump()
             
             self._create_node_if_not_exists("Element", element_dict)
             self._create_relationship_if_not_exists(
