@@ -3,9 +3,9 @@
 > 面向建筑施工行业的生成式 BIM 中间件
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/your-org/opentruss/releases/tag/v1.0.0)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/XuXinran1011/OpenTruss/releases/tag/v1.0.0)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-green.svg)](https://fastapi.tiangolo.com/)
 
 **Latest Release**: v1.0.0 (January 1, 2025)
 
@@ -63,8 +63,8 @@ OpenTruss 是一个面向建筑施工行业的生成式 BIM 中间件 (Generativ
 
 1. **克隆仓库**
 ```bash
-git clone https://github.com/your-org/opentruss.git
-cd opentruss
+git clone https://github.com/XuXinran1011/OpenTruss.git
+cd OpenTruss
 ```
 
 2. **后端设置**
@@ -120,7 +120,7 @@ npm run dev
 - 后端 API: http://localhost:8000
 - API 文档: http://localhost:8000/docs
 
-详细安装指南请参考 [开发环境搭建文档](docs/DEVELOPMENT.md)。
+详细安装指南请参考 [开发环境搭建文档](docs/development/DEVELOPMENT.md)。
 
 ### 一键启动（推荐）
 
@@ -138,7 +138,7 @@ make dev     # 启动开发环境
 ./scripts/setup.ps1       # Windows PowerShell
 ```
 
-更多启动方式请参考 [开发环境搭建文档](docs/DEVELOPMENT.md)。
+更多启动方式请参考 [开发环境搭建文档](docs/development/DEVELOPMENT.md)。
 
 ## 项目文档
 
@@ -146,35 +146,33 @@ make dev     # 启动开发环境
 
 ### 设计文档
 
-### 设计文档
-
-- [产品需求文档 (PRD)](PRD.md) - 项目需求和功能规格
+- [产品需求文档 (PRD)](docs/references/PRD.md) - 项目需求和功能规格
 - [技术架构文档](docs/ARCHITECTURE.md) - 系统架构和技术选型
-  - [架构图和 ADR](docs/ARCHITECTURE_DIAGRAMS.md) - 系统架构图、数据模型图、架构决策记录（如已创建）
-- [系统设计图表](diagrams.md) - 状态机图、泳道图、时序图
-- [API 设计文档](docs/API.md) - RESTful API 规范
-- [数据库 Schema](docs/SCHEMA.md) - Memgraph 数据模型
-- [UI/UX 设计文档](docs/UI_DESIGN.md) - 界面设计和交互规范
+  - [架构图和 ADR](docs/architecture/diagrams-architecture.md) - 系统架构图、数据模型图和流程图
+  - [设计图表](docs/architecture/diagrams.md) - 状态机图、泳道图、时序图
+- [API 参考文档](docs/api/index.md) - RESTful API 完整参考
+- [数据库 Schema](docs/references/SCHEMA.md) - Memgraph 数据模型
+- [UI/UX 设计文档](docs/guides/UI_DESIGN.md) - 界面设计和交互规范
 
 
 ### 开发文档
 
-- [开发环境搭建](docs/DEVELOPMENT.md) - 本地开发环境配置
-- [代码规范](docs/CODING_STANDARDS.md) - Python/前端代码规范
-- [测试策略](docs/TESTING.md) - 测试方法和策略
-  - [E2E 测试指南](docs/E2E_TESTING.md) - Playwright E2E 测试
-  - [性能测试指南](docs/PERFORMANCE_TESTING.md) - Locust 和 k6 性能测试
+- [开发环境搭建](docs/development/DEVELOPMENT.md) - 本地开发环境配置
+- [代码规范](docs/development/CODING_STANDARDS.md) - Python/前端代码规范
+- [测试文档](docs/testing/README.md) - 测试策略、E2E测试和性能测试完整指南
+  - [E2E 测试指南](docs/testing/E2E_TESTING.md) - Playwright E2E 测试
+  - [性能测试指南](docs/testing/PERFORMANCE_TESTING.md) - Locust 和 k6 性能测试
 - [GitHub Actions 配置](docs/GITHUB_ACTIONS_SETUP.md) - CI/CD 工作流配置
 
 ### 部署文档
 
-- [部署文档](docs/DEPLOYMENT.md) - 生产环境部署指南
-- [运维手册](docs/OPERATIONS.md) - 监控、故障排查、性能调优
+- [部署文档](docs/deployment/DEPLOYMENT.md) - 生产环境部署指南
+- [运维手册](docs/deployment/OPERATIONS.md) - 监控、故障排查、性能调优
 
 ### 用户文档
 
-- [API 使用文档](docs/API_USAGE.md) - API 快速开始和使用示例
-- [用户手册](docs/USER_MANUAL.md) - 各角色操作指南
+- [API 使用指南](docs/api/usage.md) - API 快速开始和使用示例
+- [用户手册](docs/guides/USER_MANUAL.md) - 各角色操作指南
 
 ## 系统架构
 
@@ -188,7 +186,7 @@ make dev     # 启动开发环境
 
 **前端**:
 - Next.js 14+ - React 框架（支持 SSR 和客户端渲染）
-- Tailwind CSS 4.0 - 实用优先的 CSS 框架
+- Tailwind CSS 3.4+ - 实用优先的 CSS 框架
 - TypeScript - 类型安全
 - D3.js - 2D 拓扑可视化
 - Canvas API - 高性能渲染
@@ -202,7 +200,7 @@ make dev     # 启动开发环境
 
 遵循 GB50300 标准，六级层级结构：
 
-```
+```text
 项目 (Project)
   └─ 单体 (Building)
       └─ 分部 (Division)
@@ -251,7 +249,7 @@ make dev     # 启动开发环境
 - [x] Phase 3: The Approver's Tool (检验批策划)
 - [x] Phase 4: Workflow & Export (交付)
 
-详细路线图请参考 [PRD.md](PRD.md)。
+详细路线图请参考 [产品需求文档 (PRD)](docs/references/PRD.md)。
 
 ## 贡献指南
 
@@ -266,8 +264,8 @@ make dev     # 启动开发环境
 **详细贡献指南**: 请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解完整的贡献流程、代码规范和测试要求。
 
 相关文档：
-- [代码规范文档](docs/CODING_STANDARDS.md) - 详细的代码风格指南
-- [测试策略](docs/TESTING.md) - 测试要求和最佳实践
+- [代码规范文档](docs/development/CODING_STANDARDS.md) - 详细的代码风格指南
+- [测试文档](docs/testing/README.md) - 测试策略、E2E测试和性能测试完整指南
 
 ## 许可证
 
@@ -282,6 +280,12 @@ make dev     # 启动开发环境
 ## 致谢
 
 感谢所有为 OpenTruss 项目做出贡献的开发者和用户！
+
+---
+
+**最后更新**：2025-12-28  
+**项目版本**：1.0.0  
+**维护者**：OpenTruss 开发团队
 
 ---
 

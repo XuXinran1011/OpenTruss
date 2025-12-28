@@ -187,7 +187,7 @@ def ingest_elements(elements: List[SpeckleObject]) -> IngestResult:
 
 #### 3.3.3 规则引擎 (Rule Engine)
 
-规则引擎是 OpenTruss 的核心校验组件，采用**分层防御策略**，通过前后端协同工作，确保数据质量。详细设计参见 [规则引擎架构文档](rules/RULE_ENGINE.md)。
+规则引擎是 OpenTruss 的核心校验组件，采用**分层防御策略**，通过前后端协同工作，确保数据质量。详细设计参见 [规则引擎架构文档](../rules/RULE_ENGINE.md)。
 
 **架构概述**：
 
@@ -446,7 +446,7 @@ graph TB
 4. **目标优化**：避开碰撞 > 贴近顶板 > 少翻弯
 5. **节点生成**：完成排布后生成防火封堵、防水套管等节点
 
-详细说明参见 [MEP_COORDINATION.md](./MEP_COORDINATION.md) 和 [MEP_PENETRATION.md](./MEP_PENETRATION.md)。
+详细说明参见 [MEP_COORDINATION.md](../features/MEP_COORDINATION.md) 和 [MEP_PENETRATION.md](../features/MEP_PENETRATION.md)。
 
 ### 3.4 数据层 (Data Layer)
 
@@ -841,6 +841,7 @@ sequenceDiagram
 
 ---
 
-*文档版本：1.0*  
-*最后更新：根据 PRD v4.0 创建*
+**最后更新**：2025-12-28  
+**文档版本**：1.0  
+**维护者**：OpenTruss 开发团队
 

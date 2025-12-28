@@ -407,7 +407,7 @@ jq . backend/app/config/rules/semantic_allowlist.json
 
 ---
 
+**最后更新**：2025-12-28  
 **文档版本**：1.0  
-**最后更新**：2024年  
 **维护者**：OpenTruss 开发团队
 

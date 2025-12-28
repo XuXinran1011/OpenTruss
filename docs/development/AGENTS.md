@@ -81,12 +81,16 @@
 
 ## 相关文档
 
-- 项目架构文档: `docs/ARCHITECTURE.md`
-- 代码规范文档: `docs/CODING_STANDARDS.md`
-- 开发指南: `docs/DEVELOPMENT.md`
-- 数据模型: `docs/SCHEMA.md`
+- 项目架构文档: [ARCHITECTURE.md](../ARCHITECTURE.md)
+- 代码规范文档: [CODING_STANDARDS.md](CODING_STANDARDS.md)
+- 开发指南: [DEVELOPMENT.md](DEVELOPMENT.md)
+- 数据模型: [SCHEMA.md](../references/SCHEMA.md)
 
 ---
 
-*本文档由 OpenSkills 自动生成，最后更新: 2025-12-26*
+**最后更新**：2025-12-28  
+**文档版本**：1.0  
+**维护者**：OpenTruss 开发团队
+
+*本文档由 OpenSkills 自动生成*
 

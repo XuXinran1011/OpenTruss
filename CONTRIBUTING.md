@@ -32,7 +32,7 @@ Before you begin, ensure you have:
 1. **Fork and Clone the Repository**
 
    ```bash
-   git clone https://github.com/your-username/OpenTruss.git
+   git clone https://github.com/XuXinran1011/OpenTruss.git
    cd OpenTruss
    ```
 
@@ -65,9 +65,9 @@ Before you begin, ensure you have:
 
 5. **Configure Environment Variables**
 
-   Create `backend/.env` file (see `docs/DEVELOPMENT.md` for details)
+   Create `backend/.env` file (see `docs/development/DEVELOPMENT.md` for details)
 
-For detailed setup instructions, please refer to [Development Environment Guide](docs/DEVELOPMENT.md).
+For detailed setup instructions, please refer to [Development Environment Guide](docs/development/DEVELOPMENT.md).
 
 ## Development Workflow
 
@@ -95,7 +95,7 @@ git checkout -b bugfix/issue-number-description
 
 We follow [Conventional Commits](https://www.conventionalcommits.org/) specification:
 
-```
+```text
 <type>(<scope>): <subject>
 
 <body>
@@ -104,6 +104,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/) specifica
 ```
 
 **Types**:
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -113,7 +114,8 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/) specifica
 - `chore`: Maintenance tasks
 
 **Examples**:
-```
+
+```text
 feat(workbench): Add trace mode topology repair
 
 fix(api): Resolve memory leak in element service
@@ -137,7 +139,7 @@ docs(readme): Update installation instructions
 - Keep functions focused and small
 - Write docstrings for public APIs
 
-For detailed Python guidelines, see [Coding Standards - Python](docs/CODING_STANDARDS.md#2-python-代码规范).
+For detailed Python guidelines, see [Coding Standards - Python](docs/development/CODING_STANDARDS.md#2-python-代码规范).
 
 ### TypeScript/React Code Style
 
@@ -146,11 +148,12 @@ For detailed Python guidelines, see [Coding Standards - Python](docs/CODING_STAN
 - Follow React best practices
 - Use functional components with hooks
 
-For detailed frontend guidelines, see [Coding Standards - Frontend](docs/CODING_STANDARDS.md#3-前端代码规范).
+For detailed frontend guidelines, see [Coding Standards - Frontend](docs/development/CODING_STANDARDS.md#3-前端代码规范).
 
 ### Code Formatting
 
 **Python**:
+
 ```bash
 # Recommended: Use black and isort (if configured)
 black .
@@ -158,6 +161,7 @@ isort .
 ```
 
 **TypeScript/JavaScript**:
+
 ```bash
 # Format and lint
 cd frontend
@@ -169,6 +173,7 @@ npm run lint
 ### Running Tests
 
 **Backend Tests**:
+
 ```bash
 cd backend
 pytest tests/ -v
@@ -176,6 +181,7 @@ pytest tests/ --cov=app --cov-report=html  # With coverage
 ```
 
 **Frontend Tests**:
+
 ```bash
 cd frontend
 npm test                    # Unit tests
@@ -189,7 +195,7 @@ npm run test:e2e           # E2E tests with Playwright
 - **Integration Tests**: Cover critical workflows
 - **E2E Tests**: Cover user-facing features
 
-For detailed testing guidelines, see [Testing Strategy](docs/TESTING.md).
+For detailed testing guidelines, see [Testing Strategy](docs/testing/README.md).
 
 ### Test Requirements Before PR
 
@@ -263,7 +269,7 @@ Use the [Feature Request template](.github/ISSUE_TEMPLATE/feature_request.yml) f
 
 ### Security Issues
 
-**Do NOT** open public issues for security vulnerabilities. Instead, please email security concerns to: support@opentruss.com
+**Do NOT** open public issues for security vulnerabilities. Instead, please email security concerns to: [support@opentruss.com](mailto:support@opentruss.com)
 
 ## Documentation
 
@@ -295,3 +301,8 @@ Contributors will be recognized in:
 
 Thank you for contributing to OpenTruss! 🎉
 
+---
+
+**最后更新**：2025-12-28  
+**文档版本**：1.0  
+**维护者**：OpenTruss 开发团队

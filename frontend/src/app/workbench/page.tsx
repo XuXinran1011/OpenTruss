@@ -26,21 +26,41 @@ export default function WorkbenchPage() {
   const canvasRef = useRef<CanvasHandle>(null);
 
   // 获取项目列表（用于选择项目）
-  const { data: projectsData } = useQuery({
+  const { data: projectsData, isLoading: isLoadingProjects } = useQuery({
     queryKey: ['projects'],
     queryFn: () => getProjects(1, 20),
   });
 
   // 设置默认项目
+  // 确保在项目列表加载完成后立即设置默认项目，避免显示选择界面
   useEffect(() => {
+    // 如果项目列表正在加载，不执行任何操作
+    if (isLoadingProjects) {
+      return;
+    }
+    
+    // 如果项目列表已加载且有项目，且当前没有projectId，设置第一个项目
     if (projectsData?.items && projectsData.items.length > 0 && !projectId) {
       const firstProject = projectsData.items[0];
       setProjectId(firstProject.id);
       setCurrentProjectId(firstProject.id);
-    } else if (currentProjectId && !projectId) {
+    } 
+    // 如果项目列表已加载但为空，且当前没有projectId，但store中有currentProjectId，使用store中的值
+    else if (currentProjectId && !projectId && !isLoadingProjects) {
       setProjectId(currentProjectId);
     }
-  }, [projectsData, projectId, currentProjectId, setCurrentProjectId]);
+  }, [projectsData, projectId, currentProjectId, setCurrentProjectId, isLoadingProjects]);
+
+  // 如果项目列表正在加载，显示加载状态
+  if (isLoadingProjects) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <p className="text-zinc-500">加载项目列表...</p>
+        </div>
+      </div>
+    );
+  }
 
   // 如果没有项目，显示选择界面
   if (!projectId) {

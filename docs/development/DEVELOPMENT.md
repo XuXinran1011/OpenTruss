@@ -642,7 +642,7 @@ class TopologyValidator:
 
 ### 9.3 配置文件示例
 
-完整的配置文件示例请参考 [规则配置文件示例文档](RULE_CONFIG_EXAMPLES.md)。
+完整的配置文件示例请参考 [规则配置文件示例文档](../rules/RULE_CONFIG_EXAMPLES.md)。
 
 #### 9.3.1 语义规则配置
 
@@ -837,3 +837,9 @@ test('semantic validation should complete within 16ms', () => {
 - 查看 [API 设计文档](../api/index.md)
 - 参考 [测试文档](../testing/README.md)
 - 详细了解 [规则引擎架构文档](../rules/RULE_ENGINE.md)
+
+---
+
+**最后更新**：2025-12-28  
+**文档版本**：1.0  
+**维护者**：OpenTruss 开发团队

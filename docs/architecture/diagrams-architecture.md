@@ -388,5 +388,11 @@ OpenTruss 的架构设计遵循以下原则：
 4. **标准化**: RDF 映射确保语义一致性
 5. **可扩展**: 支持水平扩展和集群部署
 
-更多架构细节请参考 [ARCHITECTURE.md](./ARCHITECTURE.md)。
+更多架构细节请参考 [ARCHITECTURE.md](../ARCHITECTURE.md)。
+
+---
+
+**最后更新**：2025-12-28  
+**文档版本**：1.0  
+**维护者**：OpenTruss 开发团队
 

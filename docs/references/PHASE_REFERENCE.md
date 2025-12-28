@@ -97,14 +97,14 @@ graph TB
 
 ## 5. 相关文档
 
-- [产品需求文档 (PRD)](PRD.md) - 包含 OpenTruss Phase 的详细说明
+- [产品需求文档 (PRD)](PRD.md) - 包含 OpenTruss Phase 的详细说明（同一目录）
 - [规则引擎架构文档 (RULE_ENGINE.md)](../rules/RULE_ENGINE.md) - 包含规则引擎 Phase 的详细说明
 - [技术架构文档 (ARCHITECTURE.md)](ARCHITECTURE.md) - 包含系统整体架构
 - [开发指南 (DEVELOPMENT.md)](DEVELOPMENT.md) - 包含开发流程和规则引擎开发指南
 
 ---
 
+**最后更新**：2025-12-28  
 **文档版本**：1.0  
-**最后更新**：2024年  
 **维护者**：OpenTruss 开发团队
 

@@ -1009,12 +1009,13 @@ console.log(`预计创建 ${preview.data.estimated_lots} 个检验批`);
 
 ## 8. 支持与反馈
 
-- **API 文档**: 查看 `docs/API.md`
+- **API 文档**: 查看 [API 参考文档](index.md)
 - **问题反馈**: 创建 GitHub Issue
 - **技术支持**: 联系技术支持团队
 
 ---
 
-*文档版本：1.0*  
-*最后更新：根据 PRD v4.0 创建*
+**最后更新**：2025-12-28  
+**文档版本**：1.0  
+**维护者**：OpenTruss 开发团队
 

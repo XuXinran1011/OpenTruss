@@ -265,7 +265,7 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
 
 ### 4.7 规则引擎校验 API
 
-规则引擎提供多层次的校验功能，确保数据质量。详细架构设计请参考 [规则引擎文档](../rules/overview.md)。
+规则引擎提供多层次的校验功能，确保数据质量。详细架构设计请参考 [规则引擎文档](../rules/README.md)。
 
 #### POST /api/v1/validation/semantic-check
 
@@ -317,7 +317,7 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
 
 #### POST /api/v1/routing/calculate
 
-计算路径。详细说明请参考 [MEP 路由规划文档](../features/mep-routing.md)。
+计算路径。详细说明请参考 [MEP 路由规划文档](../features/MEP_ROUTING.md)。
 
 #### POST /api/v1/routing/validate
 
@@ -418,5 +418,11 @@ OpenTruss 当前版本设计为**单租户私有化部署**，适用于企业内
 
 - [API 使用指南](usage.md) - API 快速开始和使用示例
 - [支吊架 API](hangers.md) - 支吊架生成和管理 API
-- [规则引擎文档](../rules/overview.md) - 规则引擎架构和设计
-- [MEP 路由规划](../features/mep-routing.md) - MEP 路由规划功能文档
+- [规则引擎文档](../rules/README.md) - 规则引擎架构和设计
+- [MEP 路由规划](../features/MEP_ROUTING.md) - MEP 路由规划功能文档
+
+---
+
+**最后更新**：2025-12-28  
+**文档版本**：1.0  
+**维护者**：OpenTruss 开发团队
