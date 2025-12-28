@@ -32,7 +32,7 @@ describe('approval Service', () => {
 
   describe('approveLot', () => {
     it('应该成功审批通过检验批', async () => {
-      const mockResponse = {
+      const mockResponseData = {
         lot_id: 'lot-1',
         status: 'APPROVED',
         approved_by: 'user-1',
@@ -40,7 +40,8 @@ describe('approval Service', () => {
         comment: 'Approved',
       }
       
-      mockApiPost.mockResolvedValue(mockResponse)
+      // apiPost returns ApiResponse<T>, and approveLot returns response.data
+      mockApiPost.mockResolvedValue({ data: mockResponseData } as any)
       
       const result = await approveLot('lot-1', {
         comment: 'Approved',
@@ -49,13 +50,13 @@ describe('approval Service', () => {
       expect(mockApiPost).toHaveBeenCalledWith('/api/v1/lots/lot-1/approve', {
         comment: 'Approved',
       })
-      expect(result).toEqual(mockResponse)
+      expect(result).toEqual(mockResponseData)
     })
   })
 
   describe('rejectLot', () => {
     it('应该成功驳回检验批', async () => {
-      const mockResponse = {
+      const mockResponseData = {
         lot_id: 'lot-1',
         status: 'REJECTED',
         rejected_by: 'user-1',
@@ -64,7 +65,8 @@ describe('approval Service', () => {
         reject_level: 'PLANNING',
       }
       
-      mockApiPost.mockResolvedValue(mockResponse)
+      // apiPost returns ApiResponse<T>, and rejectLot returns response.data
+      mockApiPost.mockResolvedValue({ data: mockResponseData } as any)
       
       const result = await rejectLot('lot-1', {
         reason: 'Invalid data',
@@ -75,13 +77,13 @@ describe('approval Service', () => {
         reason: 'Invalid data',
         reject_level: 'PLANNING',
       })
-      expect(result).toEqual(mockResponse)
+      expect(result).toEqual(mockResponseData)
     })
   })
 
   describe('getApprovalHistory', () => {
     it('应该成功获取审批历史', async () => {
-      const mockResponse = {
+      const mockResponseData = {
         lot_id: 'lot-1',
         history: [
           {
@@ -95,12 +97,13 @@ describe('approval Service', () => {
         ],
       }
       
-      mockApiGet.mockResolvedValue(mockResponse)
+      // apiGet returns ApiResponse<T>, and getApprovalHistory returns response.data
+      mockApiGet.mockResolvedValue({ data: mockResponseData } as any)
       
       const result = await getApprovalHistory('lot-1')
       
       expect(mockApiGet).toHaveBeenCalledWith('/api/v1/lots/lot-1/approval-history')
-      expect(result).toEqual(mockResponse)
+      expect(result).toEqual(mockResponseData)
     })
   })
 
@@ -117,4 +120,3 @@ describe('approval Service', () => {
     })
   })
 })
-

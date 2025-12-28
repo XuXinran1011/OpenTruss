@@ -11,6 +11,17 @@ jest.mock('@/lib/auth/token', () => ({
   clearToken: jest.fn(),
 }))
 
+// Mock API config
+jest.mock('@/lib/api/config', () => ({
+  API_CONFIG: {
+    baseURL: 'http://localhost:8000',
+    timeout: 30000,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  },
+}))
+
 const mockGetToken = getToken as jest.MockedFunction<typeof getToken>
 
 // Mock global fetch
