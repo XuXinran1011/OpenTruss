@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { WorkbenchLayout } from '@/components/layout/WorkbenchLayout';
 import { TopToolbar } from '@/components/toolbar/TopToolbar';
@@ -22,7 +22,6 @@ import { useWorkbenchStore } from '@/stores/workbench';
 export default function WorkbenchPage() {
   const { mode } = useWorkbenchStore();
   const { currentProjectId, setCurrentProjectId } = useHierarchyStore();
-  const [projectId, setProjectId] = useState<string | null>(null);
   const canvasRef = useRef<CanvasHandle>(null);
 
   // 获取项目列表（用于选择项目）
@@ -31,25 +30,34 @@ export default function WorkbenchPage() {
     queryFn: () => getProjects(1, 20),
   });
 
-  // 设置默认项目
-  // 确保在项目列表加载完成后立即设置默认项目，避免显示选择界面
-  useEffect(() => {
-    // 如果项目列表正在加载，不执行任何操作
+  // 使用useMemo直接计算projectId，避免状态更新时序问题
+  // 这样在render时就能立即得到正确的值，不需要等待状态更新
+  const projectId = useMemo(() => {
+    // 如果项目列表正在加载，返回null
     if (isLoadingProjects) {
-      return;
+      return null;
     }
     
-    // 如果项目列表已加载且有项目，且当前没有projectId，设置第一个项目
-    if (projectsData?.items && projectsData.items.length > 0 && !projectId) {
-      const firstProject = projectsData.items[0];
-      setProjectId(firstProject.id);
-      setCurrentProjectId(firstProject.id);
-    } 
-    // 如果项目列表已加载但为空，且当前没有projectId，但store中有currentProjectId，使用store中的值
-    else if (currentProjectId && !projectId && !isLoadingProjects) {
-      setProjectId(currentProjectId);
+    // 优先使用store中的currentProjectId（如果存在），这样可以保留用户的选择
+    if (currentProjectId) {
+      return currentProjectId;
     }
-  }, [projectsData, projectId, currentProjectId, setCurrentProjectId, isLoadingProjects]);
+    
+    // 如果store中没有currentProjectId，但项目列表已加载且有项目，使用第一个项目的ID
+    if (projectsData?.items && projectsData.items.length > 0) {
+      return projectsData.items[0].id;
+    }
+    
+    // 否则，返回null
+    return null;
+  }, [projectsData, isLoadingProjects, currentProjectId]);
+
+  // 当projectId计算出来后，更新store中的currentProjectId
+  useEffect(() => {
+    if (projectId && projectId !== currentProjectId) {
+      setCurrentProjectId(projectId);
+    }
+  }, [projectId, currentProjectId, setCurrentProjectId]);
 
   // 如果项目列表正在加载，显示加载状态
   if (isLoadingProjects) {
@@ -74,7 +82,7 @@ export default function WorkbenchPage() {
                 <button
                   key={project.id}
                   onClick={() => {
-                    setProjectId(project.id);
+                    // 直接更新store，useMemo会自动重新计算projectId
                     setCurrentProjectId(project.id);
                   }}
                   className="block w-full px-4 py-2 text-left text-zinc-700 bg-zinc-50 hover:bg-zinc-100 rounded transition-colors"
