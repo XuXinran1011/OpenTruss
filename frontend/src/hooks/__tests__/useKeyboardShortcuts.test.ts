@@ -7,7 +7,6 @@ import { useKeyboardShortcuts } from '../useKeyboardShortcuts'
 import { useWorkbenchStore } from '@/stores/workbench'
 import { useCanvasStore } from '@/stores/canvas'
 import { deleteElement } from '@/services/elements'
-import { useToastContext } from '@/providers/ToastProvider'
 import { TestWrapper } from '../../test-utils'
 
 // Mock dependencies
@@ -23,14 +22,9 @@ jest.mock('@/services/elements', () => ({
   deleteElement: jest.fn(),
 }))
 
-jest.mock('@/providers/ToastProvider', () => ({
-  useToastContext: jest.fn(),
-}))
-
 const mockUseWorkbenchStore = useWorkbenchStore as jest.MockedFunction<typeof useWorkbenchStore>
 const mockUseCanvasStore = useCanvasStore as jest.MockedFunction<typeof useCanvasStore>
 const mockDeleteElement = deleteElement as jest.MockedFunction<typeof deleteElement>
-const mockUseToastContext = useToastContext as jest.MockedFunction<typeof useToastContext>
 
 describe('useKeyboardShortcuts', () => {
   const mockSetMode = jest.fn()

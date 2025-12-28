@@ -122,6 +122,14 @@ class FlexibleRouter:
             container_info = self._find_container_element(element_id)
             if container_info:
                 container_id, container_type = container_info
+                
+                # 检查容器的路由状态（只有当状态明确存在且不是COMPLETED时才报错）
+                container_status = self._get_container_routing_status(container_id)
+                if container_status is not None and container_status != "COMPLETED":
+                    raise RoutingServiceError(
+                        f"关联的{container_type}尚未完成路由，请先完成{container_type}路由后再进行电缆路由。"
+                    )
+                
                 # 如果是桥架，验证容量
                 if container_type == "CableTray":
                     from app.core.cable_capacity_validator import CableCapacityValidator
@@ -149,22 +157,10 @@ class FlexibleRouter:
                         "errors": errors
                     }
                 else:
-                    errors.append("关联的桥架/线管尚未完成路由规划")
-                    return {
-                        "path_points": [],
-                        "constraints": {},
-                        "warnings": warnings,
-                        "errors": errors
-                    }
+                    raise RoutingServiceError("关联的桥架/线管尚未完成路由规划")
             else:
                 # 如果没有关联的容器，返回错误
-                errors.append("电缆/电线必须首先指定关联的桥架/线管")
-                return {
-                    "path_points": [],
-                    "constraints": {},
-                    "warnings": warnings,
-                    "errors": errors
-                }
+                raise RoutingServiceError("电缆/电线必须首先指定关联的桥架/线管")
         
         # 1. Brick Schema 语义验证（如果提供了源和目标元素类型）
         if validate_semantic and source_element_type and target_element_type:
@@ -624,6 +620,29 @@ class FlexibleRouter:
             "errors": [],
             "warnings": warnings
         }
+    
+    def _get_container_routing_status(self, container_id: str) -> Optional[str]:
+        """获取容器的路由状态
+        
+        Args:
+            container_id: 容器元素ID
+            
+        Returns:
+            路由状态字符串（如 'COMPLETED', 'PLANNING'），如果元素不存在则返回 None
+        """
+        try:
+            query = """
+            MATCH (container:Element {id: $container_id})
+            RETURN container.routing_status as routing_status
+            """
+            result = self.client.execute_query(query, {"container_id": container_id})
+            if not result:
+                return None
+            
+            return result[0].get("routing_status")
+        except Exception as e:
+            logger.warning(f"Error getting container routing status for {container_id}: {e}")
+            return None
     
     def _find_container_element(self, element_id: Optional[str]) -> Optional[Tuple[str, str]]:
         """查找包含该元素的容器元素（用于 Wire/Cable）
