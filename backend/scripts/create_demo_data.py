@@ -247,11 +247,20 @@ class DemoDataGenerator:
         rel_type: str
     ) -> bool:
         """如果关系不存在则创建"""
+        # 确保 rel_type 是字符串值（如果是枚举，获取其值）
+        if hasattr(rel_type, 'value'):
+            rel_type_str = rel_type.value
+        elif isinstance(rel_type, str):
+            rel_type_str = rel_type
+        else:
+            rel_type_str = str(rel_type)
+        
         # 检查关系是否存在
+        # 注意：在MATCH中，关系类型不能使用表达式，必须直接使用字符串
         query = f"""
         MATCH (a:{start_label} {{id: $start_id}})
         MATCH (b:{end_label} {{id: $end_id}})
-        MATCH (a)-[r:{rel_type}]->(b)
+        MATCH (a)-[r:{rel_type_str}]->(b)
         RETURN r
         """
         result = self.client.execute_query(query, {"start_id": start_id, "end_id": end_id})
@@ -260,7 +269,7 @@ class DemoDataGenerator:
             self.client.create_relationship(
                 start_label, start_id,
                 end_label, end_id,
-                rel_type
+                rel_type_str
             )
             return True
         return False
