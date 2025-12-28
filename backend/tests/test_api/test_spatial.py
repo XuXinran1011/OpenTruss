@@ -18,9 +18,12 @@ client = TestClient(app)
 @pytest.fixture(scope="module")
 def memgraph_client():
     """创建 Memgraph 客户端"""
-    client = MemgraphClient()
-    initialize_schema(client)
-    return client
+    try:
+        client = MemgraphClient()
+        initialize_schema(client)
+        return client
+    except Exception as e:
+        pytest.skip(f"Memgraph 连接失败，跳过测试: {e}")
 
 
 @pytest.fixture

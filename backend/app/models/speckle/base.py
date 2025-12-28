@@ -112,6 +112,7 @@ class SpeckleBuiltElementBase(BaseModel):
     包含所有 Speckle BuiltElements 的通用字段
     """
     # OpenTruss 特定字段
+    id: Optional[str] = Field(None, description="元素ID")
     speckle_id: Optional[str] = Field(None, description="Speckle 原始对象 ID，用于追溯")
     speckle_type: str = Field(..., description="Speckle 元素类型（如：Wall, Beam, Column）")
     
