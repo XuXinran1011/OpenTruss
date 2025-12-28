@@ -142,7 +142,7 @@ describe('useClassifyMode', () => {
       
       await act(async () => {
         try {
-          await result.current.classify('element-1', 'item-1')
+          result.current.classify('item-1', ['element-1'])
         } catch (err) {
           // Expected to throw
         }
@@ -158,9 +158,7 @@ describe('useClassifyMode', () => {
       
       expect(result.current.error).toBeNull()
     })
-  })
 
-  describe('clearError', () => {
     it('应该清除错误并重置计数', async () => {
       mockClassifyElement.mockResolvedValue({ element_id: 'element-1', item_id: 'item-1' })
       
@@ -168,7 +166,7 @@ describe('useClassifyMode', () => {
         wrapper: TestWrapper,
       })
       
-      act(() => {
+      await act(async () => {
         result.current.classify('item-1', ['element-1'])
       })
       
