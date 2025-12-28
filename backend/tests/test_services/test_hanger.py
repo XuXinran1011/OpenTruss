@@ -136,8 +136,8 @@ class TestHangerPlacementService:
             
             # 验证数据库中的关系
             query = f"""
-            MATCH (hanger:Element)-[:{SUPPORTS}]->(pipe:Element {{id: $pipe_id}})
-            WHERE hanger.speckle_type = 'Hanger'
+            MATCH (hanger:Element)-[r]->(pipe:Element {{id: $pipe_id}})
+            WHERE type(r) = '{SUPPORTS}' AND hanger.speckle_type = 'Hanger'
             RETURN count(hanger) as count
             """
             result = hanger_service.client.execute_query(query, {"pipe_id": sample_pipe})
@@ -146,8 +146,8 @@ class TestHangerPlacementService:
         finally:
             # 清理生成的支吊架
             query = f"""
-            MATCH (hanger:Element)-[:{SUPPORTS}]->(pipe:Element {{id: $pipe_id}})
-            WHERE hanger.speckle_type = 'Hanger'
+            MATCH (hanger:Element)-[r]->(pipe:Element {{id: $pipe_id}})
+            WHERE type(r) = '{SUPPORTS}' AND hanger.speckle_type = 'Hanger'
             DETACH DELETE hanger
             """
             hanger_service.client.execute_write(query, {"pipe_id": sample_pipe})
@@ -171,8 +171,8 @@ class TestHangerPlacementService:
         finally:
             # 清理
             query = f"""
-            MATCH (hanger:Element)-[:{SUPPORTS}]->(duct:Element {{id: $duct_id}})
-            WHERE hanger.speckle_type = 'Hanger'
+            MATCH (hanger:Element)-[r]->(duct:Element {{id: $duct_id}})
+            WHERE type(r) = '{SUPPORTS}' AND hanger.speckle_type = 'Hanger'
             DETACH DELETE hanger
             """
             hanger_service.client.execute_write(query, {"duct_id": sample_duct})

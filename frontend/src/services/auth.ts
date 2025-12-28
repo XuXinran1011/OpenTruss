@@ -65,8 +65,16 @@ export async function getCurrentUserInfo(): Promise<UserInfo> {
 
 /**
  * 用户登出
+ * 
+ * 即使API调用失败也不会抛出错误，确保logout操作总是成功完成
  */
 export async function logout(): Promise<void> {
-  await apiPost('/api/v1/auth/logout');
+  try {
+    await apiPost('/api/v1/auth/logout');
+  } catch (error) {
+    // 静默处理错误，确保logout操作不会因为API失败而中断
+    // 即使服务器返回错误，也要清除本地token
+    console.warn('Logout API call failed, but continuing with local cleanup:', error);
+  }
 }
 

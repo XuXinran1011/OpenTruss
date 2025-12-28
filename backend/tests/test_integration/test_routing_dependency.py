@@ -75,7 +75,7 @@ def sample_wire_in_tray(memgraph_client, sample_cable_tray):
         }},
         level_id: 'test_level_001'
     }})
-    CREATE (wire)-[:{CONTAINED_IN}]->(tray)
+    CREATE (wire)-[:CONTAINED_IN]->(tray)
     RETURN wire.id as id
     """
     memgraph_client.execute_write(query, {"wire_id": wire_id, "tray_id": sample_cable_tray})
@@ -174,7 +174,7 @@ class TestRoutingDependency:
                 }},
                 level_id: 'test_level_001'
             }})
-            CREATE (wire)-[:{CONTAINED_IN}]->(tray)
+            CREATE (wire)-[:CONTAINED_IN]->(tray)
             """
             memgraph_client.execute_write(query, {"tray_id": tray_id, "wire_id": wire_id})
             
@@ -227,7 +227,7 @@ class TestRoutingDependency:
                     }},
                     level_id: 'test_level_001'
                 }})
-                CREATE (wire)-[:{CONTAINED_IN}]->(tray)
+                CREATE (wire)-[:CONTAINED_IN]->(tray)
                 """
                 memgraph_client.execute_write(query, {"wire_id": wire_id, "tray_id": sample_cable_tray})
             

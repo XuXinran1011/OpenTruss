@@ -685,13 +685,10 @@ class ExportService:
                 coordinates_3d.append(coordinates_3d[0])
         
         # 4. 创建 IfcPolyline
+        # 使用 ifc_file.createIfcCartesianPoint 直接创建点，而不是使用已废弃的 run() 函数
         polyline_points = []
         for coord in coordinates_3d:
-            point = run(
-                "geometry.add_point",
-                ifc_file,
-                coordinates=list(coord)
-            )
+            point = ifc_file.createIfcCartesianPoint(list(coord))
             polyline_points.append(point)
         
         polyline = run(

@@ -74,7 +74,7 @@ def sample_power_cables(client, sample_cable_tray):
                 coordinates: [[0.0, 0.0, 0.0], [10.0, 0.0, 0.0]]
             }}
         }})
-        CREATE (cable)-[:{CONTAINED_IN}]->(tray)
+        CREATE (cable)-[:CONTAINED_IN]->(tray)
         RETURN cable.id as id
         """
         client.execute_write(
@@ -116,7 +116,7 @@ def sample_control_cables(client, sample_cable_tray):
                 coordinates: [[0.0, 0.0, 0.0], [10.0, 0.0, 0.0]]
             }}
         }})
-        CREATE (cable)-[:{CONTAINED_IN}]->(tray)
+        CREATE (cable)-[:CONTAINED_IN]->(tray)
         RETURN cable.id as id
         """
         client.execute_write(
@@ -183,7 +183,7 @@ class TestCableCapacityValidator:
                 cross_section_area: 4000.0,
                 cable_type: '电力电缆'
             }})
-            CREATE (cable)-[:{CONTAINED_IN}]->(tray)
+            CREATE (cable)-[:CONTAINED_IN]->(tray)
             """
             validator.client.execute_write(
                 query,
@@ -227,7 +227,7 @@ class TestCableCapacityValidator:
                 cross_section_area: 5000.0,
                 cable_type: '控制电缆'
             }})
-            CREATE (cable)-[:{CONTAINED_IN}]->(tray)
+            CREATE (cable)-[:CONTAINED_IN]->(tray)
             """
             validator.client.execute_write(
                 query,
@@ -270,7 +270,7 @@ class TestCableCapacityValidator:
             cross_section_area: 4000.0,
             cable_type: '电力电缆'
         }})
-        CREATE (cable)-[:{CONTAINED_IN}]->(tray)
+        CREATE (cable)-[:CONTAINED_IN]->(tray)
         """
         validator.client.execute_write(
             query,
@@ -330,7 +330,7 @@ class TestCableCapacityValidator:
             cross_section_area: 7200.0,
             cable_type: '电力电缆'
         }})
-        CREATE (cable)-[:{CONTAINED_IN}]->(tray)
+        CREATE (cable)-[:CONTAINED_IN]->(tray)
         """
         validator.client.execute_write(
             query,
