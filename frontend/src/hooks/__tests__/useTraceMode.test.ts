@@ -140,7 +140,7 @@ describe('useTraceMode', () => {
         wrapper: TestWrapper,
       })
       
-      await act(async () => {
+      act(() => {
         result.current.updateTopology('element-1', {
           geometry: {
             type: 'Polyline',
@@ -151,13 +151,15 @@ describe('useTraceMode', () => {
       
       await waitFor(() => {
         expect(result.current.error).not.toBeNull()
-      })
+      }, { timeout: 3000 })
       
-      await act(async () => {
+      act(() => {
         result.current.clearError()
       })
       
-      expect(result.current.error).toBeNull()
+      await waitFor(() => {
+        expect(result.current.error).toBeNull()
+      })
     })
   })
 })

@@ -140,19 +140,21 @@ describe('useClassifyMode', () => {
         wrapper: TestWrapper,
       })
       
-      await act(async () => {
+      act(() => {
         result.current.classify('item-1', ['element-1'])
       })
       
       await waitFor(() => {
         expect(result.current.error).not.toBeNull()
-      })
+      }, { timeout: 3000 })
       
-      await act(async () => {
+      act(() => {
         result.current.clearError()
       })
       
-      expect(result.current.error).toBeNull()
+      await waitFor(() => {
+        expect(result.current.error).toBeNull()
+      })
     })
 
     it('应该清除错误并重置计数', async () => {

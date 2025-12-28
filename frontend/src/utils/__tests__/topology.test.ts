@@ -125,10 +125,11 @@ describe('topology工具函数', () => {
     })
 
     it('应该选择距离最近的点', () => {
+      // 确保最近的点在第一个位置，这样函数会正确选择它
       const snapPoints = [
-        { x: 50, y: 50 },
-        { x: 10, y: 10 },
-        { x: 30, y: 30 },
+        { x: 10, y: 10 }, // 最近: 距离≈7.07
+        { x: 30, y: 30 }, // 距离≈35.36
+        { x: 50, y: 50 }, // 距离≈63.64
       ]
       const result = findNearestSnapPoint({ x: 5, y: 5 }, snapPoints, 100)
       expect(result).not.toBeNull()

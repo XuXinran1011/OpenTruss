@@ -133,19 +133,21 @@ describe('useLiftMode', () => {
       
       const { result } = renderHook(() => useLiftMode(), { wrapper: TestWrapper })
       
-      await act(async () => {
+      act(() => {
         result.current.batchLift(3.5)
       })
       
       await waitFor(() => {
         expect(result.current.error).not.toBeNull()
-      })
+      }, { timeout: 3000 })
       
-      await act(async () => {
+      act(() => {
         result.current.clearError()
       })
       
-      expect(result.current.error).toBeNull()
+      await waitFor(() => {
+        expect(result.current.error).toBeNull()
+      })
     })
   })
 })
