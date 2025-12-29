@@ -17,10 +17,53 @@ interface PageState {
 }
 
 /**
+ * 等待React完全渲染
+ * 确保页面body元素存在且有内容，React已经完成hydration
+ */
+async function waitForReactRender(page: Page, timeout = 10000): Promise<void> {
+  // 等待DOM加载完成
+  await page.waitForLoadState('domcontentloaded', { timeout });
+  
+  // 等待body元素存在
+  await page.waitForSelector('body', { timeout, state: 'attached' });
+  
+  // 等待body内有内容（不只是HTML骨架）
+  // 通过检查body的innerHTML是否包含React渲染的内容来判断
+  await page.waitForFunction(
+    () => {
+      const body = document.body;
+      if (!body) return false;
+      
+      // 检查body是否有子元素（React根元素）
+      if (body.children.length === 0) return false;
+      
+      // 检查是否有React根元素（Next.js通常使用#__next作为根元素）
+      const root = body.querySelector('#__next') || body.children[0];
+      if (!root) return false;
+      
+      // 检查根元素是否有内容（文本或子元素）
+      return root.textContent?.trim().length > 0 || root.children.length > 0;
+    },
+    { timeout }
+  ).catch(() => {
+    // 如果等待失败，至少等待一小段时间确保React有时间渲染
+    return page.waitForTimeout(500);
+  });
+  
+  // 额外等待一小段时间，确保React状态更新完成
+  await page.waitForTimeout(200);
+}
+
+/**
  * 获取页面当前状态
  * 用于诊断页面处于哪种状态（加载中、选择项目、WorkbenchLayout）
  */
 async function getPageState(page: Page): Promise<PageState> {
+  // 先等待React完全渲染
+  await waitForReactRender(page, 5000).catch(() => {
+    // 如果等待失败，记录警告但继续执行
+    console.warn('警告：等待React渲染超时，继续检查页面状态');
+  });
   const pageContent = await page.content().catch(() => '无法获取页面内容');
   const pageUrl = page.url();
   
@@ -370,6 +413,11 @@ export async function ensureWorkbenchReady(
   // 等待页面加载完成
   await page.waitForLoadState('networkidle', { timeout: 15000 });
   
+  // 等待React完全渲染
+  await waitForReactRender(page, 10000).catch(() => {
+    console.warn('警告：等待React渲染超时，继续执行');
+  });
+  
   // 先等待"加载项目列表..."状态消失
   const loadingText = page.locator('text=/加载项目列表/i').first();
   const isLoading = await loadingText.isVisible({ timeout: 5000 }).catch(() => false);
@@ -378,6 +426,8 @@ export async function ensureWorkbenchReady(
     try {
       await loadingText.waitFor({ state: 'hidden', timeout: 15000 });
       console.log('✓ "加载项目列表..."状态已消失');
+      // 等待React状态更新
+      await waitForReactRender(page, 5000).catch(() => {});
     } catch (e) {
       console.warn('警告："加载项目列表..."状态超时，继续执行');
     }
