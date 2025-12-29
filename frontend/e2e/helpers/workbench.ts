@@ -228,6 +228,15 @@ async function getPageState(page: Page): Promise<PageState> {
  * 如果页面显示"选择项目"界面，自动选择第一个项目
  */
 export async function selectProjectIfNeeded(page: Page): Promise<boolean> {
+  // 检查页面是否仍然打开
+  if (page.isClosed()) {
+    throw new Error(
+      `测试中止：浏览器页面已关闭（在项目选择操作前）。` +
+      `这可能是因为：1) 浏览器崩溃 2) 内存不足 3) 服务器进程停止。` +
+      `请检查：1) 后端服务器是否仍在运行 2) 前端服务器是否仍在运行 3) CI runner的资源限制`
+    );
+  }
+  
   // 先等待"加载项目列表..."消失
   const loadingText = page.locator('text=/加载项目列表/i').first();
   const isLoading = await loadingText.isVisible({ timeout: 5000 }).catch(() => false);
@@ -260,11 +269,29 @@ export async function selectProjectIfNeeded(page: Page): Promise<boolean> {
   
   console.log('检测到项目选择界面，准备选择项目...');
   
+  // 再次检查页面是否仍然打开
+  if (page.isClosed()) {
+    throw new Error(
+      `测试中止：浏览器页面已关闭（在选择项目操作前）。` +
+      `这可能是因为：1) 浏览器崩溃 2) 内存不足 3) 服务器进程停止。` +
+      `请检查：1) 后端服务器是否仍在运行 2) 前端服务器是否仍在运行 3) CI runner的资源限制`
+    );
+  }
+  
   // 等待项目列表按钮加载（增加等待时间，确保界面完全加载）
   await page.waitForSelector('button', { timeout: 10000 }).catch(() => {});
   
   // 等待一小段时间，确保所有按钮都已渲染
   await page.waitForTimeout(500);
+  
+  // 在点击前再次检查页面状态
+  if (page.isClosed()) {
+    throw new Error(
+      `测试中止：浏览器页面已关闭（在点击项目按钮前）。` +
+      `这可能是因为：1) 浏览器崩溃 2) 内存不足 3) 服务器进程停止。` +
+      `请检查：1) 后端服务器是否仍在运行 2) 前端服务器是否仍在运行 3) CI runner的资源限制`
+    );
+  }
   
   // 选择第一个项目按钮（使用更精确的选择器：在"选择项目"标题下的按钮）
   // 优先选择包含项目名称的按钮（项目名称通常包含中文字符或特定格式）
@@ -327,6 +354,15 @@ export async function selectProjectIfNeeded(page: Page): Promise<boolean> {
  * 确保左侧边栏（aside）和工具栏都已渲染
  */
 export async function waitForWorkbenchLayout(page: Page): Promise<void> {
+  // 立即检查页面是否仍然打开
+  if (page.isClosed()) {
+    throw new Error(
+      `测试中止：浏览器页面已关闭（在等待WorkbenchLayout渲染前）。` +
+      `这可能是因为：1) 浏览器崩溃 2) 内存不足 3) 服务器进程停止 4) 测试超时。` +
+      `请检查：1) 后端服务器是否仍在运行（curl http://localhost:8000/docs） 2) 前端服务器是否仍在运行（curl http://localhost:3000） 3) CI runner的资源限制（内存/CPU）`
+    );
+  }
+  
   // 首先等待工具栏元素出现（这是WorkbenchLayout渲染的第一个可见元素）
   // 工具栏会在WorkbenchLayout渲染时立即出现，比aside元素更早
   // 使用多个备选选择器以提高匹配成功率
@@ -337,6 +373,15 @@ export async function waitForWorkbenchLayout(page: Page): Promise<void> {
   
   let toolbarFound = false;
   for (const selector of toolbarSelectors) {
+    // 在每次等待前检查页面状态
+    if (page.isClosed()) {
+      throw new Error(
+        `测试中止：浏览器页面已关闭（在等待工具栏元素时）。` +
+        `这可能是因为：1) 浏览器崩溃 2) 内存不足 3) 服务器进程停止。` +
+        `请检查：1) 后端服务器是否仍在运行 2) 前端服务器是否仍在运行 3) CI runner的资源限制`
+      );
+    }
+    
     try {
       await page.waitForSelector(selector, { timeout: 15000 });
       console.log(`✓ 工具栏已出现（使用选择器: ${selector}）`);
@@ -353,12 +398,13 @@ export async function waitForWorkbenchLayout(page: Page): Promise<void> {
     const validity = await checkPageValidity(page);
     if (!validity.isValid) {
       throw new Error(
-        `WorkbenchLayout未渲染：页面无效。` +
+        `测试中止：浏览器页面已关闭。` +
         `页面已关闭: ${validity.isClosed}。` +
         `页面URL: ${validity.url || '无法获取'}。` +
         `页面标题: ${validity.title || '无法获取'}。` +
         `错误: ${validity.error || '未知错误'}。` +
-        `这可能是因为：1) 页面已关闭 2) 导航到其他页面 3) 页面处于错误状态`
+        `这可能是因为：1) 浏览器崩溃 2) 内存不足（CI runner资源限制） 3) 后端服务器进程停止 4) 前端服务器进程停止 5) 测试超时。` +
+        `请检查：1) 后端服务器是否仍在运行（curl http://localhost:8000/docs） 2) 前端服务器是否仍在运行（curl http://localhost:3000） 3) CI runner的资源使用情况（内存/CPU） 4) 测试运行时间是否超过限制`
       );
     }
     
@@ -409,6 +455,15 @@ export async function waitForWorkbenchLayout(page: Page): Promise<void> {
   }
   
   // 等待左侧边栏（aside）元素出现
+  // 在等待前检查页面状态
+  if (page.isClosed()) {
+    throw new Error(
+      `测试中止：浏览器页面已关闭（在等待左侧边栏元素前）。` +
+      `这可能是因为：1) 浏览器崩溃 2) 内存不足 3) 服务器进程停止。` +
+      `请检查：1) 后端服务器是否仍在运行 2) 前端服务器是否仍在运行 3) CI runner的资源限制`
+    );
+  }
+  
   try {
     await page.waitForSelector('aside', { timeout: 15000 });
   } catch (e) {
@@ -416,12 +471,14 @@ export async function waitForWorkbenchLayout(page: Page): Promise<void> {
     const validity = await checkPageValidity(page);
     if (!validity.isValid) {
       throw new Error(
-        `左侧边栏（aside）未渲染：页面无效。` +
+        `测试中止：浏览器页面已关闭（在等待左侧边栏时）。` +
         `页面已关闭: ${validity.isClosed}。` +
         `页面URL: ${validity.url || '无法获取'}。` +
         `页面标题: ${validity.title || '无法获取'}。` +
         `错误: ${validity.error || '未知错误'}。` +
-        (toolbarFound ? ' 工具栏已出现，但左侧边栏未出现。' : ' 工具栏也未出现。')
+        (toolbarFound ? ' 工具栏已出现，但左侧边栏未出现。' : ' 工具栏也未出现。') +
+        `这可能是因为：1) 浏览器崩溃 2) 内存不足（CI runner资源限制） 3) 服务器进程停止。` +
+        `请检查：1) 后端服务器是否仍在运行 2) 前端服务器是否仍在运行 3) CI runner的资源使用情况`
       );
     }
     
@@ -478,12 +535,13 @@ export async function waitForWorkbenchLayout(page: Page): Promise<void> {
     const validity = await checkPageValidity(page);
     if (!validity.isValid) {
       throw new Error(
-        `左侧边栏未渲染或不可见：页面无效。` +
+        `测试中止：浏览器页面已关闭（在检查左侧边栏可见性时）。` +
         `页面已关闭: ${validity.isClosed}。` +
         `页面URL: ${validity.url || '无法获取'}。` +
         `页面标题: ${validity.title || '无法获取'}。` +
         `错误: ${validity.error || '未知错误'}。` +
-        `这可能是因为：1) 页面已关闭 2) 页面处于错误状态`
+        `这可能是因为：1) 浏览器崩溃 2) 内存不足（CI runner资源限制） 3) 服务器进程停止。` +
+        `请检查：1) 后端服务器是否仍在运行 2) 前端服务器是否仍在运行 3) CI runner的资源使用情况`
       );
     }
     
@@ -556,6 +614,15 @@ export async function ensureWorkbenchReady(
   page: Page,
   failedRequests?: string[]
 ): Promise<void> {
+  // 立即检查页面是否仍然打开
+  if (page.isClosed()) {
+    throw new Error(
+      `测试中止：浏览器页面已关闭。` +
+      `这可能是因为：1) 浏览器崩溃 2) 内存不足 3) 服务器进程停止 4) 测试超时。` +
+      `请检查：1) 后端服务器是否仍在运行（curl http://localhost:8000/docs） 2) 前端服务器是否仍在运行（curl http://localhost:3000） 3) CI runner的资源限制（内存/CPU）`
+    );
+  }
+  
   // 如果没有传入failedRequests，创建一个新的数组并注册监听器
   const failedRequestsArray = failedRequests || [];
   if (!failedRequests) {
@@ -649,13 +716,14 @@ export async function ensureWorkbenchReady(
   const validity = await checkPageValidity(page);
   if (!validity.isValid) {
     throw new Error(
-      `无法准备Workbench页面：页面无效。` +
+      `测试中止：浏览器页面已关闭（在准备Workbench页面时）。` +
       `页面已关闭: ${validity.isClosed}。` +
       `页面URL: ${validity.url || '无法获取'}。` +
       `页面标题: ${validity.title || '无法获取'}。` +
       `错误: ${validity.error || '未知错误'}。` +
       `项目数量: ${projectsCount}。` +
-      `这可能是因为：1) 页面已关闭 2) 页面处于错误状态 3) 导航失败`
+      `这可能是因为：1) 浏览器崩溃 2) 内存不足（CI runner资源限制） 3) 后端服务器进程停止 4) 前端服务器进程停止 5) 测试超时。` +
+      `请检查：1) 后端服务器是否仍在运行（curl http://localhost:8000/docs） 2) 前端服务器是否仍在运行（curl http://localhost:3000） 3) CI runner的资源使用情况（内存/CPU）`
     );
   }
   
@@ -691,11 +759,13 @@ export async function ensureWorkbenchReady(
     const validityAfterSelection = await checkPageValidity(page);
     if (!validityAfterSelection.isValid) {
       throw new Error(
-        `无法准备Workbench页面：项目选择后页面无效。` +
+        `测试中止：浏览器页面已关闭（在项目选择后）。` +
         `页面已关闭: ${validityAfterSelection.isClosed}。` +
         `页面URL: ${validityAfterSelection.url || '无法获取'}。` +
         `错误: ${validityAfterSelection.error || '未知错误'}。` +
-        `项目数量: ${projectsCount}。`
+        `项目数量: ${projectsCount}。` +
+        `这可能是因为：1) 浏览器崩溃 2) 内存不足（CI runner资源限制） 3) 服务器进程停止。` +
+        `请检查：1) 后端服务器是否仍在运行 2) 前端服务器是否仍在运行 3) CI runner的资源使用情况`
       );
     }
     
@@ -758,13 +828,14 @@ export async function ensureWorkbenchReady(
     const validity = await checkPageValidity(page);
     if (!validity.isValid) {
       throw new Error(
-        `层级树容器未加载（超时）：页面无效。` +
+        `测试中止：浏览器页面已关闭（在等待层级树容器时）。` +
         `页面已关闭: ${validity.isClosed}。` +
         `页面URL: ${validity.url || '无法获取'}。` +
         `页面标题: ${validity.title || '无法获取'}。` +
         `错误: ${validity.error || '未知错误'}。` +
         `项目数量: ${projectsCount}。` +
-        `请检查：1) 页面是否已关闭 2) 页面是否处于错误状态 3) 导航是否成功`
+        `这可能是因为：1) 浏览器崩溃 2) 内存不足（CI runner资源限制） 3) 后端服务器进程停止 4) 前端服务器进程停止 5) 测试超时。` +
+        `请检查：1) 后端服务器是否仍在运行（curl http://localhost:8000/docs） 2) 前端服务器是否仍在运行（curl http://localhost:3000） 3) CI runner的资源使用情况（内存/CPU） 4) 测试运行时间是否超过限制`
       );
     }
     
