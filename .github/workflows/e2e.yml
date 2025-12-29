@@ -339,7 +339,35 @@ jobs:
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:3000
           PLAYWRIGHT_API_BASE_URL: http://localhost:8000
-        run: npm run test:e2e
+        run: npx playwright test --workers=1
+      
+      - name: Check system resources after E2E tests
+        if: always()
+        run: |
+          echo "=== System Resources After E2E Tests ==="
+          echo "Memory usage:"
+          free -h || true
+          echo "Disk usage:"
+          df -h || true
+          echo "Process count:"
+          ps aux | wc -l || true
+          echo "Checking server processes:"
+          if [ -f /tmp/backend.pid ]; then
+            BACKEND_PID=$(cat /tmp/backend.pid)
+            if ps -p $BACKEND_PID > /dev/null 2>&1; then
+              echo "✓ Backend server is still running (PID: $BACKEND_PID)"
+            else
+              echo "⚠ Backend server process (PID: $BACKEND_PID) is not running"
+            fi
+          fi
+          if [ -f /tmp/frontend.pid ]; then
+            FRONTEND_PID=$(cat /tmp/frontend.pid)
+            if ps -p $FRONTEND_PID > /dev/null 2>&1; then
+              echo "✓ Frontend server is still running (PID: $FRONTEND_PID)"
+            else
+              echo "⚠ Frontend server process (PID: $FRONTEND_PID) is not running"
+            fi
+          fi
       
       - name: Upload test results
         if: always()
