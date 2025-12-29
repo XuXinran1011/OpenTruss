@@ -4,15 +4,18 @@
 
 import { test, expect } from '@playwright/test';
 import { loginAsEditor } from './helpers/auth';
-import { ensureWorkbenchReady } from './helpers/workbench';
+import { ensureWorkbenchReady, setupResponseListeners } from './helpers/workbench';
 
 test.describe('Trace Mode', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsEditor(page);
+    
+    // 在导航前设置响应监听器，确保能捕获所有API请求
+    const { failedRequests } = setupResponseListeners(page);
     await page.goto('/workbench');
     
     // 使用统一的辅助函数确保Workbench页面已准备好
-    await ensureWorkbenchReady(page);
+    await ensureWorkbenchReady(page, failedRequests);
     
     // 切换到Trace Mode
     await page.waitForSelector('[data-testid="trace-mode"]', { timeout: 15000 });

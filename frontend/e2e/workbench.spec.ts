@@ -4,15 +4,19 @@
 
 import { test, expect } from '@playwright/test';
 import { loginAsEditor } from './helpers/auth';
-import { ensureWorkbenchReady } from './helpers/workbench';
+import { ensureWorkbenchReady, setupResponseListeners } from './helpers/workbench';
 
 test.describe('Workbench基础功能', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsEditor(page);
+    
+    // 在导航前设置响应监听器，确保能捕获所有API请求
+    // 注意：loginAsEditor已经导航到/workbench，但再次调用goto可能触发新的API请求
+    const { failedRequests } = setupResponseListeners(page);
     await page.goto('/workbench');
     
-    // 使用统一的辅助函数确保Workbench页面已准备好
-    await ensureWorkbenchReady(page);
+    // 使用统一的辅助函数确保Workbench页面已准备好，传入已设置的监听器
+    await ensureWorkbenchReady(page, failedRequests);
   });
 
   test('应该正确加载Workbench页面', async ({ page }) => {

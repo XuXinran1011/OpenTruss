@@ -71,19 +71,48 @@ export async function waitForWorkbenchLayout(page: Page): Promise<void> {
 }
 
 /**
- * 确保Workbench页面已准备好
- * 包括：检查项目数据、选择项目（如果需要）、等待WorkbenchLayout渲染、等待层级树容器出现
+ * 设置响应监听器（用于在导航前注册，确保能捕获所有API请求）
+ * 必须在page.goto()之前调用
+ * 
+ * @returns 包含failedRequests数组的对象，用于传递给ensureWorkbenchReady
  */
-export async function ensureWorkbenchReady(page: Page): Promise<void> {
-  // 收集失败的API请求
+export function setupResponseListeners(page: Page): { failedRequests: string[] } {
   const failedRequests: string[] = [];
   page.on('response', (response) => {
     if (!response.ok() && response.url().includes('/api/v1/hierarchy/')) {
       failedRequests.push(`${response.url()}: ${response.status()} ${response.statusText()}`);
     }
   });
+  return { failedRequests };
+}
+
+/**
+ * 确保Workbench页面已准备好
+ * 包括：检查项目数据、选择项目（如果需要）、等待WorkbenchLayout渲染、等待层级树容器出现
+ * 
+ * 注意：如果需要在导航前捕获API请求，请先调用setupResponseListeners(page)并在page.goto()之前，
+ * 然后将返回的failedRequests传入此函数
+ * 
+ * @param page Playwright Page对象
+ * @param failedRequests 可选的失败请求数组（如果已在导航前通过setupResponseListeners设置监听器）
+ */
+export async function ensureWorkbenchReady(
+  page: Page,
+  failedRequests?: string[]
+): Promise<void> {
+  // 如果没有传入failedRequests，创建一个新的数组并注册监听器
+  const failedRequestsArray = failedRequests || [];
+  if (!failedRequests) {
+    page.on('response', (response) => {
+      if (!response.ok() && response.url().includes('/api/v1/hierarchy/')) {
+        failedRequestsArray.push(`${response.url()}: ${response.status()} ${response.statusText()}`);
+      }
+    });
+  }
   
   // 等待项目列表API请求完成并检查响应
+  // 注意：如果页面已经在workbench且API请求已完成，waitForResponse可能会超时
+  // 因此我们需要同时检查是否已经有响应数据
   const projectsResponse = await page.waitForResponse(
     (response) => response.url().includes('/api/v1/hierarchy/projects') && 
                  (response.url().endsWith('/projects') || response.url().includes('/projects?')),
@@ -109,7 +138,32 @@ export async function ensureWorkbenchReady(page: Page): Promise<void> {
       console.log(`✓ 项目列表API响应成功，找到 ${projectsCount} 个项目`);
     }
   } else {
-    console.warn('警告：无法获取项目列表API响应');
+    // 如果waitForResponse超时，可能是API请求在监听器注册之前就已完成
+    // 尝试直接从页面上下文中获取项目数据
+    console.warn('警告：无法通过waitForResponse获取项目列表API响应，尝试直接从页面获取数据...');
+    
+    try {
+      const projectsData = await page.evaluate(async () => {
+        try {
+          const response = await fetch('/api/v1/hierarchy/projects?page=1&page_size=10');
+          if (response.ok) {
+            return await response.json();
+          }
+          return null;
+        } catch (e) {
+          return null;
+        }
+      });
+      
+      if (projectsData?.data?.items) {
+        projectsCount = projectsData.data.items.length;
+        if (projectsCount > 0) {
+          console.log(`✓ 通过直接请求获取项目列表，找到 ${projectsCount} 个项目`);
+        }
+      }
+    } catch (e) {
+      console.warn('无法直接从页面获取项目数据:', e);
+    }
   }
   
   // 等待页面加载完成
@@ -133,7 +187,7 @@ export async function ensureWorkbenchReady(page: Page): Promise<void> {
     if (treeContent?.includes('加载失败') || treeContent?.includes('暂无数据')) {
       // 记录诊断信息
       const errorText = treeContent;
-      const apiErrors = failedRequests.length > 0 ? failedRequests.join(', ') : '无';
+      const apiErrors = failedRequestsArray.length > 0 ? failedRequestsArray.join(', ') : '无';
       console.error(`层级树状态异常: ${errorText}, API错误: ${apiErrors}`);
       
       // 不抛出错误，让测试继续执行，测试用例本身会验证层级树是否可见
@@ -156,8 +210,8 @@ export async function ensureWorkbenchReady(page: Page): Promise<void> {
     console.error('页面内容包含"选择项目":', hasProjectSelection);
     console.error('页面内容包含"加载项目列表":', hasLoading);
     console.error('左侧边栏内容:', asideContent?.substring(0, 200) || '未找到左侧边栏');
-    if (failedRequests.length > 0) {
-      console.error('失败的API请求:', failedRequests);
+    if (failedRequestsArray.length > 0) {
+      console.error('失败的API请求:', failedRequestsArray);
     }
     
     // 尝试获取项目列表API的响应
@@ -177,7 +231,7 @@ export async function ensureWorkbenchReady(page: Page): Promise<void> {
       `项目数量: ${projectsCount}。` +
       (projectSelectionVisible ? ' 页面显示"选择项目"界面。' : '') +
       (hasLoading ? ' 页面可能仍在加载。' : '') +
-      (failedRequests.length > 0 ? `失败的API请求: ${failedRequests.join(', ')}。` : '') +
+      (failedRequestsArray.length > 0 ? `失败的API请求: ${failedRequestsArray.join(', ')}。` : '') +
       `请检查：1) API是否正常响应 2) 测试环境是否有项目数据 3) 网络请求是否完成 4) projectId是否正确设置`
     );
   }
