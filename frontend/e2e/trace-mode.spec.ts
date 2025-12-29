@@ -4,22 +4,18 @@
 
 import { test, expect } from '@playwright/test';
 import { loginAsEditor } from './helpers/auth';
+import { ensureWorkbenchReady } from './helpers/workbench';
 
 test.describe('Trace Mode', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsEditor(page);
     await page.goto('/workbench');
     
-    // 等待项目选择完成（如果显示项目选择界面，等待其消失）
-    await page.waitForLoadState('networkidle', { timeout: 15000 });
-    
-    // 等待WorkbenchLayout渲染完成 - 检查是否有工具栏区域
-    await page.waitForSelector('div.h-12.bg-white.border-b, [data-testid="trace-mode"], aside', { timeout: 15000 }).catch(() => {});
-    
-    // 等待TopToolbar中的模式按钮出现 - 优先使用data-testid
-    await page.waitForSelector('[data-testid="trace-mode"]', { timeout: 15000 });
+    // 使用统一的辅助函数确保Workbench页面已准备好
+    await ensureWorkbenchReady(page);
     
     // 切换到Trace Mode
+    await page.waitForSelector('[data-testid="trace-mode"]', { timeout: 15000 });
     const traceButton = page.locator('[data-testid="trace-mode"]').first();
     await traceButton.waitFor({ state: 'visible', timeout: 10000 });
     await traceButton.click();

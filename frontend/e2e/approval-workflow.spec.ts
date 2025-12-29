@@ -4,12 +4,15 @@
 
 import { test, expect } from '@playwright/test';
 import { loginAsEditor, loginAsApprover } from './helpers/auth';
+import { ensureWorkbenchReady } from './helpers/workbench';
 
 test.describe('审批工作流', () => {
   test('Editor用户应该能够提交检验批审批', async ({ page }) => {
     await loginAsEditor(page);
     await page.goto('/workbench');
-    await page.waitForTimeout(2000);
+    
+    // 使用统一的辅助函数确保Workbench页面已准备好
+    await ensureWorkbenchReady(page);
     
     // 选择一个检验批
     const lotNode = page.locator('.tree-node:has-text("检验批"), .tree-node[data-type="lot"]').first();
@@ -34,7 +37,9 @@ test.describe('审批工作流', () => {
   test('Approver用户应该能够查看待审批检验批', async ({ page }) => {
     await loginAsApprover(page);
     await page.goto('/workbench');
-    await page.waitForTimeout(2000);
+    
+    // 使用统一的辅助函数确保Workbench页面已准备好
+    await ensureWorkbenchReady(page);
     
     // Approver用户应该能看到已提交的检验批
     // 验证层级树中有检验批节点
@@ -48,7 +53,9 @@ test.describe('审批工作流', () => {
   test('Approver用户应该能够审批通过检验批', async ({ page }) => {
     await loginAsApprover(page);
     await page.goto('/workbench');
-    await page.waitForTimeout(2000);
+    
+    // 使用统一的辅助函数确保Workbench页面已准备好
+    await ensureWorkbenchReady(page);
     
     // 选择已提交的检验批
     const lotNode = page.locator('.tree-node:has-text("检验批"), .tree-node[data-type="lot"]').first();
@@ -79,7 +86,9 @@ test.describe('审批工作流', () => {
   test('Approver用户应该能够驳回检验批', async ({ page }) => {
     await loginAsApprover(page);
     await page.goto('/workbench');
-    await page.waitForTimeout(2000);
+    
+    // 使用统一的辅助函数确保Workbench页面已准备好
+    await ensureWorkbenchReady(page);
     
     // 选择已提交的检验批
     const lotNode = page.locator('.tree-node:has-text("检验批"), .tree-node[data-type="lot"]').first();
@@ -117,7 +126,9 @@ test.describe('审批工作流', () => {
   test('应该能够查看审批历史', async ({ page }) => {
     await loginAsApprover(page);
     await page.goto('/workbench');
-    await page.waitForTimeout(2000);
+    
+    // 使用统一的辅助函数确保Workbench页面已准备好
+    await ensureWorkbenchReady(page);
     
     // 选择检验批
     const lotNode = page.locator('.tree-node:has-text("检验批"), .tree-node[data-type="lot"]').first();
@@ -148,7 +159,9 @@ test.describe('审批工作流', () => {
   test('审批后应该更新检验批状态', async ({ page }) => {
     await loginAsApprover(page);
     await page.goto('/workbench');
-    await page.waitForTimeout(2000);
+    
+    // 使用统一的辅助函数确保Workbench页面已准备好
+    await ensureWorkbenchReady(page);
     
     // 选择一个已提交的检验批并审批
     const lotNode = page.locator('.tree-node:has-text("检验批"), .tree-node[data-type="lot"]').first();

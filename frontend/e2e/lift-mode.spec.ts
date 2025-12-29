@@ -4,17 +4,15 @@
 
 import { test, expect } from '@playwright/test';
 import { loginAsEditor } from './helpers/auth';
+import { ensureWorkbenchReady } from './helpers/workbench';
 
 test.describe('Lift Mode', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsEditor(page);
     await page.goto('/workbench');
     
-    // 等待项目选择完成和页面加载
-    await page.waitForLoadState('networkidle', { timeout: 15000 });
-    
-    // 等待WorkbenchLayout渲染 - 检查工具栏区域
-    await page.waitForSelector('div.h-12.bg-white.border-b, [data-testid="lift-mode"]', { timeout: 15000 }).catch(() => {});
+    // 使用统一的辅助函数确保Workbench页面已准备好
+    await ensureWorkbenchReady(page);
     
     // 切换到Lift Mode - 使用data-testid
     await page.waitForSelector('[data-testid="lift-mode"]', { timeout: 15000 });

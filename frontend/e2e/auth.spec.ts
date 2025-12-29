@@ -72,6 +72,9 @@ test.describe('认证流程', () => {
     await loginAsEditor(page);
     await expect(page).toHaveURL('/workbench');
     
+    // 等待页面加载完成，确保登出按钮可用
+    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+    
     // 登出
     await logout(page);
     
