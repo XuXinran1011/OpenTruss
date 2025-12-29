@@ -55,15 +55,6 @@ test.describe('Workbench基础功能', () => {
     // 如果显示项目选择界面（没有项目数据的情况），前面的API检查应该已经失败了
     await page.waitForSelector('aside, div.h-12.bg-white.border-b', { timeout: 15000 });
     
-    // 等待层级树API请求完成（项目已自动选择）
-    await page.waitForResponse(
-      (response) => response.url().includes('/api/v1/hierarchy/projects/') && 
-                   response.url().includes('/hierarchy'),
-      { timeout: 20000 }
-    ).catch(() => {
-      console.warn('层级树API请求未完成或超时');
-    });
-    
     // 确保左侧边栏已渲染
     const asideElement = page.locator('aside').first();
     const isAsideVisible = await asideElement.isVisible({ timeout: 10000 }).catch(() => false);
@@ -97,18 +88,6 @@ test.describe('Workbench基础功能', () => {
         const errorText = treeContent;
         const apiErrors = failedRequests.length > 0 ? failedRequests.join(', ') : '无';
         console.error(`层级树状态异常: ${errorText}, API错误: ${apiErrors}`);
-        
-        // 获取层级树API响应状态用于诊断
-        const hierarchyApiResponse = await page.waitForResponse(
-          (response) => response.url().includes('/api/v1/hierarchy/projects/') && 
-                       response.url().includes('/hierarchy'),
-          { timeout: 5000 }
-        ).catch(() => null);
-        
-        if (hierarchyApiResponse) {
-          const hierarchyData = await hierarchyApiResponse.json().catch(() => null);
-          console.error('层级树API响应:', hierarchyData ? JSON.stringify(hierarchyData).substring(0, 200) : '无法解析响应');
-        }
         
         // 不抛出错误，让测试继续执行，测试用例本身会验证层级树是否可见
       }
