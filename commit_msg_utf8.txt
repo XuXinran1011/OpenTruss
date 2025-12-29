@@ -1,0 +1,25 @@
+修复E2E测试失败问题
+
+- 增强CI工作流的数据验证
+  * 添加create_demo_data脚本的退出码检查
+  * 增强API验证步骤的错误诊断和重试逻辑
+
+- 创建统一的测试辅助函数（frontend/e2e/helpers/workbench.ts）
+  * ensureWorkbenchReady: 确保Workbench页面完全准备好
+  * selectProjectIfNeeded: 自动选择项目（如果需要）
+  * waitForWorkbenchLayout: 等待WorkbenchLayout渲染
+
+- 统一所有测试文件的等待逻辑
+  * workbench.spec.ts: 使用ensureWorkbenchReady
+  * classify-mode.spec.ts: 使用ensureWorkbenchReady
+  * lift-mode.spec.ts: 使用ensureWorkbenchReady
+  * trace-mode.spec.ts: 使用ensureWorkbenchReady
+  * approval-workflow.spec.ts: 所有6个测试使用ensureWorkbenchReady
+  * auth.spec.ts: 优化登出测试的等待逻辑
+
+- 改进错误诊断
+  * 详细的页面状态信息
+  * API请求失败检测
+  * 项目数据验证
+
+这些改进解决了测试中超时和等待元素失败的问题，提供了更可靠的测试基础和更好的错误诊断。
