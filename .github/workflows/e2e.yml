@@ -67,9 +67,43 @@ jobs:
           MEMGRAPH_HOST: localhost
           MEMGRAPH_PORT: 7687
         run: |
-          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-          sleep 10
-          curl -f http://localhost:8000/docs || exit 1
+          echo "Starting backend server..."
+          # 启动服务器并将输出重定向到日志文件，同时保持进程运行
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 > /tmp/backend.log 2>&1 &
+          BACKEND_PID=$!
+          echo "Backend server started with PID: $BACKEND_PID"
+          echo $BACKEND_PID > /tmp/backend.pid
+          
+          # 等待服务器就绪（最多30秒）
+          echo "Waiting for backend server to be ready..."
+          BACKEND_READY=false
+          for i in {1..30}; do
+            if curl -f -s http://localhost:8000/docs > /dev/null 2>&1; then
+              echo "✓ Backend server is ready (attempt $i/30)"
+              BACKEND_READY=true
+              break
+            fi
+            # 检查进程是否仍在运行
+            if ! ps -p $BACKEND_PID > /dev/null 2>&1; then
+              echo "❌ Error: Backend server process (PID: $BACKEND_PID) has stopped"
+              echo "Backend server logs:"
+              cat /tmp/backend.log || true
+              exit 1
+            fi
+            echo "Waiting for backend server... ($i/30)"
+            sleep 1
+          done
+          
+          if [ "$BACKEND_READY" = false ]; then
+            echo "❌ Error: Backend server did not become ready within 30 seconds"
+            echo "Backend server logs:"
+            cat /tmp/backend.log || true
+            echo "Checking if process is still running..."
+            ps -p $BACKEND_PID || echo "Process is not running"
+            exit 1
+          fi
+          
+          echo "✓ Backend server is ready and running (PID: $BACKEND_PID)"
       
       - name: Verify test data via API
         working-directory: ./backend
@@ -190,13 +224,103 @@ jobs:
           NEXT_PUBLIC_API_URL: http://localhost:8000
           PORT: 3000
         run: |
-          npm start &
-          sleep 15
-          curl -f http://localhost:3000 || exit 1
+          echo "Starting frontend server..."
+          # 启动服务器并将输出重定向到日志文件，同时保持进程运行
+          npm start > /tmp/frontend.log 2>&1 &
+          FRONTEND_PID=$!
+          echo "Frontend server started with PID: $FRONTEND_PID"
+          echo $FRONTEND_PID > /tmp/frontend.pid
+          
+          # 等待服务器就绪（最多30秒）
+          echo "Waiting for frontend server to be ready..."
+          FRONTEND_READY=false
+          for i in {1..30}; do
+            if curl -f -s http://localhost:3000 > /dev/null 2>&1; then
+              echo "✓ Frontend server is ready (attempt $i/30)"
+              FRONTEND_READY=true
+              break
+            fi
+            # 检查进程是否仍在运行
+            if ! ps -p $FRONTEND_PID > /dev/null 2>&1; then
+              echo "❌ Error: Frontend server process (PID: $FRONTEND_PID) has stopped"
+              echo "Frontend server logs:"
+              cat /tmp/frontend.log || true
+              exit 1
+            fi
+            echo "Waiting for frontend server... ($i/30)"
+            sleep 1
+          done
+          
+          if [ "$FRONTEND_READY" = false ]; then
+            echo "❌ Error: Frontend server did not become ready within 30 seconds"
+            echo "Frontend server logs:"
+            cat /tmp/frontend.log || true
+            echo "Checking if process is still running..."
+            ps -p $FRONTEND_PID || echo "Process is not running"
+            exit 1
+          fi
+          
+          echo "✓ Frontend server is ready and running (PID: $FRONTEND_PID)"
       
       - name: Install Playwright
         working-directory: ./frontend
         run: npx playwright install --with-deps
+      
+      - name: Verify servers are still running before E2E tests
+        run: |
+          echo "Verifying servers are still running before E2E tests..."
+          
+          # 检查后端服务器
+          if [ -f /tmp/backend.pid ]; then
+            BACKEND_PID=$(cat /tmp/backend.pid)
+            if ps -p $BACKEND_PID > /dev/null 2>&1; then
+              echo "✓ Backend server is still running (PID: $BACKEND_PID)"
+              # 验证后端服务器响应
+              if curl -f -s http://localhost:8000/docs > /dev/null 2>&1; then
+                echo "✓ Backend server is responding correctly"
+              else
+                echo "❌ Error: Backend server process is running but not responding"
+                echo "Backend server logs (last 50 lines):"
+                tail -n 50 /tmp/backend.log || true
+                exit 1
+              fi
+            else
+              echo "❌ Error: Backend server process (PID: $BACKEND_PID) is not running"
+              echo "Backend server logs:"
+              cat /tmp/backend.log || true
+              exit 1
+            fi
+          else
+            echo "❌ Error: Backend PID file not found"
+            exit 1
+          fi
+          
+          # 检查前端服务器
+          if [ -f /tmp/frontend.pid ]; then
+            FRONTEND_PID=$(cat /tmp/frontend.pid)
+            if ps -p $FRONTEND_PID > /dev/null 2>&1; then
+              echo "✓ Frontend server is still running (PID: $FRONTEND_PID)"
+              # 验证前端服务器响应
+              if curl -f -s http://localhost:3000 > /dev/null 2>&1; then
+                echo "✓ Frontend server is responding correctly"
+              else
+                echo "❌ Error: Frontend server process is running but not responding"
+                echo "Frontend server logs (last 50 lines):"
+                tail -n 50 /tmp/frontend.log || true
+                exit 1
+              fi
+            else
+              echo "❌ Error: Frontend server process (PID: $FRONTEND_PID) is not running"
+              echo "Frontend server logs:"
+              cat /tmp/frontend.log || true
+              exit 1
+            fi
+          else
+            echo "❌ Error: Frontend PID file not found"
+            exit 1
+          fi
+          
+          echo "✓ All servers are running and responding correctly"
       
       - name: Run E2E tests
         working-directory: ./frontend
