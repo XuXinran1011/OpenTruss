@@ -40,8 +40,8 @@ export default defineConfig({
     
     // 截图配置
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
-    trace: 'retain-on-failure',
+    video: process.env.CI ? 'off' : 'retain-on-failure',
+    trace: process.env.CI ? 'off' : 'retain-on-failure',
     
     // 请求超时
     actionTimeout: 10000,
