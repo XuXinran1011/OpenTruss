@@ -5,16 +5,101 @@
 import { Page, expect } from '@playwright/test';
 
 /**
+ * 页面状态信息
+ */
+interface PageState {
+  isLoading: boolean;
+  isProjectSelection: boolean;
+  isWorkbenchLayout: boolean;
+  projectId: string | null;
+  pageContent: string;
+  pageUrl: string;
+}
+
+/**
+ * 获取页面当前状态
+ * 用于诊断页面处于哪种状态（加载中、选择项目、WorkbenchLayout）
+ */
+async function getPageState(page: Page): Promise<PageState> {
+  const pageContent = await page.content().catch(() => '无法获取页面内容');
+  const pageUrl = page.url();
+  
+  // 检查是否显示"加载项目列表..."
+  const isLoadingText = page.locator('text=/加载项目列表/i').first();
+  const isLoading = await isLoadingText.isVisible({ timeout: 2000 }).catch(() => false);
+  
+  // 检查是否显示"选择项目"界面
+  const projectSelectionTitle = page.locator('text=/选择项目/i').first();
+  const isProjectSelection = await projectSelectionTitle.isVisible({ timeout: 2000 }).catch(() => false);
+  
+  // 检查是否显示WorkbenchLayout（工具栏或aside是否存在）
+  const toolbar = page.locator('div.h-12.bg-white.border-b, div.relative.z-50.h-12.bg-white.border-b').first();
+  const aside = page.locator('aside').first();
+  const hasToolbar = await toolbar.isVisible({ timeout: 1000 }).catch(() => false);
+  const hasAside = await aside.isVisible({ timeout: 1000 }).catch(() => false);
+  const isWorkbenchLayout = hasToolbar || hasAside;
+  
+  // 尝试从页面上下文获取projectId（如果可能）
+  let projectId: string | null = null;
+  try {
+    projectId = await page.evaluate(() => {
+      // 尝试从React DevTools或全局状态获取projectId
+      // 如果无法获取，返回null
+      try {
+        // 检查是否有项目选择按钮被点击（通过检查按钮的状态）
+        // 或者通过检查WorkbenchLayout是否渲染来判断projectId是否存在
+        return null; // 暂时无法直接从页面获取projectId
+      } catch (e) {
+        return null;
+      }
+    });
+  } catch (e) {
+    // 如果无法获取projectId，保持为null
+  }
+  
+  return {
+    isLoading,
+    isProjectSelection,
+    isWorkbenchLayout,
+    projectId,
+    pageContent,
+    pageUrl,
+  };
+}
+
+/**
  * 选择第一个项目（如果需要）
  * 如果页面显示"选择项目"界面，自动选择第一个项目
  */
 export async function selectProjectIfNeeded(page: Page): Promise<boolean> {
+  // 先等待"加载项目列表..."消失
+  const loadingText = page.locator('text=/加载项目列表/i').first();
+  const isLoading = await loadingText.isVisible({ timeout: 5000 }).catch(() => false);
+  
+  if (isLoading) {
+    console.log('检测到"加载项目列表..."状态，等待加载完成...');
+    try {
+      await loadingText.waitFor({ state: 'hidden', timeout: 15000 });
+      console.log('✓ "加载项目列表..."状态已消失');
+    } catch (e) {
+      console.warn('警告："加载项目列表..."状态超时，继续尝试检查项目选择界面');
+    }
+  }
+  
   // 检查是否显示项目选择界面
   const projectSelectionTitle = page.locator('text=/选择项目/i').first();
   const isProjectSelectionVisible = await projectSelectionTitle.isVisible({ timeout: 5000 }).catch(() => false);
   
   if (!isProjectSelectionVisible) {
-    return false; // 不需要选择项目
+    // 如果不在显示"选择项目"界面，检查是否已经显示WorkbenchLayout
+    const toolbar = page.locator('div.h-12.bg-white.border-b, div.relative.z-50.h-12.bg-white.border-b').first();
+    const hasToolbar = await toolbar.isVisible({ timeout: 2000 }).catch(() => false);
+    if (hasToolbar) {
+      console.log('✓ WorkbenchLayout已渲染，不需要选择项目');
+      return false; // 不需要选择项目
+    }
+    // 如果既没有显示"选择项目"界面，也没有显示WorkbenchLayout，返回false
+    return false;
   }
   
   console.log('检测到项目选择界面，准备选择项目...');
@@ -51,10 +136,17 @@ export async function selectProjectIfNeeded(page: Page): Promise<boolean> {
     // 等待项目选择后的页面更新
     await page.waitForLoadState('networkidle', { timeout: 15000 });
     
-    // 等待"选择项目"界面消失，确认WorkbenchLayout开始渲染
-    // 检查工具栏元素是否出现（这是WorkbenchLayout渲染的第一个可见元素）
+    // 等待React状态更新：检查"选择项目"界面是否消失
     try {
-      await page.waitForSelector('div.h-12.bg-white.border-b', { timeout: 10000 });
+      await projectSelectionTitle.waitFor({ state: 'hidden', timeout: 10000 });
+      console.log('✓ "选择项目"界面已消失，React状态已更新');
+    } catch (e) {
+      console.warn('警告："选择项目"界面未在预期时间内消失');
+    }
+    
+    // 等待WorkbenchLayout开始渲染：检查工具栏元素是否出现
+    try {
+      await page.waitForSelector('div.h-12.bg-white.border-b, div.relative.z-50.h-12.bg-white.border-b', { timeout: 10000 });
       console.log('✓ 项目已选择，WorkbenchLayout开始渲染');
       return true;
     } catch (e) {
@@ -81,42 +173,77 @@ export async function selectProjectIfNeeded(page: Page): Promise<boolean> {
 export async function waitForWorkbenchLayout(page: Page): Promise<void> {
   // 首先等待工具栏元素出现（这是WorkbenchLayout渲染的第一个可见元素）
   // 工具栏会在WorkbenchLayout渲染时立即出现，比aside元素更早
-  try {
-    await page.waitForSelector('div.h-12.bg-white.border-b', { timeout: 15000 });
-    console.log('✓ 工具栏已出现');
-  } catch (e) {
-    // 如果工具栏没有出现，检查是否仍然显示"选择项目"界面
-    const projectSelectionTitle = page.locator('text=/选择项目/i').first();
-    const isProjectSelectionVisible = await projectSelectionTitle.isVisible({ timeout: 2000 }).catch(() => false);
+  // 使用多个备选选择器以提高匹配成功率
+  const toolbarSelectors = [
+    'div.relative.z-50.h-12.bg-white.border-b', // 精确选择器（包含所有类名）
+    'div.h-12.bg-white.border-b', // 简化选择器（部分类名）
+  ];
+  
+  let toolbarFound = false;
+  for (const selector of toolbarSelectors) {
+    try {
+      await page.waitForSelector(selector, { timeout: 15000 });
+      console.log(`✓ 工具栏已出现（使用选择器: ${selector}）`);
+      toolbarFound = true;
+      break;
+    } catch (e) {
+      // 尝试下一个选择器
+      continue;
+    }
+  }
+  
+  if (!toolbarFound) {
+    // 如果工具栏没有出现，获取页面状态用于诊断
+    const pageState = await getPageState(page);
     
-    if (isProjectSelectionVisible) {
-      const pageContent = await page.content().catch(() => '无法获取页面内容');
+    if (pageState.isProjectSelection) {
       throw new Error(
         `WorkbenchLayout未渲染：页面仍然显示"选择项目"界面。` +
         `这可能是因为：1) 项目选择失败 2) React状态更新延迟 3) 前端代码错误。` +
-        `页面内容预览: ${pageContent.substring(0, 500)}`
+        `页面URL: ${pageState.pageUrl}。` +
+        `页面内容预览: ${pageState.pageContent.substring(0, 500)}`
       );
     }
     
-    // 如果工具栏超时且不是"选择项目"界面，继续尝试等待aside元素
+    if (pageState.isLoading) {
+      throw new Error(
+        `WorkbenchLayout未渲染：页面仍然显示"加载项目列表..."状态。` +
+        `这可能是因为：1) API请求超时 2) 网络问题 3) 前端代码错误。` +
+        `页面URL: ${pageState.pageUrl}。`
+      );
+    }
+    
+    // 如果工具栏超时且不是"选择项目"界面或"加载中"状态，继续尝试等待aside元素
     console.warn('警告：工具栏未在预期时间内出现，尝试等待aside元素...');
+    console.warn(`页面状态: isLoading=${pageState.isLoading}, isProjectSelection=${pageState.isProjectSelection}, isWorkbenchLayout=${pageState.isWorkbenchLayout}`);
+    console.warn(`页面URL: ${pageState.pageUrl}`);
   }
   
   // 等待左侧边栏（aside）元素出现
   try {
     await page.waitForSelector('aside', { timeout: 15000 });
   } catch (e) {
-    const pageContent = await page.content().catch(() => '无法获取页面内容');
-    const hasProjectSelection = pageContent.includes('选择项目');
-    const hasLoading = pageContent.includes('加载项目列表');
-    const hasToolbar = pageContent.includes('h-12 bg-white border-b');
+    // 如果aside超时，获取详细的页面状态用于诊断
+    const pageState = await getPageState(page);
     
-    throw new Error(
-      `左侧边栏（aside）未渲染。` +
-      (hasProjectSelection ? ' 页面显示"选择项目"界面。' : '') +
-      (hasLoading ? ' 页面可能仍在加载。' : '') +
-      (hasToolbar ? ' 工具栏已出现，但左侧边栏未出现。' : ' 工具栏也未出现。')
-    );
+    const errorParts: string[] = ['左侧边栏（aside）未渲染。'];
+    
+    if (pageState.isProjectSelection) {
+      errorParts.push('页面显示"选择项目"界面。');
+    }
+    if (pageState.isLoading) {
+      errorParts.push('页面可能仍在加载。');
+    }
+    if (toolbarFound) {
+      errorParts.push('工具栏已出现，但左侧边栏未出现。');
+    } else {
+      errorParts.push('工具栏也未出现。');
+    }
+    
+    errorParts.push(`页面URL: ${pageState.pageUrl}。`);
+    errorParts.push(`页面内容预览: ${pageState.pageContent.substring(0, 300)}。`);
+    
+    throw new Error(errorParts.join(' '));
   }
   
   // 确保左侧边栏已渲染且可见
@@ -124,16 +251,21 @@ export async function waitForWorkbenchLayout(page: Page): Promise<void> {
   const isAsideVisible = await asideElement.isVisible({ timeout: 10000 }).catch(() => false);
   
   if (!isAsideVisible) {
-    const pageContent = await page.content().catch(() => '无法获取页面内容');
-    const hasProjectSelection = pageContent.includes('选择项目');
-    const hasLoading = pageContent.includes('加载项目列表');
+    const pageState = await getPageState(page);
     
-    throw new Error(
-      `左侧边栏未渲染或不可见。` +
-      (hasProjectSelection ? ' 页面显示"选择项目"界面。' : '') +
-      (hasLoading ? ' 页面可能仍在加载。' : '') +
-      ` 这可能是因为：1) 左侧边栏被折叠 2) CSS样式问题 3) 渲染时序问题`
-    );
+    const errorParts: string[] = ['左侧边栏未渲染或不可见。'];
+    
+    if (pageState.isProjectSelection) {
+      errorParts.push('页面显示"选择项目"界面。');
+    }
+    if (pageState.isLoading) {
+      errorParts.push('页面可能仍在加载。');
+    }
+    
+    errorParts.push('这可能是因为：1) 左侧边栏被折叠 2) CSS样式问题 3) 渲染时序问题。');
+    errorParts.push(`页面URL: ${pageState.pageUrl}。`);
+    
+    throw new Error(errorParts.join(' '));
   }
   
   console.log('✓ WorkbenchLayout已渲染，左侧边栏已出现');
@@ -238,36 +370,43 @@ export async function ensureWorkbenchReady(
   // 等待页面加载完成
   await page.waitForLoadState('networkidle', { timeout: 15000 });
   
-  // 选择项目（如果需要）
-  const projectSelected = await selectProjectIfNeeded(page);
-  
-  // 如果尝试选择了项目，等待"选择项目"界面消失
-  if (projectSelected) {
-    console.log('等待"选择项目"界面消失...');
+  // 先等待"加载项目列表..."状态消失
+  const loadingText = page.locator('text=/加载项目列表/i').first();
+  const isLoading = await loadingText.isVisible({ timeout: 5000 }).catch(() => false);
+  if (isLoading) {
+    console.log('检测到"加载项目列表..."状态，等待加载完成...');
     try {
-      const projectSelectionTitle = page.locator('text=/选择项目/i').first();
-      await projectSelectionTitle.waitFor({ state: 'hidden', timeout: 10000 });
-      console.log('✓ "选择项目"界面已消失');
+      await loadingText.waitFor({ state: 'hidden', timeout: 15000 });
+      console.log('✓ "加载项目列表..."状态已消失');
     } catch (e) {
-      // 如果"选择项目"界面仍然显示，记录警告但继续执行
-      const stillVisible = await page.locator('text=/选择项目/i').first().isVisible({ timeout: 2000 }).catch(() => false);
-      if (stillVisible) {
-        console.warn('警告："选择项目"界面仍然显示，但继续尝试等待WorkbenchLayout渲染');
-      }
+      console.warn('警告："加载项目列表..."状态超时，继续执行');
     }
   }
   
-  // 在等待WorkbenchLayout之前，先检查是否仍然显示"选择项目"界面
-  // 如果显示，说明项目选择失败或React状态更新延迟
-  const projectSelectionTitle = page.locator('text=/选择项目/i').first();
-  const isProjectSelectionVisible = await projectSelectionTitle.isVisible({ timeout: 2000 }).catch(() => false);
+  // 获取页面状态
+  let pageState = await getPageState(page);
+  console.log(`页面状态: isLoading=${pageState.isLoading}, isProjectSelection=${pageState.isProjectSelection}, isWorkbenchLayout=${pageState.isWorkbenchLayout}`);
   
-  if (isProjectSelectionVisible && projectsCount > 0) {
-    // 如果有项目数据但仍在显示"选择项目"界面，尝试再次选择
-    console.log('检测到"选择项目"界面仍然显示，尝试再次选择项目...');
-    const retrySelected = await selectProjectIfNeeded(page);
-    if (!retrySelected) {
-      console.warn('警告：重试选择项目失败，但继续尝试等待WorkbenchLayout渲染');
+  // 选择项目（如果需要）
+  const projectSelected = await selectProjectIfNeeded(page);
+  
+  // 如果selectProjectIfNeeded返回false，检查是否已经渲染了WorkbenchLayout
+  if (!projectSelected) {
+    pageState = await getPageState(page);
+    if (pageState.isWorkbenchLayout) {
+      console.log('✓ WorkbenchLayout已渲染，跳过项目选择步骤');
+    } else if (pageState.isProjectSelection && projectsCount > 0) {
+      // 如果仍然显示"选择项目"界面，尝试再次选择
+      console.log('检测到"选择项目"界面仍然显示，尝试再次选择项目...');
+      const retrySelected = await selectProjectIfNeeded(page);
+      if (!retrySelected) {
+        console.warn('警告：重试选择项目失败，但继续尝试等待WorkbenchLayout渲染');
+      }
+    } else if (!pageState.isProjectSelection && !pageState.isWorkbenchLayout) {
+      // 如果既不是"选择项目"界面，也不是WorkbenchLayout，记录诊断信息
+      console.warn('警告：页面状态未知，既不是"选择项目"界面，也不是WorkbenchLayout');
+      console.warn(`页面URL: ${pageState.pageUrl}`);
+      console.warn(`页面内容预览: ${pageState.pageContent.substring(0, 300)}`);
     }
   }
   
