@@ -322,6 +322,18 @@ jobs:
           
           echo "✓ All servers are running and responding correctly"
       
+      - name: Check system resources before E2E tests
+        run: |
+          echo "=== System Resources Before E2E Tests ==="
+          echo "Memory usage:"
+          free -h || true
+          echo "Disk usage:"
+          df -h || true
+          echo "CPU info:"
+          nproc || true
+          echo "Process count:"
+          ps aux | wc -l || true
+      
       - name: Run E2E tests
         working-directory: ./frontend
         env:
