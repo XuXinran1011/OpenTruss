@@ -1,25 +1,28 @@
-修复E2E测试失败问题
+修复E2E测试页面内容获取失败问题
 
-- 增强CI工作流的数据验证
-  * 添加create_demo_data脚本的退出码检查
-  * 增强API验证步骤的错误诊断和重试逻辑
+- 添加checkPageValidity辅助函数
+  * 检查页面是否已关闭
+  * 检查页面URL是否有效
+  * 检查页面是否处于错误状态
+  * 返回页面状态信息（包括URL、标题、错误信息等）
 
-- 创建统一的测试辅助函数（frontend/e2e/helpers/workbench.ts）
-  * ensureWorkbenchReady: 确保Workbench页面完全准备好
-  * selectProjectIfNeeded: 自动选择项目（如果需要）
-  * waitForWorkbenchLayout: 等待WorkbenchLayout渲染
+- 改进getPageState函数
+  * 在调用page.content()之前先检查页面有效性
+  * 如果page.content()失败，尝试使用page.evaluate()获取页面HTML
+  * 提供更详细的错误信息，包括页面状态、URL、是否关闭等
 
-- 统一所有测试文件的等待逻辑
-  * workbench.spec.ts: 使用ensureWorkbenchReady
-  * classify-mode.spec.ts: 使用ensureWorkbenchReady
-  * lift-mode.spec.ts: 使用ensureWorkbenchReady
-  * trace-mode.spec.ts: 使用ensureWorkbenchReady
-  * approval-workflow.spec.ts: 所有6个测试使用ensureWorkbenchReady
-  * auth.spec.ts: 优化登出测试的等待逻辑
+- 改进waitForWorkbenchLayout函数
+  * 在调用getPageState之前先检查页面有效性
+  * 如果getPageState失败，提供更详细的诊断信息
+  * 在错误处理中添加页面有效性检查
 
-- 改进错误诊断
-  * 详细的页面状态信息
-  * API请求失败检测
-  * 项目数据验证
+- 改进ensureWorkbenchReady函数
+  * 在多个关键点添加页面有效性检查
+  * 在错误处理中添加更详细的诊断信息
+  * 包括API响应状态、项目数量、页面状态等
 
-这些改进解决了测试中超时和等待元素失败的问题，提供了更可靠的测试基础和更好的错误诊断。
+这些改进解决了测试中"无法获取页面内容"的问题：
+1. 页面有效性检测：在关键操作前检查页面是否有效
+2. 错误诊断增强：当page.content()失败时，提供更详细的诊断信息
+3. 容错性提升：即使无法获取页面内容，也能通过其他方法获取页面状态
+4. 错误信息完善：包含页面状态、API响应、项目数量等详细信息

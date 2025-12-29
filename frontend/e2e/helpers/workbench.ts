@@ -17,6 +17,74 @@ interface PageState {
 }
 
 /**
+ * 页面有效性信息
+ */
+interface PageValidity {
+  isValid: boolean;
+  isClosed: boolean;
+  url: string;
+  title: string;
+  error: string | null;
+}
+
+/**
+ * 检查页面是否仍然有效
+ * 用于诊断页面是否已关闭、导航到其他页面，或处于错误状态
+ */
+async function checkPageValidity(page: Page): Promise<PageValidity> {
+  let isValid = true;
+  let isClosed = false;
+  let url = '';
+  let title = '';
+  let error: string | null = null;
+  
+  try {
+    // 检查页面是否已关闭
+    isClosed = page.isClosed();
+    if (isClosed) {
+      isValid = false;
+      error = '页面已关闭';
+      return { isValid, isClosed, url, title, error };
+    }
+    
+    // 获取页面URL
+    try {
+      url = page.url();
+    } catch (e) {
+      isValid = false;
+      error = `无法获取页面URL: ${e instanceof Error ? e.message : String(e)}`;
+      return { isValid, isClosed, url, title, error };
+    }
+    
+    // 获取页面标题
+    try {
+      title = await page.title();
+    } catch (e) {
+      // 如果无法获取标题，记录警告但继续
+      title = '无法获取页面标题';
+      console.warn(`警告：无法获取页面标题: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    
+    // 尝试检查页面是否处于错误状态（通过检查是否有错误页面元素）
+    try {
+      const errorIndicator = await page.locator('text=/错误|Error|404|500/i').first().isVisible({ timeout: 1000 }).catch(() => false);
+      if (errorIndicator) {
+        const errorText = await page.locator('text=/错误|Error|404|500/i').first().textContent({ timeout: 1000 }).catch(() => '');
+        error = `页面可能处于错误状态: ${errorText}`;
+      }
+    } catch (e) {
+      // 忽略检查错误状态的异常
+    }
+    
+  } catch (e) {
+    isValid = false;
+    error = `检查页面有效性时出错: ${e instanceof Error ? e.message : String(e)}`;
+  }
+  
+  return { isValid, isClosed, url, title, error };
+}
+
+/**
  * 等待React完全渲染
  * 确保页面body元素存在且有内容，React已经完成hydration
  */
@@ -59,13 +127,58 @@ async function waitForReactRender(page: Page, timeout = 10000): Promise<void> {
  * 用于诊断页面处于哪种状态（加载中、选择项目、WorkbenchLayout）
  */
 async function getPageState(page: Page): Promise<PageState> {
+  // 先检查页面是否仍然有效
+  const validity = await checkPageValidity(page);
+  if (!validity.isValid) {
+    console.warn(`警告：页面无效 - ${validity.error || '未知错误'}`);
+    console.warn(`页面URL: ${validity.url || '无法获取'}`);
+    console.warn(`页面标题: ${validity.title || '无法获取'}`);
+  }
+  
   // 先等待React完全渲染
   await waitForReactRender(page, 5000).catch(() => {
     // 如果等待失败，记录警告但继续执行
     console.warn('警告：等待React渲染超时，继续检查页面状态');
   });
-  const pageContent = await page.content().catch(() => '无法获取页面内容');
-  const pageUrl = page.url();
+  
+  // 获取页面内容，如果失败则尝试其他方法
+  let pageContent = '无法获取页面内容';
+  let pageUrl = validity.url || '';
+  
+  try {
+    pageContent = await page.content();
+  } catch (e) {
+    // 如果page.content()失败，尝试使用其他方法获取页面信息
+    console.warn(`警告：无法通过page.content()获取页面内容: ${e instanceof Error ? e.message : String(e)}`);
+    
+    // 尝试使用page.evaluate()获取页面HTML
+    try {
+      pageContent = await page.evaluate(() => {
+        return document.documentElement.outerHTML;
+      });
+    } catch (e2) {
+      console.warn(`警告：无法通过page.evaluate()获取页面内容: ${e2 instanceof Error ? e2.message : String(e2)}`);
+      
+      // 如果都失败了，至少尝试获取页面URL和标题
+      try {
+        pageUrl = page.url();
+      } catch (e3) {
+        pageUrl = validity.url || '无法获取页面URL';
+      }
+      
+      // 构建一个包含可用信息的错误消息
+      pageContent = `无法获取页面内容。页面URL: ${pageUrl}。页面标题: ${validity.title || '无法获取'}。错误: ${e instanceof Error ? e.message : String(e)}`;
+    }
+  }
+  
+  // 如果pageUrl仍然为空，尝试获取
+  if (!pageUrl) {
+    try {
+      pageUrl = page.url();
+    } catch (e) {
+      pageUrl = validity.url || '无法获取页面URL';
+    }
+  }
   
   // 检查是否显示"加载项目列表..."
   const isLoadingText = page.locator('text=/加载项目列表/i').first();
@@ -236,15 +349,45 @@ export async function waitForWorkbenchLayout(page: Page): Promise<void> {
   }
   
   if (!toolbarFound) {
+    // 先检查页面是否仍然有效
+    const validity = await checkPageValidity(page);
+    if (!validity.isValid) {
+      throw new Error(
+        `WorkbenchLayout未渲染：页面无效。` +
+        `页面已关闭: ${validity.isClosed}。` +
+        `页面URL: ${validity.url || '无法获取'}。` +
+        `页面标题: ${validity.title || '无法获取'}。` +
+        `错误: ${validity.error || '未知错误'}。` +
+        `这可能是因为：1) 页面已关闭 2) 导航到其他页面 3) 页面处于错误状态`
+      );
+    }
+    
     // 如果工具栏没有出现，获取页面状态用于诊断
-    const pageState = await getPageState(page);
+    let pageState: PageState;
+    try {
+      pageState = await getPageState(page);
+    } catch (e) {
+      // 如果getPageState失败，提供基本的诊断信息
+      const url = validity.url || '无法获取页面URL';
+      const title = validity.title || '无法获取页面标题';
+      throw new Error(
+        `WorkbenchLayout未渲染：无法获取页面状态。` +
+        `页面URL: ${url}。` +
+        `页面标题: ${title}。` +
+        `错误: ${e instanceof Error ? e.message : String(e)}。` +
+        `这可能是因为：1) 页面已关闭 2) 页面处于错误状态 3) React渲染失败`
+      );
+    }
     
     if (pageState.isProjectSelection) {
+      const contentPreview = pageState.pageContent.length > 0 
+        ? pageState.pageContent.substring(0, 500) 
+        : '无法获取页面内容';
       throw new Error(
         `WorkbenchLayout未渲染：页面仍然显示"选择项目"界面。` +
         `这可能是因为：1) 项目选择失败 2) React状态更新延迟 3) 前端代码错误。` +
         `页面URL: ${pageState.pageUrl}。` +
-        `页面内容预览: ${pageState.pageContent.substring(0, 500)}`
+        `页面内容预览: ${contentPreview}`
       );
     }
     
@@ -260,14 +403,44 @@ export async function waitForWorkbenchLayout(page: Page): Promise<void> {
     console.warn('警告：工具栏未在预期时间内出现，尝试等待aside元素...');
     console.warn(`页面状态: isLoading=${pageState.isLoading}, isProjectSelection=${pageState.isProjectSelection}, isWorkbenchLayout=${pageState.isWorkbenchLayout}`);
     console.warn(`页面URL: ${pageState.pageUrl}`);
+    if (pageState.pageContent === '无法获取页面内容') {
+      console.warn(`警告：无法获取页面内容，页面可能处于异常状态`);
+    }
   }
   
   // 等待左侧边栏（aside）元素出现
   try {
     await page.waitForSelector('aside', { timeout: 15000 });
   } catch (e) {
+    // 先检查页面是否仍然有效
+    const validity = await checkPageValidity(page);
+    if (!validity.isValid) {
+      throw new Error(
+        `左侧边栏（aside）未渲染：页面无效。` +
+        `页面已关闭: ${validity.isClosed}。` +
+        `页面URL: ${validity.url || '无法获取'}。` +
+        `页面标题: ${validity.title || '无法获取'}。` +
+        `错误: ${validity.error || '未知错误'}。` +
+        (toolbarFound ? ' 工具栏已出现，但左侧边栏未出现。' : ' 工具栏也未出现。')
+      );
+    }
+    
     // 如果aside超时，获取详细的页面状态用于诊断
-    const pageState = await getPageState(page);
+    let pageState: PageState;
+    try {
+      pageState = await getPageState(page);
+    } catch (e2) {
+      // 如果getPageState失败，提供基本的诊断信息
+      const url = validity.url || '无法获取页面URL';
+      const title = validity.title || '无法获取页面标题';
+      throw new Error(
+        `左侧边栏（aside）未渲染：无法获取页面状态。` +
+        `页面URL: ${url}。` +
+        `页面标题: ${title}。` +
+        `错误: ${e2 instanceof Error ? e2.message : String(e2)}。` +
+        (toolbarFound ? ' 工具栏已出现，但左侧边栏未出现。' : ' 工具栏也未出现。')
+      );
+    }
     
     const errorParts: string[] = ['左侧边栏（aside）未渲染。'];
     
@@ -284,7 +457,14 @@ export async function waitForWorkbenchLayout(page: Page): Promise<void> {
     }
     
     errorParts.push(`页面URL: ${pageState.pageUrl}。`);
-    errorParts.push(`页面内容预览: ${pageState.pageContent.substring(0, 300)}。`);
+    
+    // 如果页面内容获取失败，提供更详细的错误信息
+    if (pageState.pageContent === '无法获取页面内容' || pageState.pageContent.includes('无法获取')) {
+      errorParts.push(`页面内容: ${pageState.pageContent}。`);
+      errorParts.push(`这可能是因为：1) 页面已关闭 2) 页面处于错误状态 3) React渲染失败`);
+    } else {
+      errorParts.push(`页面内容预览: ${pageState.pageContent.substring(0, 300)}。`);
+    }
     
     throw new Error(errorParts.join(' '));
   }
@@ -294,7 +474,34 @@ export async function waitForWorkbenchLayout(page: Page): Promise<void> {
   const isAsideVisible = await asideElement.isVisible({ timeout: 10000 }).catch(() => false);
   
   if (!isAsideVisible) {
-    const pageState = await getPageState(page);
+    // 先检查页面是否仍然有效
+    const validity = await checkPageValidity(page);
+    if (!validity.isValid) {
+      throw new Error(
+        `左侧边栏未渲染或不可见：页面无效。` +
+        `页面已关闭: ${validity.isClosed}。` +
+        `页面URL: ${validity.url || '无法获取'}。` +
+        `页面标题: ${validity.title || '无法获取'}。` +
+        `错误: ${validity.error || '未知错误'}。` +
+        `这可能是因为：1) 页面已关闭 2) 页面处于错误状态`
+      );
+    }
+    
+    let pageState: PageState;
+    try {
+      pageState = await getPageState(page);
+    } catch (e) {
+      // 如果getPageState失败，提供基本的诊断信息
+      const url = validity.url || '无法获取页面URL';
+      const title = validity.title || '无法获取页面标题';
+      throw new Error(
+        `左侧边栏未渲染或不可见：无法获取页面状态。` +
+        `页面URL: ${url}。` +
+        `页面标题: ${title}。` +
+        `错误: ${e instanceof Error ? e.message : String(e)}。` +
+        `这可能是因为：1) 左侧边栏被折叠 2) CSS样式问题 3) 渲染时序问题`
+      );
+    }
     
     const errorParts: string[] = ['左侧边栏未渲染或不可见。'];
     
@@ -307,6 +514,11 @@ export async function waitForWorkbenchLayout(page: Page): Promise<void> {
     
     errorParts.push('这可能是因为：1) 左侧边栏被折叠 2) CSS样式问题 3) 渲染时序问题。');
     errorParts.push(`页面URL: ${pageState.pageUrl}。`);
+    
+    // 如果页面内容获取失败，提供更详细的错误信息
+    if (pageState.pageContent === '无法获取页面内容' || pageState.pageContent.includes('无法获取')) {
+      errorParts.push(`页面内容: ${pageState.pageContent}。`);
+    }
     
     throw new Error(errorParts.join(' '));
   }
@@ -433,30 +645,91 @@ export async function ensureWorkbenchReady(
     }
   }
   
+  // 先检查页面是否仍然有效
+  const validity = await checkPageValidity(page);
+  if (!validity.isValid) {
+    throw new Error(
+      `无法准备Workbench页面：页面无效。` +
+      `页面已关闭: ${validity.isClosed}。` +
+      `页面URL: ${validity.url || '无法获取'}。` +
+      `页面标题: ${validity.title || '无法获取'}。` +
+      `错误: ${validity.error || '未知错误'}。` +
+      `项目数量: ${projectsCount}。` +
+      `这可能是因为：1) 页面已关闭 2) 页面处于错误状态 3) 导航失败`
+    );
+  }
+  
   // 获取页面状态
-  let pageState = await getPageState(page);
-  console.log(`页面状态: isLoading=${pageState.isLoading}, isProjectSelection=${pageState.isProjectSelection}, isWorkbenchLayout=${pageState.isWorkbenchLayout}`);
+  let pageState: PageState;
+  try {
+    pageState = await getPageState(page);
+    console.log(`页面状态: isLoading=${pageState.isLoading}, isProjectSelection=${pageState.isProjectSelection}, isWorkbenchLayout=${pageState.isWorkbenchLayout}`);
+  } catch (e) {
+    // 如果getPageState失败，提供基本的诊断信息
+    const url = validity.url || '无法获取页面URL';
+    const title = validity.title || '无法获取页面标题';
+    console.error(`错误：无法获取页面状态: ${e instanceof Error ? e.message : String(e)}`);
+    console.error(`页面URL: ${url}`);
+    console.error(`页面标题: ${title}`);
+    console.error(`项目数量: ${projectsCount}`);
+    throw new Error(
+      `无法准备Workbench页面：无法获取页面状态。` +
+      `页面URL: ${url}。` +
+      `页面标题: ${title}。` +
+      `项目数量: ${projectsCount}。` +
+      `错误: ${e instanceof Error ? e.message : String(e)}。` +
+      `这可能是因为：1) 页面已关闭 2) 页面处于错误状态 3) React渲染失败`
+    );
+  }
   
   // 选择项目（如果需要）
   const projectSelected = await selectProjectIfNeeded(page);
   
   // 如果selectProjectIfNeeded返回false，检查是否已经渲染了WorkbenchLayout
   if (!projectSelected) {
-    pageState = await getPageState(page);
-    if (pageState.isWorkbenchLayout) {
+    // 再次检查页面有效性
+    const validityAfterSelection = await checkPageValidity(page);
+    if (!validityAfterSelection.isValid) {
+      throw new Error(
+        `无法准备Workbench页面：项目选择后页面无效。` +
+        `页面已关闭: ${validityAfterSelection.isClosed}。` +
+        `页面URL: ${validityAfterSelection.url || '无法获取'}。` +
+        `错误: ${validityAfterSelection.error || '未知错误'}。` +
+        `项目数量: ${projectsCount}。`
+      );
+    }
+    
+    try {
+      pageState = await getPageState(page);
+    } catch (e) {
+      // 如果getPageState失败，提供基本的诊断信息
+      const url = validityAfterSelection.url || '无法获取页面URL';
+      const title = validityAfterSelection.title || '无法获取页面标题';
+      console.warn(`警告：无法获取页面状态: ${e instanceof Error ? e.message : String(e)}`);
+      console.warn(`页面URL: ${url}`);
+      console.warn(`项目数量: ${projectsCount}`);
+    }
+    
+    if (pageState && pageState.isWorkbenchLayout) {
       console.log('✓ WorkbenchLayout已渲染，跳过项目选择步骤');
-    } else if (pageState.isProjectSelection && projectsCount > 0) {
+    } else if (pageState && pageState.isProjectSelection && projectsCount > 0) {
       // 如果仍然显示"选择项目"界面，尝试再次选择
       console.log('检测到"选择项目"界面仍然显示，尝试再次选择项目...');
       const retrySelected = await selectProjectIfNeeded(page);
       if (!retrySelected) {
         console.warn('警告：重试选择项目失败，但继续尝试等待WorkbenchLayout渲染');
       }
-    } else if (!pageState.isProjectSelection && !pageState.isWorkbenchLayout) {
+    } else if (pageState && !pageState.isProjectSelection && !pageState.isWorkbenchLayout) {
       // 如果既不是"选择项目"界面，也不是WorkbenchLayout，记录诊断信息
       console.warn('警告：页面状态未知，既不是"选择项目"界面，也不是WorkbenchLayout');
       console.warn(`页面URL: ${pageState.pageUrl}`);
-      console.warn(`页面内容预览: ${pageState.pageContent.substring(0, 300)}`);
+      if (pageState.pageContent && pageState.pageContent !== '无法获取页面内容' && !pageState.pageContent.includes('无法获取')) {
+        console.warn(`页面内容预览: ${pageState.pageContent.substring(0, 300)}`);
+      } else {
+        console.warn(`页面内容: ${pageState.pageContent}`);
+      }
+      console.warn(`项目数量: ${projectsCount}`);
+      console.warn(`API响应状态: 成功（找到 ${projectsCount} 个项目）`);
     }
   }
   
@@ -481,9 +754,34 @@ export async function ensureWorkbenchReady(
       // 不抛出错误，让测试继续执行，测试用例本身会验证层级树是否可见
     }
   } catch (error) {
+    // 先检查页面是否仍然有效
+    const validity = await checkPageValidity(page);
+    if (!validity.isValid) {
+      throw new Error(
+        `层级树容器未加载（超时）：页面无效。` +
+        `页面已关闭: ${validity.isClosed}。` +
+        `页面URL: ${validity.url || '无法获取'}。` +
+        `页面标题: ${validity.title || '无法获取'}。` +
+        `错误: ${validity.error || '未知错误'}。` +
+        `项目数量: ${projectsCount}。` +
+        `请检查：1) 页面是否已关闭 2) 页面是否处于错误状态 3) 导航是否成功`
+      );
+    }
+    
     // 如果层级树容器都没有出现，提供详细诊断
-    const pageTitle = await page.title().catch(() => '未知');
-    const domDump = await page.content().catch(() => '无法获取DOM内容');
+    const pageTitle = await page.title().catch(() => validity.title || '未知');
+    let domDump = '无法获取DOM内容';
+    try {
+      domDump = await page.content();
+    } catch (e) {
+      // 如果page.content()失败，尝试使用page.evaluate()
+      try {
+        domDump = await page.evaluate(() => document.documentElement.outerHTML);
+      } catch (e2) {
+        domDump = `无法获取DOM内容: ${e instanceof Error ? e.message : String(e)}`;
+      }
+    }
+    
     const asideContent = await page.locator('aside').first().textContent().catch(() => null);
     const hasProjectSelection = domDump.includes('选择项目');
     const hasLoading = domDump.includes('加载项目列表');
@@ -493,6 +791,12 @@ export async function ensureWorkbenchReady(
     
     console.error('层级树容器未出现的诊断信息:');
     console.error('页面标题:', pageTitle);
+    console.error('页面URL:', validity.url || '无法获取');
+    console.error('页面是否有效:', validity.isValid);
+    console.error('页面是否已关闭:', validity.isClosed);
+    if (validity.error) {
+      console.error('页面错误:', validity.error);
+    }
     console.error('项目数量:', projectsCount);
     console.error('是否显示项目选择界面:', projectSelectionVisible);
     console.error('页面内容包含"选择项目":', hasProjectSelection);
@@ -514,13 +818,41 @@ export async function ensureWorkbenchReady(
       console.error('无法获取项目列表API响应:', e);
     }
     
-    throw new Error(
-      `层级树容器未加载（超时）。页面标题: ${pageTitle}。` +
-      `项目数量: ${projectsCount}。` +
-      (projectSelectionVisible ? ' 页面显示"选择项目"界面。' : '') +
-      (hasLoading ? ' 页面可能仍在加载。' : '') +
-      (failedRequestsArray.length > 0 ? `失败的API请求: ${failedRequestsArray.join(', ')}。` : '') +
-      `请检查：1) API是否正常响应 2) 测试环境是否有项目数据 3) 网络请求是否完成 4) projectId是否正确设置`
-    );
+    // 尝试获取页面状态
+    try {
+      const pageState = await getPageState(page);
+      console.error('页面状态:', {
+        isLoading: pageState.isLoading,
+        isProjectSelection: pageState.isProjectSelection,
+        isWorkbenchLayout: pageState.isWorkbenchLayout,
+        pageUrl: pageState.pageUrl,
+      });
+    } catch (e) {
+      console.error('无法获取页面状态:', e);
+    }
+    
+    const errorParts: string[] = [
+      `层级树容器未加载（超时）。`,
+      `页面标题: ${pageTitle}。`,
+      `页面URL: ${validity.url || '无法获取'}。`,
+      `项目数量: ${projectsCount}。`,
+    ];
+    
+    if (!validity.isValid) {
+      errorParts.push(`页面无效: ${validity.error || '未知错误'}。`);
+    }
+    if (projectSelectionVisible) {
+      errorParts.push('页面显示"选择项目"界面。');
+    }
+    if (hasLoading) {
+      errorParts.push('页面可能仍在加载。');
+    }
+    if (failedRequestsArray.length > 0) {
+      errorParts.push(`失败的API请求: ${failedRequestsArray.join(', ')}。`);
+    }
+    
+    errorParts.push(`请检查：1) API是否正常响应 2) 测试环境是否有项目数据 3) 网络请求是否完成 4) projectId是否正确设置 5) 页面是否已关闭或处于错误状态`);
+    
+    throw new Error(errorParts.join(' '));
   }
 }
